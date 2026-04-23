@@ -2,6 +2,8 @@
   "name": "loom",
   "private": true,
   "version": "0.1.0",
+  "description": "A fast, cross-platform Git GUI client for macOS and Windows, built with Tauri.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
