@@ -1,13 +1,7 @@
 import { Cloud, FolderGit2, GitBranch, GitCommitHorizontal, Plus, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import "./App.css";
 
@@ -24,8 +18,8 @@ function App() {
             Welcome to <span className="font-bold">Loom</span>
           </h1>
           <p className="max-w-xl text-balance text-muted-foreground">
-            A fast, native git client for macOS — built to make branching,
-            committing, and reviewing code feel effortless.
+            A fast, native git client for macOS — built to make branching, committing, and reviewing
+            code feel effortless.
           </p>
           <div className="mt-2 flex gap-2">
             <Button size="lg">
@@ -46,27 +40,21 @@ function App() {
             <CardHeader>
               <GitBranch className="h-5 w-5 text-muted-foreground" />
               <CardTitle className="mt-2">Visual branching</CardTitle>
-              <CardDescription>
-                See your branch graph the way you think about it.
-              </CardDescription>
+              <CardDescription>See your branch graph the way you think about it.</CardDescription>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader>
               <GitCommitHorizontal className="h-5 w-5 text-muted-foreground" />
               <CardTitle className="mt-2">Stage line by line</CardTitle>
-              <CardDescription>
-                Craft clean commits without leaving the diff.
-              </CardDescription>
+              <CardDescription>Craft clean commits without leaving the diff.</CardDescription>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader>
               <Cloud className="h-5 w-5 text-muted-foreground" />
               <CardTitle className="mt-2">GitHub native</CardTitle>
-              <CardDescription>
-                PRs, reviews, and checks — all in one place.
-              </CardDescription>
+              <CardDescription>PRs, reviews, and checks — all in one place.</CardDescription>
             </CardHeader>
           </Card>
         </section>
@@ -74,9 +62,7 @@ function App() {
         <Card>
           <CardHeader>
             <CardTitle>No recent repositories</CardTitle>
-            <CardDescription>
-              Open a local folder or clone a repo to get started.
-            </CardDescription>
+            <CardDescription>Open a local folder or clone a repo to get started.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
