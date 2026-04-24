@@ -46,18 +46,8 @@ function ImageDiff({ data }: { data: FileDiff }) {
   const newSrc = data.newImage ? `data:${mime};base64,${data.newImage}` : null;
   return (
     <div className="grid h-full grid-cols-2 gap-3 overflow-auto p-3">
-      <ImagePane
-        label="Before"
-        src={oldSrc}
-        size={data.oldSize}
-        dimensions={data.oldDimensions}
-      />
-      <ImagePane
-        label="After"
-        src={newSrc}
-        size={data.newSize}
-        dimensions={data.newDimensions}
-      />
+      <ImagePane label="Before" src={oldSrc} size={data.oldSize} dimensions={data.oldDimensions} />
+      <ImagePane label="After" src={newSrc} size={data.newSize} dimensions={data.newDimensions} />
     </div>
   );
 }
