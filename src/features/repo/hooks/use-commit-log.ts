@@ -1,18 +1,35 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { api } from "@/lib/tauri";
+
+const PAGE_SIZE = 200;
 
 export function useCommitLog(
   path: string | null,
   query: string | null = null,
-  limit = 500,
   allBranches = false,
 ) {
   const trimmed = query?.trim() ? query.trim() : null;
-  return useQuery({
-    queryKey: ["commit-log", path, limit, trimmed, allBranches],
+  const q = useInfiniteQuery({
+    queryKey: ["commit-log", path, PAGE_SIZE, trimmed, allBranches],
     enabled: !!path,
-    queryFn: () => api.commitLog(path as string, limit, 0, trimmed, allBranches),
-    // Keep prior results visible while the user is typing.
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      api.commitLog(path as string, PAGE_SIZE, pageParam, trimmed, allBranches),
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < PAGE_SIZE ? undefined : allPages.reduce((n, p) => n + p.length, 0),
     placeholderData: (prev) => prev,
   });
+
+  const data = useMemo(() => q.data?.pages.flat(), [q.data]);
+
+  return {
+    data,
+    isLoading: q.isLoading,
+    isFetching: q.isFetching,
+    error: q.error,
+    hasNextPage: q.hasNextPage,
+    isFetchingNextPage: q.isFetchingNextPage,
+    fetchNextPage: q.fetchNextPage,
+  };
 }

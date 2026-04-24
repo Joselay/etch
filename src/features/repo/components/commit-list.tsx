@@ -49,12 +49,8 @@ export function CommitList({ repoPath }: Props) {
   const { data: refs } = useRefs(repoPath);
   const currentBranch = refs?.headRef?.replace(/^refs\/heads\//, "") ?? null;
   const refsByCommit = useMemo(() => buildRefsByCommit(refs), [refs]);
-  const { data, isLoading, error, isFetching } = useCommitLog(
-    repoPath,
-    debouncedQuery,
-    500,
-    allBranches,
-  );
+  const { data, isLoading, error, isFetching, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useCommitLog(repoPath, debouncedQuery, allBranches);
   const parentRef = useRef<HTMLDivElement>(null);
   const selectedCommitId = useSelectionStore((s) => s.selectedCommitId);
   const selectCommit = useSelectionStore((s) => s.selectCommit);
@@ -101,6 +97,16 @@ export function CommitList({ repoPath }: Props) {
     estimateSize: () => ROW_HEIGHT,
     overscan: 12,
   });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const lastVisibleIndex = virtualItems.length ? virtualItems[virtualItems.length - 1].index : 0;
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage) return;
+    if (rows.length === 0) return;
+    if (lastVisibleIndex >= rows.length - 24) {
+      void fetchNextPage();
+    }
+  }, [lastVisibleIndex, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const searchBar = (
     <div className="flex items-center gap-2 border-b bg-background/95 p-2">
@@ -153,7 +159,9 @@ export function CommitList({ repoPath }: Props) {
       </div>
       {debouncedQuery && (
         <span className="text-xs text-muted-foreground">
-          {isFetching ? "Searching…" : `${rows.length} match${rows.length === 1 ? "" : "es"}`}
+          {isFetching && !isFetchingNextPage
+            ? "Searching…"
+            : `${rows.length}${hasNextPage ? "+" : ""} match${rows.length === 1 ? "" : "es"}`}
         </span>
       )}
     </div>
@@ -199,7 +207,7 @@ export function CommitList({ repoPath }: Props) {
       {searchBar}
       <div ref={parentRef} className="flex-1 overflow-auto">
         <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
-          {virtualizer.getVirtualItems().map((v) => {
+          {virtualItems.map((v) => {
             const c = rows[v.index];
             const g = graph.rows[v.index];
             const isSelected = c.id === selectedCommitId;
@@ -277,6 +285,9 @@ export function CommitList({ repoPath }: Props) {
             );
           })}
         </div>
+        {isFetchingNextPage && (
+          <div className="p-2 text-center text-muted-foreground text-xs">Loading more…</div>
+        )}
       </div>
       <ResetHardConfirmDialog
         repoPath={repoPath}
