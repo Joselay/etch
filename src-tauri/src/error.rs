@@ -12,6 +12,9 @@ pub enum AppError {
     #[error("auth error: {0}")]
     Auth(String),
 
+    #[error("keychain error: {0}")]
+    Keychain(String),
+
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 

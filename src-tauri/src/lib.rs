@@ -23,6 +23,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(WatcherState::default())
+        .setup(|app| {
+            settings::init(app)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             cmd_open_repo,
             cmd_commit_log,
