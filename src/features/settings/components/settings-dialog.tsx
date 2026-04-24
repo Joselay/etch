@@ -1,5 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Check, ExternalLink, Trash2 } from "lucide-react";
+import { Check, ExternalLink, Monitor, Moon, Sun, Trash2 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProviderToken } from "@/lib/tauri";
@@ -40,6 +42,13 @@ export function SettingsDialog() {
             keychain.
           </DialogDescription>
         </DialogHeader>
+
+        <section className="flex flex-col gap-3">
+          <h3 className="text-sm font-semibold">Appearance</h3>
+          <AppearanceSection />
+        </section>
+
+        <Separator />
 
         <section className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold">Git identity</h3>
@@ -71,6 +80,37 @@ export function SettingsDialog() {
         </section>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const THEME_OPTIONS = [
+  { value: "system", label: "System", Icon: Monitor },
+  { value: "light", label: "Light", Icon: Sun },
+  { value: "dark", label: "Dark", Icon: Moon },
+] as const;
+
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <RadioGroup
+      value={theme ?? "system"}
+      onValueChange={setTheme}
+      className="grid grid-cols-3 gap-2"
+    >
+      {THEME_OPTIONS.map(({ value, label, Icon }) => (
+        <Label
+          key={value}
+          htmlFor={`theme-${value}`}
+          className="flex cursor-pointer items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm font-normal hover:bg-accent has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-accent"
+        >
+          <span className="flex items-center gap-2">
+            <Icon className="h-4 w-4" />
+            {label}
+          </span>
+          <RadioGroupItem id={`theme-${value}`} value={value} />
+        </Label>
+      ))}
+    </RadioGroup>
   );
 }
 

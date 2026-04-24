@@ -1,5 +1,6 @@
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { ThemeProvider } from "next-themes";
 import { useCallback, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -70,24 +71,26 @@ function AppInner() {
 
 function App() {
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{
-        persister,
-        buster: CACHE_BUSTER,
-        maxAge: 1000 * 60 * 60 * 24 * 7,
-        dehydrateOptions: {
-          shouldDehydrateQuery: (q) =>
-            q.state.status === "success" && shouldPersistQuery(q.queryKey),
-        },
-      }}
-    >
-      <TooltipProvider delayDuration={200}>
-        <AppInner />
-        <SettingsDialog />
-        <Toaster />
-      </TooltipProvider>
-    </PersistQueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister,
+          buster: CACHE_BUSTER,
+          maxAge: 1000 * 60 * 60 * 24 * 7,
+          dehydrateOptions: {
+            shouldDehydrateQuery: (q) =>
+              q.state.status === "success" && shouldPersistQuery(q.queryKey),
+          },
+        }}
+      >
+        <TooltipProvider delayDuration={200}>
+          <AppInner />
+          <SettingsDialog />
+          <Toaster />
+        </TooltipProvider>
+      </PersistQueryClientProvider>
+    </ThemeProvider>
   );
 }
 
