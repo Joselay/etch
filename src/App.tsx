@@ -12,6 +12,7 @@ import { useOpenRepo } from "@/features/repo/hooks/use-open-repo";
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
 import { useGlobalRefresh } from "@/hooks/use-global-refresh";
 import { useMenuEvents } from "@/hooks/use-menu-events";
+import { useThemeShortcut } from "@/hooks/use-theme-shortcut";
 import { onMenuEvent } from "@/lib/menu-events";
 import { persister, queryClient, shouldPersistQuery } from "@/lib/query-client";
 import { useRepoStore } from "@/stores/repo-store";
@@ -30,6 +31,7 @@ function AppInner() {
 
   useGlobalRefresh();
   useMenuEvents();
+  useThemeShortcut();
 
   const { pickAndOpen } = useOpenRepo();
   const { initAt } = useInitRepo();
