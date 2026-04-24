@@ -15,6 +15,8 @@ export function useRepoWatcher(repoPath: string | null) {
       qc.invalidateQueries({ queryKey: ["working-diff", repoPath] });
       qc.invalidateQueries({ queryKey: ["repo-state", repoPath] });
       qc.invalidateQueries({ queryKey: ["stashes", repoPath] });
+      qc.invalidateQueries({ queryKey: ["conflicts", repoPath] });
+      qc.invalidateQueries({ queryKey: ["conflict-sides", repoPath] });
     });
     return () => {
       unlistenPromise.then((fn) => fn());

@@ -1,9 +1,11 @@
 pub mod blame;
 pub mod branch;
 pub mod cli;
+pub mod conflict;
 pub mod diff;
 pub mod identity;
 pub mod log;
+pub mod rebase;
 pub mod refs;
 pub mod remote;
 pub mod repo;

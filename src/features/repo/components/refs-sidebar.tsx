@@ -20,15 +20,21 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
-import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCheckout, useCheckoutTracking, useMerge } from "../hooks/use-branch-mutations";
+import { cn } from "@/lib/utils";
+import {
+  useCheckout,
+  useCheckoutTracking,
+  useMerge,
+  useStartRebase,
+} from "../hooks/use-branch-mutations";
 import { useRefs } from "../hooks/use-refs";
 import { useApplyStash, useDropStash, usePopStash, useStashes } from "../hooks/use-stash";
 import { useDeleteTag, usePushTag } from "../hooks/use-tag-mutations";
 import { CreateBranchDialog } from "./create-branch-dialog";
 import { DeleteBranchDialog } from "./delete-branch-dialog";
+import { RebasePlannerDialog } from "./rebase-planner-dialog";
 import { RemotesDialog } from "./remotes-dialog";
 import { RenameBranchDialog } from "./rename-branch-dialog";
 import { StashCreateDialog } from "./stash-create-dialog";
@@ -47,6 +53,10 @@ export function RefsSidebar({ repoPath }: Props) {
   const [createState, setCreateState] = useState<CreateState>({ open: false, startPoint: null });
   const [renameState, setRenameState] = useState<BranchDialogState>({ open: false, name: "" });
   const [deleteState, setDeleteState] = useState<BranchDialogState>({ open: false, name: "" });
+  const [plannerState, setPlannerState] = useState<{ open: boolean; onto: string }>({
+    open: false,
+    onto: "",
+  });
   const [stashOpen, setStashOpen] = useState(false);
   const [remotesOpen, setRemotesOpen] = useState(false);
   const [filter, setFilter] = useState("");
@@ -56,6 +66,7 @@ export function RefsSidebar({ repoPath }: Props) {
   const popStash = usePopStash(repoPath);
   const dropStash = useDropStash(repoPath);
   const merge = useMerge(repoPath);
+  const startRebase = useStartRebase(repoPath);
   const deleteTag = useDeleteTag(repoPath);
   const pushTag = usePushTag(repoPath);
   const [tagDialog, setTagDialog] = useState<{
@@ -147,7 +158,7 @@ export function RefsSidebar({ repoPath }: Props) {
           </div>
         </div>
         <ScrollArea className="flex-1">
-          <div className="flex flex-col gap-1 p-2">
+          <div className="flex flex-col gap-1 px-1 py-2">
             {needle && !hasAnyMatch && (
               <div className="px-2 py-4 text-center text-xs text-muted-foreground">
                 No refs match “{filter}”.
@@ -176,7 +187,7 @@ export function RefsSidebar({ repoPath }: Props) {
                   {needle ? "No matches" : "No local branches"}
                 </div>
               ) : (
-                <ItemGroup>
+                <div className="flex flex-col">
                   {localBranches.map((b) => (
                     <ContextMenu key={b.fullName}>
                       <ContextMenuTrigger asChild>
@@ -208,6 +219,18 @@ export function RefsSidebar({ repoPath }: Props) {
                           Merge into current
                         </ContextMenuItem>
                         <ContextMenuItem
+                          disabled={b.isHead}
+                          onSelect={() => startRebase.mutate({ onto: b.name })}
+                        >
+                          Rebase current onto this
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          disabled={b.isHead}
+                          onSelect={() => setPlannerState({ open: true, onto: b.name })}
+                        >
+                          Rebase interactive onto this…
+                        </ContextMenuItem>
+                        <ContextMenuItem
                           onSelect={() => setTagDialog({ open: true, target: b.name })}
                         >
                           New tag here…
@@ -228,7 +251,7 @@ export function RefsSidebar({ repoPath }: Props) {
                       </ContextMenuContent>
                     </ContextMenu>
                   ))}
-                </ItemGroup>
+                </div>
               )}
             </Section>
 
@@ -256,11 +279,11 @@ export function RefsSidebar({ repoPath }: Props) {
                 </div>
               ) : (
                 [...remoteGroups.entries()].map(([remote, branches]) => (
-                  <div key={remote} className="flex flex-col gap-0.5">
-                    <div className="px-2 pt-1 text-xs font-medium text-muted-foreground">
+                  <div key={remote} className="flex flex-col">
+                    <div className="px-3 pt-1.5 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
                       {remote}
                     </div>
-                    <ItemGroup>
+                    <div className="flex flex-col">
                       {branches.map((b) => {
                         const upstream = `${b.remote}/${b.name}`;
                         const hasLocal = localBranchNames.has(b.name);
@@ -288,11 +311,21 @@ export function RefsSidebar({ repoPath }: Props) {
                               >
                                 New branch from here…
                               </ContextMenuItem>
+                              <ContextMenuItem
+                                onSelect={() => startRebase.mutate({ onto: upstream })}
+                              >
+                                Rebase current onto this
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                onSelect={() => setPlannerState({ open: true, onto: upstream })}
+                              >
+                                Rebase interactive onto this…
+                              </ContextMenuItem>
                             </ContextMenuContent>
                           </ContextMenu>
                         );
                       })}
-                    </ItemGroup>
+                    </div>
                   </div>
                 ))
               )}
@@ -321,7 +354,7 @@ export function RefsSidebar({ repoPath }: Props) {
                   {needle ? "No matches" : "No tags"}
                 </div>
               ) : (
-                <ItemGroup>
+                <div className="flex flex-col">
                   {filteredTags.map((t) => (
                     <ContextMenu key={t.fullName}>
                       <ContextMenuTrigger asChild>
@@ -354,7 +387,7 @@ export function RefsSidebar({ repoPath }: Props) {
                       </ContextMenuContent>
                     </ContextMenu>
                   ))}
-                </ItemGroup>
+                </div>
               )}
             </Section>
 
@@ -381,7 +414,7 @@ export function RefsSidebar({ repoPath }: Props) {
                   {needle ? "No matches" : "No stashes"}
                 </div>
               ) : (
-                <ItemGroup>
+                <div className="flex flex-col">
                   {filteredStashes.map((s) => (
                     <ContextMenu key={s.refName}>
                       <ContextMenuTrigger asChild>
@@ -407,7 +440,7 @@ export function RefsSidebar({ repoPath }: Props) {
                       </ContextMenuContent>
                     </ContextMenu>
                   ))}
-                </ItemGroup>
+                </div>
               )}
             </Section>
           </div>
@@ -440,6 +473,13 @@ export function RefsSidebar({ repoPath }: Props) {
         onOpenChange={(o) => setTagDialog((s) => ({ ...s, open: o }))}
       />
       <RemotesDialog repoPath={repoPath} open={remotesOpen} onOpenChange={setRemotesOpen} />
+      <RebasePlannerDialog
+        repoPath={repoPath}
+        open={plannerState.open}
+        onOpenChange={(o) => setPlannerState((s) => ({ ...s, open: o }))}
+        from="HEAD"
+        onto={plannerState.onto}
+      />
     </>
   );
 }
@@ -456,44 +496,47 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Collapsible defaultOpen className="flex flex-col gap-1">
+    <Collapsible defaultOpen className="flex flex-col">
       <div className="flex items-center justify-between pr-1">
-        <CollapsibleTrigger className="group flex flex-1 items-center gap-1.5 rounded px-1.5 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/60">
+        <CollapsibleTrigger className="group flex flex-1 items-center gap-1.5 rounded px-1.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/60">
           <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
           {icon}
           {title}
         </CollapsibleTrigger>
         {action}
       </div>
-      <CollapsibleContent className="flex flex-col gap-1">{children}</CollapsibleContent>
+      <CollapsibleContent className="flex flex-col">{children}</CollapsibleContent>
     </Collapsible>
   );
 }
 
-function RefItem({
-  icon,
-  label,
-  emphasized,
-  onDoubleClick,
-}: {
+type RefItemProps = React.HTMLAttributes<HTMLDivElement> & {
   icon?: React.ReactNode;
   label: string;
   emphasized?: boolean;
-  onDoubleClick?: () => void;
-}) {
+  ref?: React.Ref<HTMLDivElement>;
+};
+
+function RefItem({ icon, label, emphasized, ref, className, ...rest }: RefItemProps) {
   return (
-    <Item
-      size="sm"
-      variant="muted"
-      className="cursor-default rounded-sm border-0 bg-transparent px-2 py-1"
-      onDoubleClick={onDoubleClick}
+    <div
+      ref={ref}
+      className={cn(
+        "group flex h-7 cursor-default select-none items-center gap-2 rounded-sm px-2.5 text-sm",
+        "hover:bg-accent hover:text-accent-foreground",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        emphasized && "font-medium text-foreground",
+        !emphasized && "text-foreground/85",
+        className,
+      )}
+      {...rest}
     >
-      <ItemMedia className="w-3">{icon}</ItemMedia>
-      <ItemContent>
-        <ItemTitle className={emphasized ? "text-sm font-medium" : "text-sm font-normal"}>
-          {label}
-        </ItemTitle>
-      </ItemContent>
-    </Item>
+      <span className="flex w-3.5 shrink-0 items-center justify-center text-muted-foreground">
+        {icon}
+      </span>
+      <span className="truncate" title={label}>
+        {label}
+      </span>
+    </div>
   );
 }

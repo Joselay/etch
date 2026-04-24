@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, type ResetMode, toastGitError } from "@/lib/tauri";
+import { api, type ResetMode, type TodoEntry, toastGitError } from "@/lib/tauri";
 
 function invalidateRepo(qc: ReturnType<typeof useQueryClient>, path: string) {
   qc.invalidateQueries({ queryKey: ["refs", path] });
@@ -8,6 +8,9 @@ function invalidateRepo(qc: ReturnType<typeof useQueryClient>, path: string) {
   qc.invalidateQueries({ queryKey: ["commit-log", path] });
   qc.invalidateQueries({ queryKey: ["upstream-status", path] });
   qc.invalidateQueries({ queryKey: ["repo", path] });
+  qc.invalidateQueries({ queryKey: ["repo-state", path] });
+  qc.invalidateQueries({ queryKey: ["conflicts", path] });
+  qc.invalidateQueries({ queryKey: ["working-diff", path] });
 }
 
 export function useCreateBranch(path: string) {
@@ -70,6 +73,32 @@ export function useMerge(path: string) {
     onSuccess: (_d, vars) => {
       invalidateRepo(qc, path);
       toast.success(`Merged ${vars.target}`);
+    },
+    onError: toastGitError,
+  });
+}
+
+export function useStartRebase(path: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { onto: string; upstream?: string | null }) =>
+      api.startRebase(path, vars.onto, vars.upstream ?? null),
+    onSuccess: (_d, vars) => {
+      invalidateRepo(qc, path);
+      toast.success(`Rebasing onto ${vars.onto}`);
+    },
+    onError: toastGitError,
+  });
+}
+
+export function useStartInteractiveRebase(path: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { onto: string; upstream: string; todo: TodoEntry[] }) =>
+      api.startInteractiveRebase(path, vars.onto, vars.upstream, vars.todo),
+    onSuccess: (_d, vars) => {
+      invalidateRepo(qc, path);
+      toast.success(`Rebasing onto ${vars.onto}`);
     },
     onError: toastGitError,
   });

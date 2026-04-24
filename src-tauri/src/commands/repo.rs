@@ -11,9 +11,17 @@ use crate::git::{
         ResetMode,
     },
     cli::run_git,
+    conflict::{
+        list_conflicts, mark_resolved, read_conflict_sides, resolve_with, resolve_with_content,
+        unmark, ConflictEntry, ConflictSides, ResolveSide,
+    },
     diff::{commit_changes, file_diff, working_diff, FileChange, FileDiff},
     identity::{read_identity, write_identity, Identity},
     log::{commit_log, commit_log_for_file, CommitSummary},
+    rebase::{
+        abort_rebase, continue_rebase, preview_todo, skip_rebase, start_interactive_rebase,
+        start_rebase, TodoEntry,
+    },
     refs::{list_refs, RefListing},
     remote::{
         add_remote, fetch, list_remotes, pull, push, remove_remote, rename_remote,
@@ -415,6 +423,75 @@ pub async fn cmd_push_tag(
     })
     .await
     .map_err(|e| AppError::Other(format!("join: {e}")))?
+}
+
+#[tauri::command]
+pub fn cmd_start_rebase(path: String, onto: String, upstream: Option<String>) -> AppResult<()> {
+    start_rebase(&PathBuf::from(path), &onto, upstream.as_deref())
+}
+
+#[tauri::command]
+pub fn cmd_continue_rebase(path: String) -> AppResult<()> {
+    continue_rebase(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_abort_rebase(path: String) -> AppResult<()> {
+    abort_rebase(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_skip_rebase(path: String) -> AppResult<()> {
+    skip_rebase(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_preview_rebase_todo(
+    path: String,
+    from: String,
+    onto: String,
+) -> AppResult<Vec<TodoEntry>> {
+    preview_todo(&PathBuf::from(path), &from, &onto)
+}
+
+#[tauri::command]
+pub fn cmd_start_interactive_rebase(
+    path: String,
+    onto: String,
+    upstream: String,
+    todo: Vec<TodoEntry>,
+) -> AppResult<()> {
+    start_interactive_rebase(&PathBuf::from(path), &onto, &upstream, &todo)
+}
+
+#[tauri::command]
+pub fn cmd_list_conflicts(path: String) -> AppResult<Vec<ConflictEntry>> {
+    list_conflicts(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_conflict_sides(path: String, file: String) -> AppResult<ConflictSides> {
+    read_conflict_sides(&PathBuf::from(path), &file)
+}
+
+#[tauri::command]
+pub fn cmd_resolve_with(path: String, file: String, side: ResolveSide) -> AppResult<()> {
+    resolve_with(&PathBuf::from(path), &file, side)
+}
+
+#[tauri::command]
+pub fn cmd_resolve_with_content(path: String, file: String, content: String) -> AppResult<()> {
+    resolve_with_content(&PathBuf::from(path), &file, &content)
+}
+
+#[tauri::command]
+pub fn cmd_mark_resolved(path: String, files: Vec<String>) -> AppResult<()> {
+    mark_resolved(&PathBuf::from(path), &files)
+}
+
+#[tauri::command]
+pub fn cmd_unmark_conflict(path: String, files: Vec<String>) -> AppResult<()> {
+    unmark(&PathBuf::from(path), &files)
 }
 
 #[tauri::command]

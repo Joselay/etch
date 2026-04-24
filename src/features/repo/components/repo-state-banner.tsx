@@ -1,43 +1,43 @@
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { RepoState } from "@/lib/tauri";
-import { useAbortOp, useContinueOp, useRepoState } from "../hooks/use-repo-state";
+import {
+  type SequencerOp,
+  useAbortOp,
+  useContinueOp,
+  useRepoState,
+  useSkipRebase,
+} from "../hooks/use-repo-state";
 
-type Op = "merge" | "revert" | "cherryPick";
-
-function activeOp(state: RepoState): Op | null {
+function activeOp(state: RepoState): SequencerOp | null {
   if (state.merging) return "merge";
   if (state.reverting) return "revert";
   if (state.cherryPicking) return "cherryPick";
+  if (state.rebasing) return "rebase";
   return null;
 }
 
-const opLabels: Record<Op, string> = {
-  merge: "Merge in progress",
-  revert: "Revert in progress",
-  cherryPick: "Cherry-pick in progress",
-};
+function opTitle(op: SequencerOp, state: RepoState): string {
+  if (op === "merge") return "Merge in progress";
+  if (op === "revert") return "Revert in progress";
+  if (op === "cherryPick") return "Cherry-pick in progress";
+  const r = state.rebase;
+  const branch = r?.headName?.replace(/^refs\/heads\//, "");
+  const step =
+    r?.currentStep != null && r.totalSteps != null ? ` (${r.currentStep}/${r.totalSteps})` : "";
+  return branch ? `Rebasing ${branch}${step}` : `Rebase in progress${step}`;
+}
 
 export function RepoStateBanner({ repoPath }: { repoPath: string }) {
   const { data } = useRepoState(repoPath);
   const abort = useAbortOp(repoPath);
   const cont = useContinueOp(repoPath);
+  const skip = useSkipRebase(repoPath);
 
   if (!data) return null;
   const op = activeOp(data);
 
-  // Rebase / bisect: we don't support continue yet, so just surface the state.
   if (!op) {
-    if (data.rebasing) {
-      return (
-        <InfoBar
-          tone="warning"
-          icon={<AlertTriangle className="h-4 w-4" />}
-          title="Rebase in progress"
-          description="Finish or abort the rebase from the terminal — Loom doesn't manage interactive rebase yet."
-        />
-      );
-    }
     if (data.bisecting) {
       return (
         <InfoBar
@@ -51,8 +51,13 @@ export function RepoStateBanner({ repoPath }: { repoPath: string }) {
     return null;
   }
 
-  const pending = abort.isPending || cont.isPending;
+  const pending = abort.isPending || cont.isPending || skip.isPending;
   const tone = data.hasConflicts ? "danger" : "warning";
+  const description = data.hasConflicts
+    ? "Resolve the conflicted files, stage them, then continue."
+    : op === "rebase"
+      ? "No conflicts — continue to apply the next step, or skip it."
+      : "Conflicts resolved. You can continue or abort.";
 
   return (
     <InfoBar
@@ -60,17 +65,24 @@ export function RepoStateBanner({ repoPath }: { repoPath: string }) {
       icon={
         data.hasConflicts ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />
       }
-      title={opLabels[op]}
-      description={
-        data.hasConflicts
-          ? "Resolve the conflicted files, stage them, then continue."
-          : "Conflicts resolved. You can continue or abort."
-      }
+      title={opTitle(op, data)}
+      description={description}
       actions={
         <>
           <Button size="sm" variant="outline" onClick={() => abort.mutate(op)} disabled={pending}>
             Abort
           </Button>
+          {op === "rebase" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => skip.mutate()}
+              disabled={pending}
+              title="Drop the current commit and move to the next step"
+            >
+              Skip
+            </Button>
+          )}
           <Button size="sm" onClick={() => cont.mutate(op)} disabled={pending || data.hasConflicts}>
             Continue
           </Button>

@@ -19,22 +19,26 @@ function invalidateEverything(qc: ReturnType<typeof useQueryClient>, path: strin
   qc.invalidateQueries({ queryKey: ["commit-log", path] });
   qc.invalidateQueries({ queryKey: ["upstream-status", path] });
   qc.invalidateQueries({ queryKey: ["working-diff", path] });
+  qc.invalidateQueries({ queryKey: ["conflicts", path] });
+  qc.invalidateQueries({ queryKey: ["conflict-sides", path] });
 }
 
-type Op = "merge" | "revert" | "cherryPick";
+export type SequencerOp = "merge" | "revert" | "cherryPick" | "rebase";
 
-const labels: Record<Op, { aborted: string; continued: string }> = {
+const labels: Record<SequencerOp, { aborted: string; continued: string }> = {
   merge: { aborted: "Aborted merge", continued: "Merge committed" },
   revert: { aborted: "Aborted revert", continued: "Revert committed" },
   cherryPick: { aborted: "Aborted cherry-pick", continued: "Cherry-pick committed" },
+  rebase: { aborted: "Aborted rebase", continued: "Rebase step applied" },
 };
 
 export function useAbortOp(path: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (op: Op) => {
+    mutationFn: (op: SequencerOp) => {
       if (op === "merge") return api.abortMerge(path);
       if (op === "revert") return api.abortRevert(path);
+      if (op === "rebase") return api.abortRebase(path);
       return api.abortCherryPick(path);
     },
     onSuccess: (_d, op) => {
@@ -48,14 +52,27 @@ export function useAbortOp(path: string) {
 export function useContinueOp(path: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (op: Op) => {
+    mutationFn: (op: SequencerOp) => {
       if (op === "revert") return api.continueRevert(path);
       if (op === "cherryPick") return api.continueCherryPick(path);
+      if (op === "rebase") return api.continueRebase(path);
       return api.continueMerge(path);
     },
     onSuccess: (_d, op) => {
       invalidateEverything(qc, path);
       toast.success(labels[op].continued);
+    },
+    onError: toastGitError,
+  });
+}
+
+export function useSkipRebase(path: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.skipRebase(path),
+    onSuccess: () => {
+      invalidateEverything(qc, path);
+      toast.success("Skipped rebase step");
     },
     onError: toastGitError,
   });

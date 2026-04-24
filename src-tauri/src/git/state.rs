@@ -7,6 +7,23 @@ use crate::git::cli::run_git;
 
 #[derive(Debug, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct RebaseDetail {
+    /// Branch being rebased, e.g. "refs/heads/topic".
+    pub head_name: Option<String>,
+    /// OID of the base commit (what HEAD is being replayed onto).
+    pub onto_oid: Option<String>,
+    /// OID of the branch tip before the rebase started.
+    pub orig_head: Option<String>,
+    /// 1-based index of the step currently being applied.
+    pub current_step: Option<u32>,
+    /// Total number of steps in the plan.
+    pub total_steps: Option<u32>,
+    /// True when the rebase is using the interactive ("merge") backend.
+    pub interactive: bool,
+}
+
+#[derive(Debug, Serialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct RepoState {
     pub merging: bool,
     pub reverting: bool,
@@ -14,6 +31,7 @@ pub struct RepoState {
     pub rebasing: bool,
     pub bisecting: bool,
     pub has_conflicts: bool,
+    pub rebase: Option<RebaseDetail>,
 }
 
 pub fn repo_state(repo: &Path) -> AppResult<RepoState> {
@@ -32,8 +50,18 @@ pub fn repo_state(repo: &Path) -> AppResult<RepoState> {
     let merging = git_dir.join("MERGE_HEAD").exists();
     let reverting = git_dir.join("REVERT_HEAD").exists();
     let cherry_picking = git_dir.join("CHERRY_PICK_HEAD").exists();
-    let rebasing = git_dir.join("rebase-merge").exists() || git_dir.join("rebase-apply").exists();
+    let rebase_merge = git_dir.join("rebase-merge");
+    let rebase_apply = git_dir.join("rebase-apply");
+    let rebasing = rebase_merge.exists() || rebase_apply.exists();
     let bisecting = git_dir.join("BISECT_LOG").exists();
+
+    let rebase = if rebase_merge.exists() {
+        Some(read_rebase_merge(&rebase_merge))
+    } else if rebase_apply.exists() {
+        Some(read_rebase_apply(&rebase_apply))
+    } else {
+        None
+    };
 
     // Cheap conflict check: `git diff --name-only --diff-filter=U` lists
     // unmerged paths. Empty output = no conflicts.
@@ -47,7 +75,38 @@ pub fn repo_state(repo: &Path) -> AppResult<RepoState> {
         rebasing,
         bisecting,
         has_conflicts,
+        rebase,
     })
+}
+
+fn read_trim(path: &Path) -> Option<String> {
+    std::fs::read_to_string(path).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+fn read_u32(path: &Path) -> Option<u32> {
+    read_trim(path).and_then(|s| s.parse().ok())
+}
+
+fn read_rebase_merge(dir: &Path) -> RebaseDetail {
+    RebaseDetail {
+        head_name: read_trim(&dir.join("head-name")),
+        onto_oid: read_trim(&dir.join("onto")),
+        orig_head: read_trim(&dir.join("orig-head")),
+        current_step: read_u32(&dir.join("msgnum")),
+        total_steps: read_u32(&dir.join("end")),
+        interactive: true,
+    }
+}
+
+fn read_rebase_apply(dir: &Path) -> RebaseDetail {
+    RebaseDetail {
+        head_name: read_trim(&dir.join("head-name")),
+        onto_oid: read_trim(&dir.join("onto")),
+        orig_head: read_trim(&dir.join("orig-head")),
+        current_step: read_u32(&dir.join("next")),
+        total_steps: read_u32(&dir.join("last")),
+        interactive: false,
+    }
 }
 
 /// After conflicts are resolved the user commits to finish a merge/revert/cherry-pick.

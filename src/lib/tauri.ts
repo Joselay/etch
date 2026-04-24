@@ -151,6 +151,49 @@ export type RemoteInfo = {
 
 export type ResetMode = "soft" | "mixed" | "hard";
 
+export type ConflictKind =
+  | "bothModified"
+  | "bothAdded"
+  | "bothDeleted"
+  | "deletedByUs"
+  | "deletedByThem"
+  | "addedByUs"
+  | "addedByThem"
+  | "unknown";
+
+export type ConflictEntry = {
+  path: string;
+  kind: ConflictKind;
+  code: string;
+};
+
+export type ConflictSides = {
+  path: string;
+  base: string | null;
+  ours: string | null;
+  theirs: string | null;
+  working: string | null;
+};
+
+export type ResolveSide = "ours" | "theirs";
+
+export type TodoAction = "pick" | "reword" | "edit" | "squash" | "fixup" | "drop";
+
+export type TodoEntry = {
+  action: TodoAction;
+  oid: string;
+  summary: string;
+};
+
+export type RebaseDetail = {
+  headName: string | null;
+  ontoOid: string | null;
+  origHead: string | null;
+  currentStep: number | null;
+  totalSteps: number | null;
+  interactive: boolean;
+};
+
 export type RepoState = {
   merging: boolean;
   reverting: boolean;
@@ -158,6 +201,7 @@ export type RepoState = {
   rebasing: boolean;
   bisecting: boolean;
   hasConflicts: boolean;
+  rebase: RebaseDetail | null;
 };
 
 // Matches the "auth error:" prefix produced by AppError::Auth's Display impl
@@ -210,6 +254,15 @@ export const api = {
   continueRevert: (path: string) => invoke<void>("cmd_continue_revert", { path }),
   continueCherryPick: (path: string) => invoke<void>("cmd_continue_cherry_pick", { path }),
   continueMerge: (path: string) => invoke<void>("cmd_continue_merge", { path }),
+  startRebase: (path: string, onto: string, upstream: string | null = null) =>
+    invoke<void>("cmd_start_rebase", { path, onto, upstream }),
+  continueRebase: (path: string) => invoke<void>("cmd_continue_rebase", { path }),
+  abortRebase: (path: string) => invoke<void>("cmd_abort_rebase", { path }),
+  skipRebase: (path: string) => invoke<void>("cmd_skip_rebase", { path }),
+  previewRebaseTodo: (path: string, from: string, onto: string) =>
+    invoke<TodoEntry[]>("cmd_preview_rebase_todo", { path, from, onto }),
+  startInteractiveRebase: (path: string, onto: string, upstream: string, todo: TodoEntry[]) =>
+    invoke<void>("cmd_start_interactive_rebase", { path, onto, upstream, todo }),
   repoState: (path: string) => invoke<RepoState>("cmd_repo_state", { path }),
   listRemotes: (path: string) => invoke<RemoteInfo[]>("cmd_list_remotes", { path }),
   addRemote: (path: string, name: string, url: string) =>
@@ -284,6 +337,17 @@ export const api = {
       setUpstream: opts.setUpstream ?? false,
       forceWithLease: opts.forceWithLease ?? false,
     }),
+  listConflicts: (path: string) => invoke<ConflictEntry[]>("cmd_list_conflicts", { path }),
+  conflictSides: (path: string, file: string) =>
+    invoke<ConflictSides>("cmd_conflict_sides", { path, file }),
+  resolveWith: (path: string, file: string, side: ResolveSide) =>
+    invoke<void>("cmd_resolve_with", { path, file, side }),
+  resolveWithContent: (path: string, file: string, content: string) =>
+    invoke<void>("cmd_resolve_with_content", { path, file, content }),
+  markResolved: (path: string, files: string[]) =>
+    invoke<void>("cmd_mark_resolved", { path, files }),
+  unmarkConflict: (path: string, files: string[]) =>
+    invoke<void>("cmd_unmark_conflict", { path, files }),
   remoteAuthors: (path: string) => invoke<RemoteAuthor[]>("cmd_remote_authors", { path }),
   listProviderTokens: () => invoke<ProviderToken[]>("cmd_list_provider_tokens"),
   setProviderToken: (host: string, token: string) =>

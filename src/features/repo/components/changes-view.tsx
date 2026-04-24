@@ -20,10 +20,12 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { buildHunkPatch } from "@/lib/patch";
-import type { FileDiff, StatusEntry } from "@/lib/tauri";
+import type { ConflictEntry, ConflictKind, FileDiff, StatusEntry } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
+import { useConflictActions, useConflicts } from "../hooks/use-conflicts";
 import { useCommit, useStageActions, useStatus, useWorkingDiff } from "../hooks/use-status";
+import { ConflictViewer } from "./conflict-viewer";
 import { DiffViewer, type HunkAction } from "./diff-viewer";
 import { FileRowContextMenu } from "./file-row-context-menu";
 import { FileTree, TreeIndentGuides, TreeLeafSpacer } from "./file-tree";
@@ -32,7 +34,9 @@ type Props = { repoPath: string };
 
 export function ChangesView({ repoPath }: Props) {
   const { data: status, isLoading } = useStatus(repoPath);
+  const { data: conflicts } = useConflicts(repoPath);
   const { stage, unstage, discard, applyPatch } = useStageActions(repoPath);
+  const conflictActions = useConflictActions(repoPath);
   const commit = useCommit(repoPath);
   const workingSide = useSelectionStore((s) => s.workingSide);
   const workingFilePath = useSelectionStore((s) => s.workingFilePath);
@@ -58,8 +62,13 @@ export function ChangesView({ repoPath }: Props) {
     else if (untrackedEntries.length > 0) selectWorkingFile("unstaged", untrackedEntries[0].path);
   }, [status, workingFilePath, staged, unstaged, untrackedEntries, selectWorkingFile]);
 
+  const conflictList = conflicts ?? [];
   const nothingToShow =
-    !isLoading && staged.length === 0 && unstaged.length === 0 && untracked.length === 0;
+    !isLoading &&
+    staged.length === 0 &&
+    unstaged.length === 0 &&
+    untracked.length === 0 &&
+    conflictList.length === 0;
 
   const canCommit = !commit.isPending && message.trim().length > 0 && (amend || staged.length > 0);
   const runCommit = () => {
@@ -95,6 +104,29 @@ export function ChangesView({ repoPath }: Props) {
               </Empty>
             ) : (
               <div className="flex flex-col">
+                <Group title="Conflicts" count={conflictList.length}>
+                  {conflictList.map((c) => (
+                    <ConflictRow
+                      key={`c-${c.path}`}
+                      repoPath={repoPath}
+                      entry={c}
+                      selected={workingSide === "unstaged" && workingFilePath === c.path}
+                      onSelect={() => selectWorkingFile("unstaged", c.path)}
+                      pending={
+                        conflictActions.resolveWith.isPending ||
+                        conflictActions.markResolved.isPending
+                      }
+                      onUseOurs={() =>
+                        conflictActions.resolveWith.mutate({ file: c.path, side: "ours" })
+                      }
+                      onUseTheirs={() =>
+                        conflictActions.resolveWith.mutate({ file: c.path, side: "theirs" })
+                      }
+                      onMarkResolved={() => conflictActions.markResolved.mutate([c.path])}
+                    />
+                  ))}
+                </Group>
+
                 <Group
                   title="Staged"
                   count={staged.length}
@@ -253,13 +285,21 @@ export function ChangesView({ repoPath }: Props) {
       <ResizablePanel id="loom:changes-diff" defaultSize="72%" minSize="30%">
         <section className="h-full min-w-0">
           {workingFilePath ? (
-            <WorkingDiffPane
-              repoPath={repoPath}
-              filePath={workingFilePath}
-              staged={workingSide === "staged"}
-              onApplyPatch={(vars) => applyPatch.mutate(vars)}
-              applyPatchPending={applyPatch.isPending}
-            />
+            (() => {
+              const conflict = conflictList.find((c) => c.path === workingFilePath);
+              if (conflict) {
+                return <ConflictViewer repoPath={repoPath} entry={conflict} />;
+              }
+              return (
+                <WorkingDiffPane
+                  repoPath={repoPath}
+                  filePath={workingFilePath}
+                  staged={workingSide === "staged"}
+                  onApplyPatch={(vars) => applyPatch.mutate(vars)}
+                  applyPatchPending={applyPatch.isPending}
+                />
+              );
+            })()
           ) : (
             <Empty className="h-full">
               <EmptyHeader>
@@ -385,6 +425,99 @@ function FileRow({
               }}
             >
               <span>{actionLabel}</span>
+            </Button>
+          </span>
+        </div>
+      </button>
+    </FileRowContextMenu>
+  );
+}
+
+const conflictKindLabel: Record<ConflictKind, string> = {
+  bothModified: "both modified",
+  bothAdded: "both added",
+  bothDeleted: "both deleted",
+  deletedByUs: "deleted by us",
+  deletedByThem: "deleted by them",
+  addedByUs: "added by us",
+  addedByThem: "added by them",
+  unknown: "conflict",
+};
+
+function ConflictRow({
+  repoPath,
+  entry,
+  selected,
+  onSelect,
+  pending,
+  onUseOurs,
+  onUseTheirs,
+  onMarkResolved,
+}: {
+  repoPath: string;
+  entry: ConflictEntry;
+  selected: boolean;
+  onSelect: () => void;
+  pending: boolean;
+  onUseOurs: () => void;
+  onUseTheirs: () => void;
+  onMarkResolved: () => void;
+}) {
+  return (
+    <FileRowContextMenu repoPath={repoPath} relPath={entry.path}>
+      <button
+        type="button"
+        onClick={onSelect}
+        data-selected={selected || undefined}
+        className={cn(
+          "group flex w-full min-w-0 cursor-pointer items-stretch text-left text-[13px]",
+          "hover:bg-muted/60",
+          "data-[selected]:bg-primary/10 data-[selected]:text-foreground",
+        )}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-2 pl-2">
+          <FileIcon path={entry.path} />
+          <span className="min-w-0 flex-1 truncate">{entry.path}</span>
+          <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-destructive">
+            {conflictKindLabel[entry.kind]}
+          </span>
+          <span className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs"
+              disabled={pending}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUseOurs();
+              }}
+            >
+              Use ours
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs"
+              disabled={pending}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUseTheirs();
+              }}
+            >
+              Use theirs
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs"
+              disabled={pending}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMarkResolved();
+              }}
+              title="Stage as-is"
+            >
+              Mark resolved
             </Button>
           </span>
         </div>
