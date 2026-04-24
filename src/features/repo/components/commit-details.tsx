@@ -45,7 +45,7 @@ export function CommitDetails({ repoPath }: Props) {
     <div className="flex h-full flex-col">
       {commit && <CommitHeader commit={commit} />}
       <div className="flex min-h-0 flex-1">
-        <aside className="w-64 shrink-0 border-r">
+        <aside className="w-72 shrink-0 border-r">
           <ScrollArea className="h-full">
             {isLoading ? (
               <div className="flex flex-col gap-1 p-2">

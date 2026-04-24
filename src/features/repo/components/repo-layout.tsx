@@ -1,4 +1,4 @@
-import { FolderGit2, History, Pencil, Settings, X } from "lucide-react";
+import { FolderGit2, History, PanelLeft, Pencil, Settings, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -26,6 +26,8 @@ export function RepoLayout() {
   const { data: status } = useStatus(activeRepo?.path ?? null);
   const remoteAuthorsValue = useRemoteAuthorsContextValue(activeRepo?.path ?? null);
   const openSettings = useUiStore((s) => s.openSettings);
+  const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
 
   if (!activeRepo) return null;
 
@@ -46,6 +48,14 @@ export function RepoLayout() {
       >
         <header className="flex items-center justify-between gap-3 border-b px-4 py-2">
           <div className="flex min-w-0 items-center gap-3">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
             <FolderGit2 className="h-4 w-4 text-muted-foreground" />
             <span className="truncate font-semibold">{name}</span>
             <BranchSwitcher repoPath={activeRepo.path} label={branchLabel} />
@@ -77,32 +87,53 @@ export function RepoLayout() {
         </header>
 
         <TabsContent value="history" className="m-0 flex-1 overflow-hidden">
-          <ResizablePanelGroup orientation="horizontal" className="h-full">
-            <ResizablePanel defaultSize={18} minSize={12}>
-              <aside className="h-full overflow-hidden border-r">
-                <RefsSidebar repoPath={activeRepo.path} />
-              </aside>
-            </ResizablePanel>
-            <ResizableHandle />
-            <ResizablePanel defaultSize={36} minSize={20}>
-              <CommitList repoPath={activeRepo.path} />
-            </ResizablePanel>
-            <ResizableHandle />
-            <ResizablePanel defaultSize={46} minSize={25}>
-              <CommitDetails repoPath={activeRepo.path} />
+          <ResizablePanelGroup id="loom:repo-outer:v3" orientation="horizontal" className="h-full">
+            {!sidebarCollapsed && (
+              <ResizablePanel id="loom:refs-sidebar" defaultSize="16%" minSize="10%" maxSize="22%">
+                <aside className="h-full overflow-hidden border-r">
+                  <RefsSidebar repoPath={activeRepo.path} />
+                </aside>
+              </ResizablePanel>
+            )}
+            {!sidebarCollapsed && <ResizableHandle withHandle />}
+            <ResizablePanel id="loom:main-history" defaultSize="84%" minSize="40%">
+              <ResizablePanelGroup
+                id="loom:repo-history:v3"
+                orientation="vertical"
+                className="h-full"
+              >
+                <ResizablePanel id="loom:commit-list" defaultSize="28%" minSize="15%">
+                  <CommitList repoPath={activeRepo.path} />
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+                <ResizablePanel id="loom:commit-details" defaultSize="72%" minSize="25%">
+                  <CommitDetails repoPath={activeRepo.path} />
+                </ResizablePanel>
+              </ResizablePanelGroup>
             </ResizablePanel>
           </ResizablePanelGroup>
         </TabsContent>
 
         <TabsContent value="changes" className="m-0 flex-1 overflow-hidden">
-          <ResizablePanelGroup orientation="horizontal" className="h-full">
-            <ResizablePanel defaultSize={18} minSize={12}>
-              <aside className="h-full overflow-hidden border-r">
-                <RefsSidebar repoPath={activeRepo.path} />
-              </aside>
-            </ResizablePanel>
-            <ResizableHandle />
-            <ResizablePanel defaultSize={82}>
+          <ResizablePanelGroup
+            id="loom:repo-outer-changes:v3"
+            orientation="horizontal"
+            className="h-full"
+          >
+            {!sidebarCollapsed && (
+              <ResizablePanel
+                id="loom:refs-sidebar-changes"
+                defaultSize="16%"
+                minSize="10%"
+                maxSize="22%"
+              >
+                <aside className="h-full overflow-hidden border-r">
+                  <RefsSidebar repoPath={activeRepo.path} />
+                </aside>
+              </ResizablePanel>
+            )}
+            {!sidebarCollapsed && <ResizableHandle withHandle />}
+            <ResizablePanel id="loom:main-changes" defaultSize="84%" minSize="40%">
               <ChangesView repoPath={activeRepo.path} />
             </ResizablePanel>
           </ResizablePanelGroup>
