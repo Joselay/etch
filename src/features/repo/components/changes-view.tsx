@@ -333,18 +333,11 @@ function FileRow({
       onClick={onSelect}
       data-selected={selected || undefined}
       className={cn(
-        "group relative flex w-full min-w-0 cursor-pointer items-stretch text-left text-[13px]",
+        "group flex w-full min-w-0 cursor-pointer items-stretch text-left text-[13px]",
         "hover:bg-muted/60",
         "data-[selected]:bg-primary/10 data-[selected]:text-foreground",
       )}
     >
-      <span
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute inset-y-0 left-0 w-[2px]",
-          selected ? "bg-primary" : "bg-transparent",
-        )}
-      />
       <TreeIndentGuides depth={depth} indentPx={indentPx} />
       <div className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-2">
         <TreeLeafSpacer />
