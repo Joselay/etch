@@ -1,3 +1,4 @@
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Cloud,
   FolderGit2,
@@ -6,9 +7,10 @@ import {
   Plus,
   Settings,
   Sparkles,
+  Workflow,
   X,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,14 +34,30 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useRepoStore } from "@/stores/repo-store";
 import { useUiStore } from "@/stores/ui-store";
+import { useCloneRepo, useInitRepo } from "../hooks/use-clone-repo";
 import { useOpenRepo } from "../hooks/use-open-repo";
+import { CloneDialog } from "./clone-dialog";
 
 export function WelcomeScreen() {
   const { pickAndOpen, openAt, isOpening, error } = useOpenRepo();
+  const { initAt, isInitializing } = useInitRepo();
+  const { isCloning } = useCloneRepo();
   const recents = useRepoStore((s) => s.recentRepos);
   const removeRecent = useRepoStore((s) => s.removeRecent);
   const hydrate = useRepoStore((s) => s.hydrate);
   const openSettings = useUiStore((s) => s.openSettings);
+  const [cloneOpen, setCloneOpen] = useState(false);
+
+  const pickAndInit = async () => {
+    const selected = await openDialog({ directory: true, multiple: false });
+    if (typeof selected === "string") {
+      try {
+        await initAt(selected);
+      } catch {
+        // toast already shown
+      }
+    }
+  };
 
   useEffect(() => {
     void hydrate();
@@ -65,14 +83,28 @@ export function WelcomeScreen() {
             A fast, native git client for macOS — built to make branching, committing, and reviewing
             code feel effortless.
           </p>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
             <Button size="lg" onClick={() => void pickAndOpen()} disabled={isOpening}>
               <FolderGit2 />
               {isOpening ? "Opening…" : "Open repository"}
             </Button>
-            <Button size="lg" variant="outline" disabled>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => setCloneOpen(true)}
+              disabled={isCloning}
+            >
               <Plus />
-              Clone from URL
+              {isCloning ? "Cloning…" : "Clone from URL"}
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => void pickAndInit()}
+              disabled={isInitializing}
+            >
+              <Workflow />
+              {isInitializing ? "Initializing…" : "New repository"}
             </Button>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -126,9 +158,14 @@ export function WelcomeScreen() {
                   <FolderGit2 />
                   Open local folder
                 </Button>
-                <Button variant="secondary" size="sm" disabled>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCloneOpen(true)}
+                  disabled={isCloning}
+                >
                   <Cloud />
-                  Sign in with GitHub
+                  Clone from URL
                 </Button>
               </div>
             </EmptyContent>
@@ -179,6 +216,7 @@ export function WelcomeScreen() {
           </Card>
         )}
       </div>
+      <CloneDialog open={cloneOpen} onOpenChange={setCloneOpen} />
     </main>
   );
 }

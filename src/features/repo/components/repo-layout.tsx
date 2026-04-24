@@ -17,6 +17,7 @@ import { CommitDetails } from "./commit-details";
 import { CommitList } from "./commit-list";
 import { RefsSidebar } from "./refs-sidebar";
 import { RemoteActions } from "./remote-actions";
+import { RepoStateBanner } from "./repo-state-banner";
 
 export function RepoLayout() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
@@ -89,6 +90,8 @@ export function RepoLayout() {
             </Button>
           </div>
         </header>
+
+        <RepoStateBanner repoPath={activeRepo.path} />
 
         <TabsContent value="history" className="m-0 flex-1 overflow-hidden">
           <ResizablePanelGroup id="loom:repo-outer:v3" orientation="horizontal" className="h-full">

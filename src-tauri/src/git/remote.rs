@@ -89,6 +89,91 @@ pub fn pull(repo: &Path, ff_only: bool) -> AppResult<()> {
     Ok(())
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteInfo {
+    pub name: String,
+    pub url: String,
+    pub push_url: Option<String>,
+}
+
+pub fn list_remotes(repo: &Path) -> AppResult<Vec<RemoteInfo>> {
+    // `git remote -v` prints two lines per remote: `<name>\t<url> (fetch|push)`.
+    // We collapse them; when fetch == push, `push_url` is None.
+    let out = run_git(repo, &["remote", "-v"])?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut map: std::collections::BTreeMap<String, (Option<String>, Option<String>)> =
+        std::collections::BTreeMap::new();
+    for line in text.lines() {
+        let mut cols = line.splitn(2, '\t');
+        let name = cols.next().unwrap_or("").to_string();
+        let rest = cols.next().unwrap_or("");
+        // rest: "<url> (fetch)" or "<url> (push)"
+        let (url, kind) = match rest.rsplit_once(' ') {
+            Some((u, k)) => (u.to_string(), k.trim_matches(|c| c == '(' || c == ')')),
+            None => (rest.to_string(), ""),
+        };
+        let entry = map.entry(name).or_default();
+        if kind == "push" {
+            entry.1 = Some(url);
+        } else {
+            entry.0 = Some(url);
+        }
+    }
+    let mut remotes = Vec::new();
+    for (name, (fetch, push)) in map {
+        let url = fetch.clone().or(push.clone()).unwrap_or_default();
+        let push_url = match (&fetch, &push) {
+            (Some(f), Some(p)) if f != p => Some(p.clone()),
+            _ => None,
+        };
+        remotes.push(RemoteInfo {
+            name,
+            url,
+            push_url,
+        });
+    }
+    Ok(remotes)
+}
+
+pub fn add_remote(repo: &Path, name: &str, url: &str) -> AppResult<()> {
+    validate_ref_arg(name, "remote")?;
+    if url.is_empty() || url.starts_with('-') {
+        return Err(AppError::Other(format!("invalid URL: {url}")));
+    }
+    run_git(repo, &["remote", "add", "--", name, url])?;
+    Ok(())
+}
+
+pub fn remove_remote(repo: &Path, name: &str) -> AppResult<()> {
+    validate_ref_arg(name, "remote")?;
+    run_git(repo, &["remote", "remove", "--", name])?;
+    Ok(())
+}
+
+pub fn rename_remote(repo: &Path, old: &str, new: &str) -> AppResult<()> {
+    validate_ref_arg(old, "remote")?;
+    validate_ref_arg(new, "remote")?;
+    run_git(repo, &["remote", "rename", "--", old, new])?;
+    Ok(())
+}
+
+pub fn set_remote_url(repo: &Path, name: &str, url: &str, push: bool) -> AppResult<()> {
+    validate_ref_arg(name, "remote")?;
+    if url.is_empty() || url.starts_with('-') {
+        return Err(AppError::Other(format!("invalid URL: {url}")));
+    }
+    let mut args: Vec<&str> = vec!["remote", "set-url"];
+    if push {
+        args.push("--push");
+    }
+    args.push("--");
+    args.push(name);
+    args.push(url);
+    run_git(repo, &args)?;
+    Ok(())
+}
+
 pub fn push(
     repo: &Path,
     remote: Option<&str>,
@@ -114,4 +199,50 @@ pub fn push(
     }
     run_git(repo, &args)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn init_tmp_repo() -> tempfile::TempDir {
+        let tmp = tempfile::tempdir().unwrap();
+        run_git(tmp.path(), &["init", "-q", "-b", "main"]).unwrap();
+        tmp
+    }
+
+    #[test]
+    fn add_list_rename_remove_cycle() {
+        let tmp = init_tmp_repo();
+        let p = tmp.path();
+        add_remote(p, "origin", "https://example.com/a.git").unwrap();
+        add_remote(p, "fork", "https://example.com/b.git").unwrap();
+        let remotes = list_remotes(p).unwrap();
+        assert_eq!(remotes.len(), 2);
+        assert!(remotes.iter().any(|r| r.name == "origin"));
+
+        rename_remote(p, "fork", "upstream").unwrap();
+        let names: Vec<_> = list_remotes(p).unwrap().into_iter().map(|r| r.name).collect();
+        assert!(names.contains(&"upstream".to_string()));
+        assert!(!names.contains(&"fork".to_string()));
+
+        set_remote_url(p, "origin", "https://example.com/c.git", false).unwrap();
+        let origin = list_remotes(p)
+            .unwrap()
+            .into_iter()
+            .find(|r| r.name == "origin")
+            .unwrap();
+        assert_eq!(origin.url, "https://example.com/c.git");
+
+        remove_remote(p, "origin").unwrap();
+        assert_eq!(list_remotes(p).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn remote_ops_reject_flag_injection() {
+        let tmp = init_tmp_repo();
+        assert!(add_remote(tmp.path(), "--evil", "https://x").is_err());
+        assert!(add_remote(tmp.path(), "origin", "--upload-pack=x").is_err());
+        assert!(rename_remote(tmp.path(), "--evil", "origin").is_err());
+    }
 }

@@ -4,15 +4,27 @@ use tauri::{AppHandle, State};
 
 use crate::error::{AppError, AppResult};
 use crate::git::{
-    branch::{checkout, checkout_tracking, create_branch, delete_branch, rename_branch},
+    blame::{blame, BlameLine},
+    branch::{
+        abort_cherry_pick, abort_merge, abort_revert, checkout, checkout_tracking,
+        cherry_pick, create_branch, delete_branch, merge, rename_branch, reset, revert,
+        ResetMode,
+    },
     cli::run_git,
     diff::{commit_changes, file_diff, working_diff, FileChange, FileDiff},
-    log::{commit_log, CommitSummary},
+    identity::{read_identity, write_identity, Identity},
+    log::{commit_log, commit_log_for_file, CommitSummary},
     refs::{list_refs, RefListing},
-    remote::{fetch, pull, push, upstream_status, UpstreamStatus},
-    repo::{open_repo, RepoInfo},
+    remote::{
+        add_remote, fetch, list_remotes, pull, push, remove_remote, rename_remote,
+        set_remote_url, upstream_status, RemoteInfo, UpstreamStatus,
+    },
+    repo::{clone_repo, init_repo, open_repo, RepoInfo},
     stage::{apply_patch, commit, discard_paths, stage_paths, unstage_paths, CommitResult},
+    stash::{apply_stash, create_stash, drop_stash, list_stashes, pop_stash, StashEntry},
+    state::{continue_cherry_pick, continue_merge, continue_revert, repo_state, RepoState},
     status::{status, RepoStatus},
+    tags::{create_tag, delete_tag, push_tag},
 };
 use crate::providers::{fetch_authors_for_remote, Author};
 use crate::watcher::{watch, WatcherState};
@@ -35,13 +47,39 @@ pub fn cmd_commit_log(
     path: String,
     limit: Option<usize>,
     skip: Option<usize>,
+    query: Option<String>,
 ) -> AppResult<Vec<CommitSummary>> {
-    commit_log(&PathBuf::from(path), limit.unwrap_or(200), skip.unwrap_or(0))
+    commit_log(
+        &PathBuf::from(path),
+        limit.unwrap_or(200),
+        skip.unwrap_or(0),
+        query.as_deref(),
+    )
 }
 
 #[tauri::command]
 pub fn cmd_list_refs(path: String) -> AppResult<RefListing> {
     list_refs(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_file_history(
+    path: String,
+    file: String,
+    limit: Option<usize>,
+    skip: Option<usize>,
+) -> AppResult<Vec<CommitSummary>> {
+    commit_log_for_file(
+        &PathBuf::from(path),
+        &file,
+        limit.unwrap_or(500),
+        skip.unwrap_or(0),
+    )
+}
+
+#[tauri::command]
+pub fn cmd_blame(path: String, file: String, rev: Option<String>) -> AppResult<Vec<BlameLine>> {
+    blame(&PathBuf::from(path), &file, rev.as_deref())
 }
 
 #[tauri::command]
@@ -165,6 +203,215 @@ pub async fn cmd_push(
             set_upstream,
             force_with_lease,
         )
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
+}
+
+#[tauri::command]
+pub async fn cmd_clone_repo(
+    app: AppHandle,
+    watcher: State<'_, WatcherState>,
+    url: String,
+    dest: String,
+) -> AppResult<RepoInfo> {
+    let dest_buf = PathBuf::from(&dest);
+    tauri::async_runtime::spawn_blocking(move || clone_repo(&url, &PathBuf::from(&dest)))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))??;
+    let info = open_repo(&dest_buf)?;
+    let watch_path = PathBuf::from(&info.path);
+    watch(app, &watcher, &watch_path).map_err(AppError::Other)?;
+    Ok(info)
+}
+
+#[tauri::command]
+pub fn cmd_init_repo(
+    app: AppHandle,
+    watcher: State<'_, WatcherState>,
+    path: String,
+) -> AppResult<RepoInfo> {
+    let buf = PathBuf::from(&path);
+    init_repo(&buf)?;
+    let info = open_repo(&buf)?;
+    let watch_path = PathBuf::from(&info.path);
+    watch(app, &watcher, &watch_path).map_err(AppError::Other)?;
+    Ok(info)
+}
+
+#[tauri::command]
+pub fn cmd_read_identity(path: Option<String>) -> AppResult<Identity> {
+    let repo = path.as_deref().map(PathBuf::from);
+    read_identity(repo.as_deref())
+}
+
+#[tauri::command]
+pub fn cmd_write_identity(
+    path: Option<String>,
+    name: Option<String>,
+    email: Option<String>,
+) -> AppResult<()> {
+    let repo = path.as_deref().map(PathBuf::from);
+    write_identity(repo.as_deref(), name.as_deref(), email.as_deref())
+}
+
+#[tauri::command]
+pub fn cmd_list_stashes(path: String) -> AppResult<Vec<StashEntry>> {
+    list_stashes(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_create_stash(
+    path: String,
+    message: Option<String>,
+    include_untracked: bool,
+    keep_index: bool,
+) -> AppResult<()> {
+    create_stash(
+        &PathBuf::from(path),
+        message.as_deref(),
+        include_untracked,
+        keep_index,
+    )
+}
+
+#[tauri::command]
+pub fn cmd_apply_stash(path: String, ref_name: String) -> AppResult<()> {
+    apply_stash(&PathBuf::from(path), &ref_name)
+}
+
+#[tauri::command]
+pub fn cmd_pop_stash(path: String, ref_name: String) -> AppResult<()> {
+    pop_stash(&PathBuf::from(path), &ref_name)
+}
+
+#[tauri::command]
+pub fn cmd_drop_stash(path: String, ref_name: String) -> AppResult<()> {
+    drop_stash(&PathBuf::from(path), &ref_name)
+}
+
+#[tauri::command]
+pub fn cmd_merge(path: String, target: String, no_ff: bool) -> AppResult<()> {
+    merge(&PathBuf::from(path), &target, no_ff)
+}
+
+#[tauri::command]
+pub fn cmd_revert(path: String, commit: String, no_edit: bool) -> AppResult<()> {
+    revert(&PathBuf::from(path), &commit, no_edit)
+}
+
+#[tauri::command]
+pub fn cmd_cherry_pick(path: String, commit: String) -> AppResult<()> {
+    cherry_pick(&PathBuf::from(path), &commit)
+}
+
+#[tauri::command]
+pub fn cmd_abort_merge(path: String) -> AppResult<()> {
+    abort_merge(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_abort_revert(path: String) -> AppResult<()> {
+    abort_revert(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_abort_cherry_pick(path: String) -> AppResult<()> {
+    abort_cherry_pick(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_create_tag(
+    path: String,
+    name: String,
+    message: Option<String>,
+    target: Option<String>,
+    force: bool,
+) -> AppResult<()> {
+    create_tag(
+        &PathBuf::from(path),
+        &name,
+        message.as_deref(),
+        target.as_deref(),
+        force,
+    )
+}
+
+#[tauri::command]
+pub fn cmd_delete_tag(path: String, name: String) -> AppResult<()> {
+    delete_tag(&PathBuf::from(path), &name)
+}
+
+#[tauri::command]
+pub fn cmd_repo_state(path: String) -> AppResult<RepoState> {
+    repo_state(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_continue_revert(path: String) -> AppResult<()> {
+    continue_revert(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_continue_cherry_pick(path: String) -> AppResult<()> {
+    continue_cherry_pick(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_continue_merge(path: String) -> AppResult<()> {
+    continue_merge(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_list_remotes(path: String) -> AppResult<Vec<RemoteInfo>> {
+    list_remotes(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_add_remote(path: String, name: String, url: String) -> AppResult<()> {
+    add_remote(&PathBuf::from(path), &name, &url)
+}
+
+#[tauri::command]
+pub fn cmd_remove_remote(path: String, name: String) -> AppResult<()> {
+    remove_remote(&PathBuf::from(path), &name)
+}
+
+#[tauri::command]
+pub fn cmd_rename_remote(path: String, old_name: String, new_name: String) -> AppResult<()> {
+    rename_remote(&PathBuf::from(path), &old_name, &new_name)
+}
+
+#[tauri::command]
+pub fn cmd_set_remote_url(
+    path: String,
+    name: String,
+    url: String,
+    push: bool,
+) -> AppResult<()> {
+    set_remote_url(&PathBuf::from(path), &name, &url, push)
+}
+
+#[tauri::command]
+pub fn cmd_reset(path: String, target: String, mode: String) -> AppResult<()> {
+    let m = match mode.as_str() {
+        "soft" => ResetMode::Soft,
+        "mixed" => ResetMode::Mixed,
+        "hard" => ResetMode::Hard,
+        other => return Err(AppError::Other(format!("invalid reset mode: {other}"))),
+    };
+    reset(&PathBuf::from(path), &target, m)
+}
+
+#[tauri::command]
+pub async fn cmd_push_tag(
+    path: String,
+    remote: String,
+    name: String,
+    delete: bool,
+) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        push_tag(&PathBuf::from(&path), &remote, &name, delete)
     })
     .await
     .map_err(|e| AppError::Other(format!("join: {e}")))?

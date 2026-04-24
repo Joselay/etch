@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Check, ExternalLink, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProviderToken } from "@/lib/tauri";
+import { useRepoStore } from "@/stores/repo-store";
 import { useUiStore } from "@/stores/ui-store";
+import { useGitIdentity, useWriteGitIdentity } from "../hooks/use-git-identity";
 import {
   useClearProviderToken,
   useProviderTokens,
@@ -26,6 +28,7 @@ export function SettingsDialog() {
   const open = useUiStore((s) => s.settingsOpen);
   const setOpen = useUiStore((s) => s.setSettingsOpen);
   const { data, isLoading } = useProviderTokens();
+  const activeRepo = useRepoStore((s) => s.activeRepo);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -33,10 +36,23 @@ export function SettingsDialog() {
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Personal access tokens are stored in your OS keychain. They unlock private-repo metadata
-            (avatars, author info) from forges like GitHub.
+            Manage your git identity and personal access tokens. Tokens are stored in your OS
+            keychain.
           </DialogDescription>
         </DialogHeader>
+
+        <section className="flex flex-col gap-3">
+          <h3 className="text-sm font-semibold">Git identity</h3>
+          <IdentitySection title="Global" repoPath={null} />
+          {activeRepo && (
+            <>
+              <Separator />
+              <IdentitySection title="This repository" repoPath={activeRepo.path} />
+            </>
+          )}
+        </section>
+
+        <Separator />
 
         <section className="flex flex-col gap-4">
           <h3 className="text-sm font-semibold">Providers</h3>
@@ -55,6 +71,71 @@ export function SettingsDialog() {
         </section>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function IdentitySection({ title, repoPath }: { title: string; repoPath: string | null }) {
+  const { data, isLoading } = useGitIdentity(repoPath);
+  const write = useWriteGitIdentity(repoPath);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+
+  useEffect(() => {
+    setName(data?.name ?? "");
+    setEmail(data?.email ?? "");
+  }, [data]);
+
+  const dirty = (data?.name ?? "") !== name || (data?.email ?? "") !== email;
+
+  const save = async () => {
+    // Empty string → unset that key (backend interprets empty as unset).
+    await write.mutateAsync({
+      name: name.trim() || (repoPath ? "" : null),
+      email: email.trim() || (repoPath ? "" : null),
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{title}</span>
+        {repoPath && (
+          <span className="truncate text-xs text-muted-foreground" title={repoPath}>
+            {repoPath.split(/[\\/]/).filter(Boolean).pop()}
+          </span>
+        )}
+      </div>
+      {isLoading ? (
+        <Skeleton className="h-16 w-full" />
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`identity-name-${repoPath ?? "global"}`}>Name</Label>
+            <Input
+              id={`identity-name-${repoPath ?? "global"}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={repoPath ? "(use global)" : "Your Name"}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`identity-email-${repoPath ?? "global"}`}>Email</Label>
+            <Input
+              id={`identity-email-${repoPath ?? "global"}`}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={repoPath ? "(use global)" : "you@example.com"}
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={save} disabled={!dirty || write.isPending}>
+              Save
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

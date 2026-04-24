@@ -1,8 +1,9 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
+use crate::git::cli::run_git_bare;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +50,49 @@ pub fn open_repo(path: &Path) -> AppResult<RepoInfo> {
     })
 }
 
+/// Initialize a new git repo at `path`. Creates the directory if it does not
+/// already exist. Uses `main` as the initial branch.
+pub fn init_repo(path: &Path) -> AppResult<PathBuf> {
+    std::fs::create_dir_all(path)?;
+    // Run `git init` inside the directory we just created, so a path starting
+    // with `-` can't be misread as a flag.
+    let out = std::process::Command::new("git")
+        .current_dir(path)
+        .args(["init", "-b", "main"])
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        return Err(AppError::Git(if stderr.is_empty() {
+            format!("git init failed with status {}", out.status)
+        } else {
+            stderr
+        }));
+    }
+    Ok(path.to_path_buf())
+}
+
+/// Clone `url` into `dest` (which must not already exist as a non-empty dir).
+/// Returns the resulting working directory path.
+pub fn clone_repo(url: &str, dest: &Path) -> AppResult<PathBuf> {
+    if url.trim().is_empty() {
+        return Err(AppError::Other("clone URL must not be empty".into()));
+    }
+    if url.starts_with('-') {
+        return Err(AppError::Other(format!("invalid clone URL: {url}")));
+    }
+    if let Some(parent) = dest.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    let dest_str = dest
+        .to_str()
+        .ok_or_else(|| AppError::Other("destination path is not valid UTF-8".into()))?;
+    run_git_bare(&["clone", "--progress", "--", url, dest_str])?;
+    Ok(dest.to_path_buf())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,5 +111,39 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let err = open_repo(tmp.path()).unwrap_err();
         assert!(matches!(err, AppError::RepoNotFound(_)));
+    }
+
+    #[test]
+    fn init_creates_repo() {
+        let tmp = tempfile::tempdir().unwrap();
+        let target = tmp.path().join("new");
+        init_repo(&target).unwrap();
+        let info = open_repo(&target).unwrap();
+        assert_eq!(info.head_ref.as_deref(), Some("refs/heads/main"));
+    }
+
+    #[test]
+    fn clone_rejects_flag_like_url() {
+        let tmp = tempfile::tempdir().unwrap();
+        let err = clone_repo("--upload-pack=evil", &tmp.path().join("x")).unwrap_err();
+        assert!(matches!(err, AppError::Other(_)));
+    }
+
+    #[test]
+    fn clone_local_repo() {
+        // Set up a source repo and clone it through our function.
+        let src = tempfile::tempdir().unwrap();
+        crate::git::cli::run_git(src.path(), &["init", "-q", "-b", "main"]).unwrap();
+        crate::git::cli::run_git(src.path(), &["config", "user.email", "t@t.com"]).unwrap();
+        crate::git::cli::run_git(src.path(), &["config", "user.name", "t"]).unwrap();
+        crate::git::cli::run_git(src.path(), &["config", "commit.gpgsign", "false"]).unwrap();
+        std::fs::write(src.path().join("a.txt"), "hi\n").unwrap();
+        crate::git::cli::run_git(src.path(), &["add", "a.txt"]).unwrap();
+        crate::git::cli::run_git(src.path(), &["commit", "-q", "-m", "init"]).unwrap();
+
+        let dst_parent = tempfile::tempdir().unwrap();
+        let dst = dst_parent.path().join("cloned");
+        clone_repo(src.path().to_str().unwrap(), &dst).unwrap();
+        assert!(dst.join(".git").exists());
     }
 }

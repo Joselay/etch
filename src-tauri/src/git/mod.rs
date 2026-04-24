@@ -1,9 +1,14 @@
+pub mod blame;
 pub mod branch;
 pub mod cli;
 pub mod diff;
+pub mod identity;
 pub mod log;
 pub mod refs;
 pub mod remote;
 pub mod repo;
 pub mod stage;
+pub mod stash;
+pub mod state;
 pub mod status;
+pub mod tags;

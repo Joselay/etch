@@ -1,4 +1,14 @@
-import { Check, ChevronRight, GitBranch, Plus, Search, Tag, X } from "lucide-react";
+import {
+  Archive,
+  Check,
+  ChevronRight,
+  GitBranch,
+  Plus,
+  Search,
+  Settings2,
+  Tag,
+  X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -13,11 +23,16 @@ import { Input } from "@/components/ui/input";
 import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCheckout, useCheckoutTracking } from "../hooks/use-branch-mutations";
+import { useCheckout, useCheckoutTracking, useMerge } from "../hooks/use-branch-mutations";
 import { useRefs } from "../hooks/use-refs";
+import { useApplyStash, useDropStash, usePopStash, useStashes } from "../hooks/use-stash";
+import { useDeleteTag, usePushTag } from "../hooks/use-tag-mutations";
 import { CreateBranchDialog } from "./create-branch-dialog";
 import { DeleteBranchDialog } from "./delete-branch-dialog";
+import { RemotesDialog } from "./remotes-dialog";
 import { RenameBranchDialog } from "./rename-branch-dialog";
+import { StashCreateDialog } from "./stash-create-dialog";
+import { TagCreateDialog } from "./tag-create-dialog";
 
 type Props = { repoPath: string };
 
@@ -32,9 +47,29 @@ export function RefsSidebar({ repoPath }: Props) {
   const [createState, setCreateState] = useState<CreateState>({ open: false, startPoint: null });
   const [renameState, setRenameState] = useState<BranchDialogState>({ open: false, name: "" });
   const [deleteState, setDeleteState] = useState<BranchDialogState>({ open: false, name: "" });
+  const [stashOpen, setStashOpen] = useState(false);
+  const [remotesOpen, setRemotesOpen] = useState(false);
   const [filter, setFilter] = useState("");
 
+  const stashes = useStashes(repoPath);
+  const applyStash = useApplyStash(repoPath);
+  const popStash = usePopStash(repoPath);
+  const dropStash = useDropStash(repoPath);
+  const merge = useMerge(repoPath);
+  const deleteTag = useDeleteTag(repoPath);
+  const pushTag = usePushTag(repoPath);
+  const [tagDialog, setTagDialog] = useState<{
+    open: boolean;
+    target: string | null;
+  }>({ open: false, target: null });
+
   const needle = filter.trim().toLowerCase();
+
+  const filteredStashes = useMemo(() => {
+    const list = stashes.data ?? [];
+    if (!needle) return list;
+    return list.filter((s) => s.message.toLowerCase().includes(needle));
+  }, [stashes.data, needle]);
 
   const localBranches = useMemo(() => {
     if (!data) return [];
@@ -80,7 +115,11 @@ export function RefsSidebar({ repoPath }: Props) {
   if (!data) return null;
 
   const localBranchNames = new Set(data.local.map((b) => b.name));
-  const hasAnyMatch = localBranches.length > 0 || remoteGroups.size > 0 || filteredTags.length > 0;
+  const hasAnyMatch =
+    localBranches.length > 0 ||
+    remoteGroups.size > 0 ||
+    filteredTags.length > 0 ||
+    filteredStashes.length > 0;
 
   return (
     <>
@@ -162,6 +201,17 @@ export function RefsSidebar({ repoPath }: Props) {
                         >
                           New branch from here
                         </ContextMenuItem>
+                        <ContextMenuItem
+                          disabled={b.isHead}
+                          onSelect={() => merge.mutate({ target: b.name })}
+                        >
+                          Merge into current
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() => setTagDialog({ open: true, target: b.name })}
+                        >
+                          New tag here…
+                        </ContextMenuItem>
                         <ContextMenuSeparator />
                         <ContextMenuItem
                           onSelect={() => setRenameState({ open: true, name: b.name })}
@@ -182,9 +232,30 @@ export function RefsSidebar({ repoPath }: Props) {
               )}
             </Section>
 
-            {remoteGroups.size > 0 && (
-              <Section title="Remotes" icon={<GitBranch className="h-3.5 w-3.5" />}>
-                {[...remoteGroups.entries()].map(([remote, branches]) => (
+            <Section
+              title="Remotes"
+              icon={<GitBranch className="h-3.5 w-3.5" />}
+              action={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-5 w-5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRemotesOpen(true);
+                  }}
+                  aria-label="Manage remotes"
+                >
+                  <Settings2 className="h-3 w-3" />
+                </Button>
+              }
+            >
+              {remoteGroups.size === 0 ? (
+                <div className="px-2 py-1 text-muted-foreground text-xs">
+                  {needle ? "No matches" : "No remotes"}
+                </div>
+              ) : (
+                [...remoteGroups.entries()].map(([remote, branches]) => (
                   <div key={remote} className="flex flex-col gap-0.5">
                     <div className="px-2 pt-1 text-xs font-medium text-muted-foreground">
                       {remote}
@@ -223,19 +294,122 @@ export function RefsSidebar({ repoPath }: Props) {
                       })}
                     </ItemGroup>
                   </div>
-                ))}
-              </Section>
-            )}
+                ))
+              )}
+            </Section>
 
-            {filteredTags.length > 0 && (
-              <Section title="Tags" icon={<Tag className="h-3.5 w-3.5" />}>
+            <Section
+              title="Tags"
+              icon={<Tag className="h-3.5 w-3.5" />}
+              action={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-5 w-5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTagDialog({ open: true, target: null });
+                  }}
+                  aria-label="New tag"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              }
+            >
+              {filteredTags.length === 0 ? (
+                <div className="px-2 py-1 text-xs text-muted-foreground">
+                  {needle ? "No matches" : "No tags"}
+                </div>
+              ) : (
                 <ItemGroup>
                   {filteredTags.map((t) => (
-                    <RefItem key={t.fullName} label={t.name} />
+                    <ContextMenu key={t.fullName}>
+                      <ContextMenuTrigger asChild>
+                        <RefItem label={t.name} />
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem
+                          onSelect={() => pushTag.mutate({ remote: "origin", name: t.name })}
+                        >
+                          Push to origin
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            pushTag.mutate({
+                              remote: "origin",
+                              name: t.name,
+                              deleteRemote: true,
+                            })
+                          }
+                        >
+                          Delete on origin
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          variant="destructive"
+                          onSelect={() => deleteTag.mutate(t.name)}
+                        >
+                          Delete locally
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   ))}
                 </ItemGroup>
-              </Section>
-            )}
+              )}
+            </Section>
+
+            <Section
+              title="Stashes"
+              icon={<Archive className="h-3.5 w-3.5" />}
+              action={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-5 w-5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStashOpen(true);
+                  }}
+                  aria-label="New stash"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              }
+            >
+              {filteredStashes.length === 0 ? (
+                <div className="px-2 py-1 text-xs text-muted-foreground">
+                  {needle ? "No matches" : "No stashes"}
+                </div>
+              ) : (
+                <ItemGroup>
+                  {filteredStashes.map((s) => (
+                    <ContextMenu key={s.refName}>
+                      <ContextMenuTrigger asChild>
+                        <RefItem
+                          label={s.message}
+                          onDoubleClick={() => applyStash.mutate(s.refName)}
+                        />
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem onSelect={() => applyStash.mutate(s.refName)}>
+                          Apply
+                        </ContextMenuItem>
+                        <ContextMenuItem onSelect={() => popStash.mutate(s.refName)}>
+                          Pop (apply and drop)
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          variant="destructive"
+                          onSelect={() => dropStash.mutate(s.refName)}
+                        >
+                          Drop
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
+                  ))}
+                </ItemGroup>
+              )}
+            </Section>
           </div>
         </ScrollArea>
       </div>
@@ -258,6 +432,14 @@ export function RefsSidebar({ repoPath }: Props) {
         onOpenChange={(o) => setDeleteState((s) => ({ ...s, open: o }))}
         branchName={deleteState.name}
       />
+      <StashCreateDialog repoPath={repoPath} open={stashOpen} onOpenChange={setStashOpen} />
+      <TagCreateDialog
+        repoPath={repoPath}
+        open={tagDialog.open}
+        target={tagDialog.target}
+        onOpenChange={(o) => setTagDialog((s) => ({ ...s, open: o }))}
+      />
+      <RemotesDialog repoPath={repoPath} open={remotesOpen} onOpenChange={setRemotesOpen} />
     </>
   );
 }

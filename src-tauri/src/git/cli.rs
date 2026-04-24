@@ -15,6 +15,20 @@ pub fn run_git(repo: &Path, args: &[&str]) -> AppResult<GitOutput> {
         .args(args)
         .output()
         .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
+    check(output)
+}
+
+/// Run `git` with no implicit `-C <repo>`. Use for operations that create a
+/// repo (clone, init) or that must succeed outside a working tree.
+pub fn run_git_bare(args: &[&str]) -> AppResult<GitOutput> {
+    let output = Command::new("git")
+        .args(args)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
+    check(output)
+}
+
+fn check(output: std::process::Output) -> AppResult<GitOutput> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(AppError::Git(if stderr.is_empty() {

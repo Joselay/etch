@@ -120,6 +120,46 @@ export type ProviderToken = {
   hasToken: boolean;
 };
 
+export type GitIdentity = {
+  name: string | null;
+  email: string | null;
+};
+
+export type StashEntry = {
+  refName: string;
+  index: number;
+  message: string;
+  branch: string | null;
+};
+
+export type BlameLine = {
+  commitId: string;
+  shortId: string;
+  authorName: string;
+  authorEmail: string;
+  authorTime: number;
+  summary: string;
+  lineNo: number;
+  content: string;
+};
+
+export type RemoteInfo = {
+  name: string;
+  url: string;
+  pushUrl: string | null;
+};
+
+export type ResetMode = "soft" | "mixed" | "hard";
+
+export type RepoState = {
+  merging: boolean;
+  reverting: boolean;
+  cherryPicking: boolean;
+  rebasing: boolean;
+  bisecting: boolean;
+  hasConflicts: boolean;
+};
+
 // Matches the "auth error:" prefix produced by AppError::Auth's Display impl
 // (src-tauri/src/error.rs). Keep in sync if that variant is renamed.
 export function isAuthError(err: unknown): boolean {
@@ -138,8 +178,65 @@ export function toastGitError(err: unknown) {
 
 export const api = {
   openRepo: (path: string) => invoke<RepoInfo>("cmd_open_repo", { path }),
-  commitLog: (path: string, limit = 200, skip = 0) =>
-    invoke<CommitSummary[]>("cmd_commit_log", { path, limit, skip }),
+  cloneRepo: (url: string, dest: string) => invoke<RepoInfo>("cmd_clone_repo", { url, dest }),
+  initRepo: (path: string) => invoke<RepoInfo>("cmd_init_repo", { path }),
+  readIdentity: (path: string | null = null) => invoke<GitIdentity>("cmd_read_identity", { path }),
+  writeIdentity: (path: string | null, name: string | null, email: string | null) =>
+    invoke<void>("cmd_write_identity", { path, name, email }),
+  listStashes: (path: string) => invoke<StashEntry[]>("cmd_list_stashes", { path }),
+  createStash: (
+    path: string,
+    message: string | null,
+    includeUntracked: boolean,
+    keepIndex: boolean,
+  ) =>
+    invoke<void>("cmd_create_stash", {
+      path,
+      message,
+      includeUntracked,
+      keepIndex,
+    }),
+  applyStash: (path: string, refName: string) => invoke<void>("cmd_apply_stash", { path, refName }),
+  popStash: (path: string, refName: string) => invoke<void>("cmd_pop_stash", { path, refName }),
+  dropStash: (path: string, refName: string) => invoke<void>("cmd_drop_stash", { path, refName }),
+  merge: (path: string, target: string, noFf: boolean) =>
+    invoke<void>("cmd_merge", { path, target, noFf }),
+  revert: (path: string, commit: string, noEdit = true) =>
+    invoke<void>("cmd_revert", { path, commit, noEdit }),
+  cherryPick: (path: string, commit: string) => invoke<void>("cmd_cherry_pick", { path, commit }),
+  abortMerge: (path: string) => invoke<void>("cmd_abort_merge", { path }),
+  abortRevert: (path: string) => invoke<void>("cmd_abort_revert", { path }),
+  abortCherryPick: (path: string) => invoke<void>("cmd_abort_cherry_pick", { path }),
+  continueRevert: (path: string) => invoke<void>("cmd_continue_revert", { path }),
+  continueCherryPick: (path: string) => invoke<void>("cmd_continue_cherry_pick", { path }),
+  continueMerge: (path: string) => invoke<void>("cmd_continue_merge", { path }),
+  repoState: (path: string) => invoke<RepoState>("cmd_repo_state", { path }),
+  listRemotes: (path: string) => invoke<RemoteInfo[]>("cmd_list_remotes", { path }),
+  addRemote: (path: string, name: string, url: string) =>
+    invoke<void>("cmd_add_remote", { path, name, url }),
+  removeRemote: (path: string, name: string) => invoke<void>("cmd_remove_remote", { path, name }),
+  renameRemote: (path: string, oldName: string, newName: string) =>
+    invoke<void>("cmd_rename_remote", { path, oldName, newName }),
+  setRemoteUrl: (path: string, name: string, url: string, push = false) =>
+    invoke<void>("cmd_set_remote_url", { path, name, url, push }),
+  reset: (path: string, target: string, mode: ResetMode) =>
+    invoke<void>("cmd_reset", { path, target, mode }),
+  createTag: (
+    path: string,
+    name: string,
+    message: string | null,
+    target: string | null,
+    force: boolean,
+  ) => invoke<void>("cmd_create_tag", { path, name, message, target, force }),
+  deleteTag: (path: string, name: string) => invoke<void>("cmd_delete_tag", { path, name }),
+  pushTag: (path: string, remote: string, name: string, deleteRemote: boolean) =>
+    invoke<void>("cmd_push_tag", { path, remote, name, delete: deleteRemote }),
+  commitLog: (path: string, limit = 200, skip = 0, query: string | null = null) =>
+    invoke<CommitSummary[]>("cmd_commit_log", { path, limit, skip, query }),
+  fileHistory: (path: string, file: string, limit = 500, skip = 0) =>
+    invoke<CommitSummary[]>("cmd_file_history", { path, file, limit, skip }),
+  blame: (path: string, file: string, rev: string | null = null) =>
+    invoke<BlameLine[]>("cmd_blame", { path, file, rev }),
   listRefs: (path: string) => invoke<RefListing>("cmd_list_refs", { path }),
   commitChanges: (path: string, commitId: string) =>
     invoke<FileChange[]>("cmd_commit_changes", { path, commitId }),
