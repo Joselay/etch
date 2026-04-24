@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use tauri::{AppHandle, State};
 
 use crate::error::{AppError, AppResult};
-use crate::watcher::{watch, WatcherState};
 use crate::git::{
     branch::{checkout, checkout_tracking, create_branch, delete_branch, rename_branch},
+    cli::run_git,
     diff::{commit_changes, file_diff, working_diff, FileChange, FileDiff},
     log::{commit_log, CommitSummary},
     refs::{list_refs, RefListing},
@@ -13,6 +13,8 @@ use crate::git::{
     stage::{commit, discard_paths, stage_paths, unstage_paths, CommitResult},
     status::{status, RepoStatus},
 };
+use crate::providers::{fetch_authors_for_remote, Author};
+use crate::watcher::{watch, WatcherState};
 
 #[tauri::command]
 pub fn cmd_open_repo(
@@ -113,4 +115,18 @@ pub fn cmd_rename_branch(
     force: bool,
 ) -> AppResult<()> {
     rename_branch(&PathBuf::from(path), &old_name, &new_name, force)
+}
+
+#[tauri::command]
+pub async fn cmd_remote_authors(path: String) -> AppResult<Vec<Author>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let out = run_git(&PathBuf::from(&path), &["config", "--get", "remote.origin.url"])?;
+        let remote = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if remote.is_empty() {
+            return Ok(Vec::new());
+        }
+        fetch_authors_for_remote(&remote)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }

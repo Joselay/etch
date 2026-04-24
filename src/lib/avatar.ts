@@ -1,6 +1,22 @@
 const hashCache = new Map<string, string>();
 const inflight = new Map<string, Promise<string>>();
 
+const GITHUB_NOREPLY_WITH_ID = /^(\d+)\+([^@]+)@users\.noreply\.github\.com$/i;
+const GITHUB_NOREPLY_PLAIN = /^([^@+]+)@users\.noreply\.github\.com$/i;
+
+export function githubNoreplyAvatar(email: string, pixelSize: number): string | null {
+  const normalized = email.trim().toLowerCase();
+  const withId = normalized.match(GITHUB_NOREPLY_WITH_ID);
+  if (withId) {
+    return `https://avatars.githubusercontent.com/u/${withId[1]}?s=${pixelSize}&v=4`;
+  }
+  const plain = normalized.match(GITHUB_NOREPLY_PLAIN);
+  if (plain) {
+    return `https://github.com/${plain[1]}.png?size=${pixelSize}`;
+  }
+  return null;
+}
+
 export async function gravatarHash(email: string): Promise<string> {
   const normalized = email.trim().toLowerCase();
   const cached = hashCache.get(normalized);

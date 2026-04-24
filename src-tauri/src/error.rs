@@ -9,6 +9,9 @@ pub enum AppError {
     #[error("git error: {0}")]
     Git(String),
 
+    #[error("auth error: {0}")]
+    Auth(String),
+
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 

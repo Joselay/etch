@@ -85,6 +85,32 @@ export type RepoStatus = {
 
 export type CommitResult = { id: string };
 
+export type RemoteAuthor = {
+  email: string;
+  login: string | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+};
+
+export type ProviderToken = {
+  host: string;
+  label: string;
+  tokenHelpUrl: string;
+  hasToken: boolean;
+};
+
+// Matches the "auth error:" prefix produced by AppError::Auth's Display impl
+// (src-tauri/src/error.rs). Keep in sync if that variant is renamed.
+export function isAuthError(err: unknown): boolean {
+  const msg = typeof err === "string" ? err : (err as { message?: string } | null)?.message;
+  return typeof msg === "string" && msg.startsWith("auth error:");
+}
+
+export function errorMessage(err: unknown): string {
+  if (typeof err === "string") return err;
+  return (err as { message?: string } | null)?.message ?? "unknown error";
+}
+
 export const api = {
   openRepo: (path: string) => invoke<RepoInfo>("cmd_open_repo", { path }),
   commitLog: (path: string, limit = 200, skip = 0) =>
@@ -114,4 +140,9 @@ export const api = {
     invoke<void>("cmd_delete_branch", { path, name, force }),
   renameBranch: (path: string, oldName: string, newName: string, force: boolean) =>
     invoke<void>("cmd_rename_branch", { path, oldName, newName, force }),
+  remoteAuthors: (path: string) => invoke<RemoteAuthor[]>("cmd_remote_authors", { path }),
+  listProviderTokens: () => invoke<ProviderToken[]>("cmd_list_provider_tokens"),
+  setProviderToken: (host: string, token: string) =>
+    invoke<void>("cmd_set_provider_token", { host, token }),
+  clearProviderToken: (host: string) => invoke<void>("cmd_clear_provider_token", { host }),
 };

@@ -1,4 +1,13 @@
-import { Cloud, FolderGit2, GitBranch, GitCommitHorizontal, Plus, Sparkles, X } from "lucide-react";
+import {
+  Cloud,
+  FolderGit2,
+  GitBranch,
+  GitCommitHorizontal,
+  Plus,
+  Settings,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +31,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { useRepoStore } from "@/stores/repo-store";
+import { useUiStore } from "@/stores/ui-store";
 import { useOpenRepo } from "../hooks/use-open-repo";
 
 export function WelcomeScreen() {
@@ -29,6 +39,7 @@ export function WelcomeScreen() {
   const recents = useRepoStore((s) => s.recentRepos);
   const removeRecent = useRepoStore((s) => s.removeRecent);
   const hydrate = useRepoStore((s) => s.hydrate);
+  const openSettings = useUiStore((s) => s.openSettings);
 
   useEffect(() => {
     void hydrate();
@@ -36,6 +47,11 @@ export function WelcomeScreen() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
+      <div className="absolute right-4 top-4">
+        <Button size="icon" variant="ghost" onClick={openSettings} aria-label="Settings">
+          <Settings className="h-4 w-4" />
+        </Button>
+      </div>
       <div className="mx-auto flex max-w-4xl flex-col gap-10 px-6 py-20">
         <header className="flex flex-col items-center gap-4 text-center">
           <Badge variant="secondary" className="gap-1.5">

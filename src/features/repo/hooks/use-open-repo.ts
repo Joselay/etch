@@ -1,10 +1,13 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useCallback, useState } from "react";
 import { api } from "@/lib/tauri";
 import { useRepoStore } from "@/stores/repo-store";
+import { remoteAuthorsQueryOptions } from "./use-remote-authors";
 
 export function useOpenRepo() {
   const setActive = useRepoStore((s) => s.setActive);
+  const queryClient = useQueryClient();
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,6 +17,9 @@ export function useOpenRepo() {
       setError(null);
       try {
         const info = await api.openRepo(path);
+        // Kick off the remote-authors fetch in parallel with setActive so the
+        // network round-trip runs while RepoLayout mounts rather than after.
+        void queryClient.prefetchQuery(remoteAuthorsQueryOptions(path));
         await setActive(info);
         return info;
       } catch (e) {
@@ -24,7 +30,7 @@ export function useOpenRepo() {
         setIsOpening(false);
       }
     },
-    [setActive],
+    [setActive, queryClient],
   );
 
   const pickAndOpen = useCallback(async () => {

@@ -1,21 +1,25 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { RepoLayout } from "@/features/repo/components/repo-layout";
 import { WelcomeScreen } from "@/features/repo/components/welcome-screen";
-import { queryClient } from "@/lib/query-client";
+import { SettingsDialog } from "@/features/settings/components/settings-dialog";
+import { persister, queryClient, shouldPersistQuery } from "@/lib/query-client";
 import { useRepoStore } from "@/stores/repo-store";
 import { useSelectionStore } from "@/stores/selection-store";
 import "./App.css";
+
+// Bump when the persisted query shape changes to discard stale caches.
+const CACHE_BUSTER = "v1";
 
 function AppInner() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
   const selectCommit = useSelectionStore((s) => s.selectCommit);
 
   const activePath = activeRepo?.path ?? null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activePath is only a trigger — we reset selection whenever the active repo changes.
   useEffect(() => {
-    if (activePath !== null) selectCommit(null);
-    else selectCommit(null);
+    selectCommit(null);
   }, [activePath, selectCommit]);
 
   return activeRepo ? <RepoLayout /> : <WelcomeScreen />;
@@ -23,10 +27,22 @@ function AppInner() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        buster: CACHE_BUSTER,
+        maxAge: 1000 * 60 * 60 * 24 * 7,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (q) =>
+            q.state.status === "success" && shouldPersistQuery(q.queryKey),
+        },
+      }}
+    >
       <AppInner />
+      <SettingsDialog />
       <Toaster />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 
