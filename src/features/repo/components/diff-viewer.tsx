@@ -1,3 +1,14 @@
+import { useEffect, useMemo, useState } from "react";
+import type { Highlighter, ThemedToken } from "shiki";
+import {
+  awaitHighlighter,
+  DARK_THEME,
+  ensureLanguage,
+  getHighlighterIfReady,
+  LIGHT_THEME,
+  langFromPath,
+  tokenizeLine,
+} from "@/lib/highlighter";
 import type { FileDiff } from "@/lib/tauri";
 import { useFileDiff } from "../hooks/use-commit-details";
 
@@ -98,7 +109,75 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
 }
 
+function useIsDark(): boolean {
+  const [isDark, setIsDark] = useState(() =>
+    typeof document === "undefined" ? false : document.documentElement.classList.contains("dark"),
+  );
+  useEffect(() => {
+    const el = document.documentElement;
+    const obs = new MutationObserver(() => setIsDark(el.classList.contains("dark")));
+    obs.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+  return isDark;
+}
+
+function useHighlighter(path: string): { hl: Highlighter | null; lang: string | null } {
+  const lang = useMemo(() => langFromPath(path), [path]);
+  const [hl, setHl] = useState<Highlighter | null>(() => getHighlighterIfReady());
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!lang) return;
+    let cancelled = false;
+    (async () => {
+      const h = await awaitHighlighter();
+      const ok = await ensureLanguage(lang);
+      if (cancelled) return;
+      setHl(h);
+      setReady(ok);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lang]);
+
+  return { hl: ready ? hl : null, lang };
+}
+
+function HighlightedLine({
+  hl,
+  lang,
+  content,
+  isDark,
+}: {
+  hl: Highlighter | null;
+  lang: string | null;
+  content: string;
+  isDark: boolean;
+}) {
+  const tokens: ThemedToken[] | null = useMemo(() => {
+    if (!hl || !lang) return null;
+    return tokenizeLine(hl, content, lang, isDark ? DARK_THEME : LIGHT_THEME);
+  }, [hl, lang, content, isDark]);
+
+  if (!tokens) return <>{content || " "}</>;
+  return (
+    <>
+      {tokens.map((t, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: tokens are stable for a given line
+        <span key={i} style={{ color: t.color }}>
+          {t.content}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function DiffBody({ data }: { data: FileDiff }) {
+  const { hl, lang } = useHighlighter(data.path);
+  const isDark = useIsDark();
+
   if (data.isBinary) {
     if (data.imageMimeType && (data.oldImage || data.newImage)) {
       return <ImageDiff data={data} />;
@@ -136,7 +215,7 @@ function DiffBody({ data }: { data: FileDiff }) {
                     {marker}
                   </span>
                   <span className="flex-1 whitespace-pre-wrap break-all px-2">
-                    {line.content || " "}
+                    <HighlightedLine hl={hl} lang={lang} content={line.content} isDark={isDark} />
                   </span>
                 </div>
               );
