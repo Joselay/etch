@@ -24,7 +24,14 @@ Loom is a cross-platform Git GUI client (macOS/Windows) built with Tauri 2 (Rust
 Two-process app. Keep the boundary clean:
 
 - **Frontend** (`src/`): React 19 + Vite, entrypoint `src/main.tsx` → `src/App.tsx`. Tailwind v4 via `@tailwindcss/vite` (CSS in `src/App.css`, no `tailwind.config`). Path alias `@/* → src/*`.
-- **Rust backend** (`src-tauri/src/`): `main.rs` is a thin entry; real setup is in `lib.rs::run()` where the `tauri::Builder` registers plugins and `#[tauri::command]` handlers via `invoke_handler!`. Add new commands there, then call them from the frontend with `@tauri-apps/api`'s `invoke`. Tauri config lives in `src-tauri/tauri.conf.json`; per-window capabilities in `src-tauri/capabilities/`.
+  - Feature-based layout: `src/features/<name>/` (currently `repo`, `settings`) owns its components/hooks. Keep route-level files thin.
+  - Shared: `src/stores/` (Zustand: `repo-store`, `selection-store`, `ui-store`), `src/lib/` (`query-client.ts` wires TanStack Query + sync-storage persister, `tauri.ts` wraps `invoke`), `src/hooks/`, `src/components/`.
+  - Server state → TanStack Query (persisted); ephemeral UI/selection state → Zustand. Don't mix.
+- **Rust backend** (`src-tauri/src/`): `main.rs` is a thin entry; `lib.rs::run()` only wires plugins, `.manage(WatcherState)`, and registers commands via `invoke_handler!`.
+  - `commands/<domain>.rs` (`repo.rs`, `settings.rs`) — thin `#[tauri::command]` handlers; add new commands here and register them in `lib.rs`, then call via `@tauri-apps/api`'s `invoke`.
+  - `git/` — all git operations (`branch`, `diff`, `log`, `refs`, `stage`, `status`, `repo`). These shell out through `git/cli.rs` (no `git2` crate). New git features go here, not inline in commands.
+  - `providers/` — external provider integrations (e.g. `github.rs`). `settings.rs` — persisted app settings. `watcher.rs` — FS watcher state shared across commands. `error.rs` — unified error type.
+  - Tauri config: `src-tauri/tauri.conf.json`; per-window capabilities: `src-tauri/capabilities/`.
 - **Dev server contract**: Tauri expects Vite on a fixed port 1420 (`strictPort: true`) and ignores `src-tauri/**` from watch — don't change these without updating `tauri.conf.json` in lockstep.
 
 ## UI conventions
