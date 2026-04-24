@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import { AlertTriangle, Check, ChevronDown, GitBranch, Search, X } from "lucide-react";
+import { AlertTriangle, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,18 +13,12 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type GraphRow, laneColor, layoutGraph } from "@/lib/commit-graph";
-import type { CommitSummary } from "@/lib/tauri";
+import type { BranchRef, CommitSummary, TagRef } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -54,6 +48,7 @@ export function CommitList({ repoPath }: Props) {
   const setAllBranches = useUiStore((s) => s.setCommitLogAllBranches);
   const { data: refs } = useRefs(repoPath);
   const currentBranch = refs?.headRef?.replace(/^refs\/heads\//, "") ?? null;
+  const refsByCommit = useMemo(() => buildRefsByCommit(refs), [refs]);
   const { data, isLoading, error, isFetching } = useCommitLog(
     repoPath,
     debouncedQuery,
@@ -68,10 +63,28 @@ export function CommitList({ repoPath }: Props) {
   const reset = useReset(repoPath);
   const [hardResetTarget, setHardResetTarget] = useState<CommitSummary | null>(null);
 
+  // Follow HEAD: when the active branch's commit id changes (checkout, pull,
+  // commit), select and scroll to it so the list highlights where you are.
+  // We wait until the new log includes that commit before acting.
+  const headCommitId = refs?.headCommitId ?? null;
+  const prevHeadRef = useRef<string | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: virtualizer instance is intentionally excluded — it is recreated each render but its methods operate on the stable parentRef.
   useEffect(() => {
-    if (!selectedCommitId && data && data.length > 0) {
-      selectCommit(data[0].id);
-    }
+    if (!headCommitId || !data) return;
+    if (prevHeadRef.current === headCommitId) return;
+    const idx = data.findIndex((c) => c.id === headCommitId);
+    if (idx === -1) return;
+    prevHeadRef.current = headCommitId;
+    selectCommit(headCommitId);
+    virtualizer.scrollToIndex(idx, { align: "start" });
+  }, [headCommitId, data, selectCommit]);
+
+  // Fallback: ensure something is selected once the log loads, and recover if
+  // the previously selected commit disappears from the visible scope.
+  useEffect(() => {
+    if (!data || data.length === 0) return;
+    if (selectedCommitId && data.some((c) => c.id === selectedCommitId)) return;
+    selectCommit(data[0].id);
   }, [data, selectedCommitId, selectCommit]);
 
   const rows = data ?? [];
@@ -89,40 +102,35 @@ export function CommitList({ repoPath }: Props) {
     overscan: 12,
   });
 
-  const scopeLabel = allBranches
-    ? "All branches"
-    : currentBranch
-      ? currentBranch
-      : "Current branch";
-
   const searchBar = (
     <div className="flex items-center gap-2 border-b bg-background/95 p-2">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-7 max-w-[10rem] gap-1.5 px-2 text-xs">
-            <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <span className="truncate">{scopeLabel}</span>
-            <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Show commits from</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => setAllBranches(false)}>
-            <Check className={cn("h-3.5 w-3.5", allBranches ? "opacity-0" : "opacity-100")} />
-            <span className="flex-1 truncate">
-              Current branch
-              {currentBranch && (
-                <span className="ml-1 text-muted-foreground">({currentBranch})</span>
-              )}
-            </span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setAllBranches(true)}>
-            <Check className={cn("h-3.5 w-3.5", allBranches ? "opacity-100" : "opacity-0")} />
-            <span>All branches</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <ToggleGroup
+            type="single"
+            size="sm"
+            variant="outline"
+            value={allBranches ? "all" : "current"}
+            onValueChange={(v) => {
+              if (v === "all" || v === "current") setAllBranches(v === "all");
+            }}
+            className="h-7"
+          >
+            <ToggleGroupItem value="current" className="h-7 px-2.5 text-xs">
+              Current
+            </ToggleGroupItem>
+            <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
+              All
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </TooltipTrigger>
+        <TooltipContent>Toggle branch scope · ⌘⇧B</TooltipContent>
+      </Tooltip>
+      {currentBranch && (
+        <span className="hidden max-w-[8rem] truncate text-muted-foreground text-xs sm:inline">
+          on {currentBranch}
+        </span>
+      )}
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -220,9 +228,12 @@ export function CommitList({ repoPath }: Props) {
                     </code>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm">{c.summary}</div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {c.authorName} ·{" "}
-                        {formatDistanceToNow(new Date(c.timestamp * 1000), { addSuffix: true })}
+                      <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                        <RefChips entry={refsByCommit.get(c.id)} laneColor={laneColor(g.color)} />
+                        <span className="truncate">
+                          {c.authorName} ·{" "}
+                          {formatDistanceToNow(new Date(c.timestamp * 1000), { addSuffix: true })}
+                        </span>
                       </div>
                     </div>
                   </button>
@@ -274,6 +285,140 @@ export function CommitList({ repoPath }: Props) {
         onOpenChange={(o) => !o && setHardResetTarget(null)}
       />
     </div>
+  );
+}
+
+type RefEntry = {
+  detachedHead: boolean;
+  locals: BranchRef[];
+  remotes: BranchRef[];
+  tags: TagRef[];
+};
+
+function buildRefsByCommit(
+  refs: ReturnType<typeof useRefs>["data"] | undefined,
+): Map<string, RefEntry> {
+  const map = new Map<string, RefEntry>();
+  if (!refs) return map;
+  const get = (id: string): RefEntry => {
+    let v = map.get(id);
+    if (!v) {
+      v = { detachedHead: false, locals: [], remotes: [], tags: [] };
+      map.set(id, v);
+    }
+    return v;
+  };
+  for (const b of refs.local) if (b.target) get(b.target).locals.push(b);
+  for (const b of refs.remote) if (b.target) get(b.target).remotes.push(b);
+  for (const t of refs.tags) if (t.target) get(t.target).tags.push(t);
+  if (refs.isDetached && refs.headCommitId) get(refs.headCommitId).detachedHead = true;
+  return map;
+}
+
+const MAX_CHIPS = 4;
+
+function RefChips({ entry, laneColor }: { entry: RefEntry | undefined; laneColor: string }) {
+  if (!entry) return null;
+  const items: React.ReactElement[] = [];
+  const fullList: string[] = [];
+
+  if (entry.detachedHead) {
+    items.push(
+      <span key="detached-head" className="text-[10px] italic">
+        detached HEAD
+      </span>,
+    );
+    fullList.push("detached HEAD");
+  }
+
+  // Merge local + same-named remote into one chip; remote-only branches render separately.
+  const remotesByName = new Map<string, BranchRef[]>();
+  for (const r of entry.remotes) {
+    const list = remotesByName.get(r.name) ?? [];
+    list.push(r);
+    remotesByName.set(r.name, list);
+  }
+  const consumed = new Set<string>();
+
+  for (const b of entry.locals) {
+    const matched = remotesByName.get(b.name) ?? [];
+    for (const m of matched) consumed.add(m.fullName);
+    if (b.isHead) {
+      items.push(
+        <span
+          key={`l:${b.fullName}`}
+          className="inline-flex h-[18px] items-center rounded-full px-2 font-semibold text-[10px] text-white leading-none"
+          style={{ backgroundColor: laneColor }}
+        >
+          {b.name}
+        </span>,
+      );
+      fullList.push(`HEAD → ${b.name}`);
+    } else {
+      items.push(
+        <span
+          key={`l:${b.fullName}`}
+          className="inline-flex h-[18px] items-center rounded-full px-2 font-medium text-[10px] leading-none"
+          style={{
+            color: laneColor,
+            backgroundColor: `color-mix(in srgb, ${laneColor} 22%, transparent)`,
+          }}
+        >
+          {b.name}
+        </span>,
+      );
+      fullList.push(b.name);
+    }
+  }
+
+  for (const r of entry.remotes) {
+    if (consumed.has(r.fullName)) continue;
+    const label = r.remote ? `${r.remote}/${r.name}` : r.name;
+    items.push(
+      <span key={`r:${r.fullName}`} className="text-[10px] italic">
+        {label}
+      </span>,
+    );
+    fullList.push(label);
+  }
+
+  for (const t of entry.tags) {
+    items.push(
+      <span
+        key={`t:${t.fullName}`}
+        className="inline-flex h-[18px] items-center rounded-sm bg-muted px-1.5 text-[10px] text-muted-foreground leading-none"
+      >
+        #{t.name}
+      </span>,
+    );
+    fullList.push(`#${t.name}`);
+  }
+
+  if (items.length === 0) return null;
+
+  const visible = items.slice(0, MAX_CHIPS);
+  const overflow = items.length - visible.length;
+
+  const cluster = (
+    <div className="flex shrink-0 items-center gap-1.5">
+      {visible}
+      {overflow > 0 && <span className="text-[10px]">+{overflow} more</span>}
+    </div>
+  );
+
+  if (overflow === 0 && items.length === 1) return cluster;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{cluster}</TooltipTrigger>
+      <TooltipContent>
+        <div className="flex flex-col gap-0.5 text-xs">
+          {fullList.map((s) => (
+            <span key={s}>{s}</span>
+          ))}
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

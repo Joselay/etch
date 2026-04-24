@@ -18,6 +18,7 @@ type UiState = {
   toggleDiffLineNumbers: () => void;
   commitLogAllBranches: boolean;
   setCommitLogAllBranches: (value: boolean) => void;
+  toggleCommitLogAllBranches: () => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -39,6 +40,8 @@ export const useUiStore = create<UiState>()(
       toggleDiffLineNumbers: () => set((s) => ({ diffLineNumbers: !s.diffLineNumbers })),
       commitLogAllBranches: false,
       setCommitLogAllBranches: (value) => set({ commitLogAllBranches: value }),
+      toggleCommitLogAllBranches: () =>
+        set((s) => ({ commitLogAllBranches: !s.commitLogAllBranches })),
     }),
     {
       name: "loom-ui",

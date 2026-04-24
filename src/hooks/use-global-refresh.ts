@@ -15,6 +15,7 @@ export function useGlobalRefresh() {
   const qc = useQueryClient();
   const togglePalette = useUiStore((s) => s.togglePalette);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const toggleCommitLogAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
   const setView = useSelectionStore((s) => s.setView);
 
   useEffect(() => {
@@ -51,6 +52,12 @@ export function useGlobalRefresh() {
         toggleSidebar();
         return;
       }
+      // ⌘⇧B: toggle commit-log scope (current branch ↔ all branches)
+      if (key === "b" && !e.altKey && e.shiftKey) {
+        e.preventDefault();
+        toggleCommitLogAllBranches();
+        return;
+      }
       // ⌘1 / ⌘2: view switch
       if (key === "1" && !e.altKey && !e.shiftKey) {
         e.preventDefault();
@@ -65,5 +72,5 @@ export function useGlobalRefresh() {
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [qc, togglePalette, toggleSidebar, setView]);
+  }, [qc, togglePalette, toggleSidebar, toggleCommitLogAllBranches, setView]);
 }

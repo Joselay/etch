@@ -2,6 +2,7 @@ import {
   ArrowDown,
   ArrowUp,
   GitBranch,
+  GitMerge,
   History,
   PanelLeft,
   Pencil,
@@ -30,6 +31,8 @@ export function CommandPalette() {
   const open = useUiStore((s) => s.paletteOpen);
   const setOpen = useUiStore((s) => s.setPaletteOpen);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const allBranches = useUiStore((s) => s.commitLogAllBranches);
+  const toggleAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
   const openSettings = useUiStore((s) => s.openSettings);
   const activeRepo = useRepoStore((s) => s.activeRepo);
   const setView = useSelectionStore((s) => s.setView);
@@ -84,6 +87,14 @@ export function CommandPalette() {
             <PanelLeft />
             Toggle sidebar
             <CommandShortcut>⌘B</CommandShortcut>
+          </CommandItem>
+          <CommandItem
+            keywords={["history", "scope", "branches", "all"]}
+            onSelect={() => run(() => toggleAllBranches())}
+          >
+            <GitMerge />
+            {allBranches ? "Show current branch only" : "Show all branches"}
+            <CommandShortcut>⌘⇧B</CommandShortcut>
           </CommandItem>
           <CommandItem keywords={["preferences"]} onSelect={() => run(() => openSettings())}>
             <Settings />
