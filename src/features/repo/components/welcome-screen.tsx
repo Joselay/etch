@@ -1,8 +1,25 @@
-import { Cloud, FolderGit2, GitBranch, GitCommitHorizontal, Plus, Sparkles } from "lucide-react";
+import { Cloud, FolderGit2, GitBranch, GitCommitHorizontal, Plus, Sparkles, X } from "lucide-react";
 import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { useRepoStore } from "@/stores/repo-store";
 import { useOpenRepo } from "../hooks/use-open-repo";
@@ -71,18 +88,19 @@ export function WelcomeScreen() {
           </Card>
         </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{recents.length === 0 ? "No recent repositories" : "Recent"}</CardTitle>
-            <CardDescription>
-              {recents.length === 0
-                ? "Open a local folder or clone a repo to get started."
-                : "Jump back into a recent repository."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recents.length === 0 ? (
-              <div className="flex flex-wrap gap-2">
+        {recents.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <FolderGit2 />
+              </EmptyMedia>
+              <EmptyTitle>No recent repositories</EmptyTitle>
+              <EmptyDescription>
+                Open a local folder or clone a repo to get started.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <div className="flex flex-wrap justify-center gap-2">
                 <Button
                   variant="secondary"
                   size="sm"
@@ -97,34 +115,53 @@ export function WelcomeScreen() {
                   Sign in with GitHub
                 </Button>
               </div>
-            ) : (
-              <ul className="flex flex-col gap-1">
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent</CardTitle>
+              <CardDescription>Jump back into a recent repository.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ItemGroup>
                 {recents.map((r) => {
                   const name = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
                   return (
-                    <li
+                    <Item
                       key={r.path}
-                      className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/60"
+                      variant="outline"
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={() => void openAt(r.path)}
                     >
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 text-left"
-                        onClick={() => void openAt(r.path)}
-                        disabled={isOpening}
-                      >
-                        <div className="truncate text-sm font-medium">{name}</div>
-                        <div className="truncate text-xs text-muted-foreground">{r.path}</div>
-                      </button>
-                      <Button size="sm" variant="ghost" onClick={() => void removeRecent(r.path)}>
-                        Remove
-                      </Button>
-                    </li>
+                      <ItemMedia variant="icon">
+                        <FolderGit2 />
+                      </ItemMedia>
+                      <ItemContent>
+                        <ItemTitle>{name}</ItemTitle>
+                        <ItemDescription className="truncate">{r.path}</ItemDescription>
+                      </ItemContent>
+                      <ItemActions>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void removeRecent(r.path);
+                          }}
+                          aria-label="Remove"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </ItemActions>
+                    </Item>
                   );
                 })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+              </ItemGroup>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </main>
   );

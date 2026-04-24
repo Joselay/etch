@@ -1,5 +1,8 @@
-import { Check, GitBranch, Tag } from "lucide-react";
+import { Check, ChevronRight, GitBranch, Tag } from "lucide-react";
 import { useMemo } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRefs } from "../hooks/use-refs";
 
@@ -37,47 +40,51 @@ export function RefsSidebar({ repoPath }: Props) {
   if (!data) return null;
 
   return (
-    <div className="flex flex-col gap-4 overflow-auto p-3 text-sm">
-      <Section title="Branches" icon={<GitBranch className="h-3.5 w-3.5" />}>
-        {data.local.length === 0 ? (
-          <Empty>No local branches</Empty>
-        ) : (
-          data.local.map((b) => (
-            <Row key={b.fullName}>
-              {b.isHead ? <Check className="h-3 w-3 text-primary" /> : <span className="w-3" />}
-              <span className={b.isHead ? "font-medium" : ""}>{b.name}</span>
-            </Row>
-          ))
-        )}
-      </Section>
-
-      {remoteGroups.size > 0 && (
-        <Section title="Remotes" icon={<GitBranch className="h-3.5 w-3.5" />}>
-          {[...remoteGroups.entries()].map(([remote, branches]) => (
-            <div key={remote} className="flex flex-col gap-0.5">
-              <div className="px-1 text-xs font-medium text-muted-foreground">{remote}</div>
-              {branches.map((b) => (
-                <Row key={b.fullName}>
-                  <span className="w-3" />
-                  <span className="truncate">{b.name}</span>
-                </Row>
+    <ScrollArea className="h-full">
+      <div className="flex flex-col gap-1 p-2">
+        <Section title="Branches" icon={<GitBranch className="h-3.5 w-3.5" />}>
+          {data.local.length === 0 ? (
+            <div className="px-2 py-1 text-xs text-muted-foreground">No local branches</div>
+          ) : (
+            <ItemGroup>
+              {data.local.map((b) => (
+                <RefItem
+                  key={b.fullName}
+                  icon={b.isHead ? <Check className="h-3 w-3 text-primary" /> : null}
+                  label={b.name}
+                  emphasized={b.isHead}
+                />
               ))}
-            </div>
-          ))}
+            </ItemGroup>
+          )}
         </Section>
-      )}
 
-      {data.tags.length > 0 && (
-        <Section title="Tags" icon={<Tag className="h-3.5 w-3.5" />}>
-          {data.tags.map((t) => (
-            <Row key={t.fullName}>
-              <span className="w-3" />
-              <span className="truncate">{t.name}</span>
-            </Row>
-          ))}
-        </Section>
-      )}
-    </div>
+        {remoteGroups.size > 0 && (
+          <Section title="Remotes" icon={<GitBranch className="h-3.5 w-3.5" />}>
+            {[...remoteGroups.entries()].map(([remote, branches]) => (
+              <div key={remote} className="flex flex-col gap-0.5">
+                <div className="px-2 pt-1 text-xs font-medium text-muted-foreground">{remote}</div>
+                <ItemGroup>
+                  {branches.map((b) => (
+                    <RefItem key={b.fullName} label={b.name} />
+                  ))}
+                </ItemGroup>
+              </div>
+            ))}
+          </Section>
+        )}
+
+        {data.tags.length > 0 && (
+          <Section title="Tags" icon={<Tag className="h-3.5 w-3.5" />}>
+            <ItemGroup>
+              {data.tags.map((t) => (
+                <RefItem key={t.fullName} label={t.name} />
+              ))}
+            </ItemGroup>
+          </Section>
+        )}
+      </div>
+    </ScrollArea>
   );
 }
 
@@ -91,24 +98,38 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <Collapsible defaultOpen className="flex flex-col gap-1">
+      <CollapsibleTrigger className="group flex items-center gap-1.5 rounded px-1.5 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/60">
+        <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
         {icon}
         {title}
-      </div>
-      <div className="flex flex-col gap-0.5">{children}</div>
-    </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-1">{children}</CollapsibleContent>
+    </Collapsible>
   );
 }
 
-function Row({ children }: { children: React.ReactNode }) {
+function RefItem({
+  icon,
+  label,
+  emphasized,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  emphasized?: boolean;
+}) {
   return (
-    <div className="flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-muted/60">
-      {children}
-    </div>
+    <Item
+      size="sm"
+      variant="muted"
+      className="cursor-default rounded-sm border-0 bg-transparent px-2 py-1"
+    >
+      <ItemMedia className="w-3">{icon}</ItemMedia>
+      <ItemContent>
+        <ItemTitle className={emphasized ? "text-sm font-medium" : "text-sm font-normal"}>
+          {label}
+        </ItemTitle>
+      </ItemContent>
+    </Item>
   );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="px-1.5 text-xs text-muted-foreground">{children}</div>;
 }

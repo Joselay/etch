@@ -6,6 +6,7 @@ use serde::Serialize;
 use similar::{ChangeTag, TextDiff};
 
 use crate::error::{AppError, AppResult};
+use crate::git::cli::run_git;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -249,6 +250,45 @@ pub fn file_diff(path: &Path, commit_id: &str, file_path: &str) -> AppResult<Fil
         is_binary: is_bin,
         hunks,
     })
+}
+
+pub fn working_diff(path: &Path, file_path: &str, staged: bool) -> AppResult<FileDiff> {
+    let (old_spec, new_spec) = if staged {
+        // staged: HEAD vs index
+        ("HEAD", ":0")
+    } else {
+        // unstaged: index vs worktree
+        (":0", "")
+    };
+
+    let old_bytes = read_spec(path, old_spec, file_path).unwrap_or_default();
+    let new_bytes = if new_spec.is_empty() {
+        std::fs::read(path.join(file_path)).unwrap_or_default()
+    } else {
+        read_spec(path, new_spec, file_path).unwrap_or_default()
+    };
+
+    let is_bin = is_binary(&old_bytes) || is_binary(&new_bytes);
+    let hunks = if is_bin {
+        Vec::new()
+    } else {
+        let old_str = String::from_utf8_lossy(&old_bytes);
+        let new_str = String::from_utf8_lossy(&new_bytes);
+        build_hunks(&old_str, &new_str)
+    };
+
+    Ok(FileDiff {
+        path: file_path.to_string(),
+        old_path: None,
+        is_binary: is_bin,
+        hunks,
+    })
+}
+
+fn read_spec(repo: &Path, spec: &str, file_path: &str) -> AppResult<Vec<u8>> {
+    let target = format!("{spec}:{file_path}");
+    let out = run_git(repo, &["show", &target])?;
+    Ok(out.stdout)
 }
 
 #[cfg(test)]

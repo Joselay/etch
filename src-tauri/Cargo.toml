@@ -28,6 +28,7 @@ gix = { version = "0.66", default-features = false, features = ["max-performance
 anyhow = "1"
 thiserror = "2"
 similar = "2"
+notify-debouncer-full = "0.3"
 
 [dev-dependencies]
 tempfile = "3"

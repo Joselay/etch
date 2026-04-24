@@ -1,8 +1,10 @@
 import { FileMinus, FilePen, FilePlus, FileSymlink } from "lucide-react";
 import { useEffect } from "react";
+import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
+import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ChangeStatus } from "@/lib/tauri";
-import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
 import { useCommitChanges } from "../hooks/use-commit-details";
 import { DiffViewer } from "./diff-viewer";
@@ -23,16 +25,18 @@ export function CommitDetails({ repoPath }: Props) {
 
   if (!selectedCommitId) {
     return (
-      <div className="grid h-full place-items-center p-4 text-xs text-muted-foreground">
-        Select a commit to see its changes.
-      </div>
+      <Empty className="h-full">
+        <EmptyHeader>
+          <EmptyDescription>Select a commit to see its changes.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex min-h-0 flex-1">
-        <aside className="w-64 shrink-0 overflow-auto border-r text-sm">
+    <div className="flex h-full">
+      <aside className="w-64 shrink-0 border-r">
+        <ScrollArea className="h-full">
           {isLoading ? (
             <div className="flex flex-col gap-1 p-2">
               {["a", "b", "c", "d"].map((k) => (
@@ -42,37 +46,39 @@ export function CommitDetails({ repoPath }: Props) {
           ) : error ? (
             <div className="p-3 text-xs text-destructive">{(error as Error).message}</div>
           ) : data && data.length > 0 ? (
-            <ul>
+            <ItemGroup>
               {data.map((f) => (
-                <li key={f.path}>
-                  <button
-                    type="button"
-                    onClick={() => selectFile(f.path)}
-                    className={cn(
-                      "flex w-full items-center gap-2 px-3 py-1.5 text-left",
-                      selectedFilePath === f.path ? "bg-primary/10" : "hover:bg-muted/40",
-                    )}
-                  >
+                <Item
+                  key={f.path}
+                  size="sm"
+                  variant="muted"
+                  data-selected={selectedFilePath === f.path || undefined}
+                  className="cursor-pointer rounded-none border-0 bg-transparent px-3 data-[selected]:bg-primary/10"
+                  onClick={() => selectFile(f.path)}
+                >
+                  <ItemMedia>
                     <StatusIcon status={f.status} />
-                    <span className="min-w-0 flex-1 truncate text-xs">{f.path}</span>
-                  </button>
-                </li>
+                  </ItemMedia>
+                  <ItemContent className="min-w-0">
+                    <ItemTitle className="truncate text-xs font-normal">{f.path}</ItemTitle>
+                  </ItemContent>
+                </Item>
               ))}
-            </ul>
+            </ItemGroup>
           ) : (
-            <div className="p-3 text-xs text-muted-foreground">No file changes.</div>
+            <Empty className="py-12">
+              <EmptyHeader>
+                <EmptyDescription>No file changes.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
-        </aside>
-        <section className="min-w-0 flex-1">
-          {selectedFilePath && (
-            <DiffViewer
-              repoPath={repoPath}
-              commitId={selectedCommitId}
-              filePath={selectedFilePath}
-            />
-          )}
-        </section>
-      </div>
+        </ScrollArea>
+      </aside>
+      <section className="min-w-0 flex-1">
+        {selectedFilePath && selectedCommitId && (
+          <DiffViewer repoPath={repoPath} commitId={selectedCommitId} filePath={selectedFilePath} />
+        )}
+      </section>
     </div>
   );
 }

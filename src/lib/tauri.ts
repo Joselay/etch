@@ -67,6 +67,21 @@ export type FileDiff = {
   hunks: DiffHunk[];
 };
 
+export type StatusEntry = {
+  path: string;
+  oldPath: string | null;
+  code: string;
+};
+
+export type RepoStatus = {
+  staged: StatusEntry[];
+  unstaged: StatusEntry[];
+  untracked: StatusEntry[];
+  conflicted: StatusEntry[];
+};
+
+export type CommitResult = { id: string };
+
 export const api = {
   openRepo: (path: string) => invoke<RepoInfo>("cmd_open_repo", { path }),
   commitLog: (path: string, limit = 200, skip = 0) =>
@@ -76,4 +91,14 @@ export const api = {
     invoke<FileChange[]>("cmd_commit_changes", { path, commitId }),
   fileDiff: (path: string, commitId: string, filePath: string) =>
     invoke<FileDiff>("cmd_file_diff", { path, commitId, filePath }),
+  status: (path: string) => invoke<RepoStatus>("cmd_status", { path }),
+  workingDiff: (path: string, filePath: string, staged: boolean) =>
+    invoke<FileDiff>("cmd_working_diff", { path, filePath, staged }),
+  stagePaths: (path: string, paths: string[]) => invoke<void>("cmd_stage_paths", { path, paths }),
+  unstagePaths: (path: string, paths: string[]) =>
+    invoke<void>("cmd_unstage_paths", { path, paths }),
+  discardPaths: (path: string, paths: string[]) =>
+    invoke<void>("cmd_discard_paths", { path, paths }),
+  commit: (path: string, message: string, amend: boolean) =>
+    invoke<CommitResult>("cmd_commit", { path, message, amend }),
 };

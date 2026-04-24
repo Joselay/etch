@@ -1,16 +1,29 @@
 use std::path::PathBuf;
 
-use crate::error::AppResult;
+use tauri::{AppHandle, State};
+
+use crate::error::{AppError, AppResult};
+use crate::watcher::{watch, WatcherState};
 use crate::git::{
-    diff::{commit_changes, file_diff, FileChange, FileDiff},
+    diff::{commit_changes, file_diff, working_diff, FileChange, FileDiff},
     log::{commit_log, CommitSummary},
     refs::{list_refs, RefListing},
     repo::{open_repo, RepoInfo},
+    stage::{commit, discard_paths, stage_paths, unstage_paths, CommitResult},
+    status::{status, RepoStatus},
 };
 
 #[tauri::command]
-pub fn cmd_open_repo(path: String) -> AppResult<RepoInfo> {
-    open_repo(&PathBuf::from(path))
+pub fn cmd_open_repo(
+    app: AppHandle,
+    watcher: State<'_, WatcherState>,
+    path: String,
+) -> AppResult<RepoInfo> {
+    let buf = PathBuf::from(&path);
+    let info = open_repo(&buf)?;
+    let watch_path = PathBuf::from(&info.path);
+    watch(app, &watcher, &watch_path).map_err(AppError::Other)?;
+    Ok(info)
 }
 
 #[tauri::command]
@@ -33,10 +46,36 @@ pub fn cmd_commit_changes(path: String, commit_id: String) -> AppResult<Vec<File
 }
 
 #[tauri::command]
-pub fn cmd_file_diff(
-    path: String,
-    commit_id: String,
-    file_path: String,
-) -> AppResult<FileDiff> {
+pub fn cmd_file_diff(path: String, commit_id: String, file_path: String) -> AppResult<FileDiff> {
     file_diff(&PathBuf::from(path), &commit_id, &file_path)
+}
+
+#[tauri::command]
+pub fn cmd_status(path: String) -> AppResult<RepoStatus> {
+    status(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn cmd_working_diff(path: String, file_path: String, staged: bool) -> AppResult<FileDiff> {
+    working_diff(&PathBuf::from(path), &file_path, staged)
+}
+
+#[tauri::command]
+pub fn cmd_stage_paths(path: String, paths: Vec<String>) -> AppResult<()> {
+    stage_paths(&PathBuf::from(path), &paths)
+}
+
+#[tauri::command]
+pub fn cmd_unstage_paths(path: String, paths: Vec<String>) -> AppResult<()> {
+    unstage_paths(&PathBuf::from(path), &paths)
+}
+
+#[tauri::command]
+pub fn cmd_discard_paths(path: String, paths: Vec<String>) -> AppResult<()> {
+    discard_paths(&PathBuf::from(path), &paths)
+}
+
+#[tauri::command]
+pub fn cmd_commit(path: String, message: String, amend: bool) -> AppResult<CommitResult> {
+    commit(&PathBuf::from(path), &message, amend)
 }
