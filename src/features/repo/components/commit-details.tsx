@@ -65,6 +65,7 @@ export function CommitDetails({ repoPath }: Props) {
               ) : data && data.length > 0 ? (
                 <FileTree
                   items={data}
+                  persistKey={`${repoPath}:commit-details`}
                   renderItem={(f, { depth, displayName, indentPx }) => {
                     const selected = selectedFilePath === f.path;
                     return (
@@ -156,22 +157,27 @@ function CommitHeader({ commit }: { commit: CommitSummary }) {
 
 function StatusBadge({ status }: { status: ChangeStatus }) {
   let letter = "M";
+  let label = "Modified";
   let tone = "bg-amber-500/15 text-amber-600 dark:text-amber-400";
   switch (status) {
     case "added":
       letter = "A";
+      label = "Added";
       tone = "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
       break;
     case "deleted":
       letter = "D";
+      label = "Deleted";
       tone = "bg-rose-500/15 text-rose-600 dark:text-rose-400";
       break;
     case "renamed":
       letter = "R";
+      label = "Renamed";
       tone = "bg-sky-500/15 text-sky-600 dark:text-sky-400";
       break;
     case "copied":
       letter = "C";
+      label = "Copied";
       tone = "bg-violet-500/15 text-violet-600 dark:text-violet-400";
       break;
   }
@@ -181,8 +187,11 @@ function StatusBadge({ status }: { status: ChangeStatus }) {
         "ml-1 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded font-mono text-[10px] font-bold",
         tone,
       )}
+      role="img"
+      aria-label={label}
+      title={label}
     >
-      {letter}
+      <span aria-hidden>{letter}</span>
     </span>
   );
 }

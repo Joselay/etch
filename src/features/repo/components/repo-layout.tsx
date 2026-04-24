@@ -1,4 +1,4 @@
-import { FolderGit2, History, PanelLeft, Pencil, Settings, X } from "lucide-react";
+import { AlertTriangle, FolderGit2, History, PanelLeft, Pencil, Settings, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -41,6 +41,7 @@ export function RepoLayout() {
 
   const dirtyCount =
     (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0);
+  const conflictCount = status?.conflicted.length ?? 0;
 
   return (
     <RemoteAuthorsContext.Provider value={remoteAuthorsValue}>
@@ -74,11 +75,20 @@ export function RepoLayout() {
               <TabsTrigger value="changes">
                 <Pencil className="h-3.5 w-3.5" />
                 Changes
-                {dirtyCount > 0 && (
+                {conflictCount > 0 ? (
+                  <Badge
+                    variant="destructive"
+                    className="ml-1 h-5 gap-1 px-1.5 text-[10px]"
+                    aria-label={`${dirtyCount} changes, ${conflictCount} conflicts`}
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    {dirtyCount}
+                  </Badge>
+                ) : dirtyCount > 0 ? (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
                     {dirtyCount}
                   </Badge>
-                )}
+                ) : null}
               </TabsTrigger>
             </TabsList>
             <Button size="icon" variant="ghost" onClick={openSettings} aria-label="Settings">

@@ -1,4 +1,4 @@
-import { Undo2 } from "lucide-react";
+import { AlertTriangle, Undo2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FileIcon } from "@/components/file-icon";
 import {
@@ -104,7 +104,12 @@ export function ChangesView({ repoPath }: Props) {
               </Empty>
             ) : (
               <div className="flex flex-col">
-                <Group title="Conflicts" count={conflictList.length}>
+                <Group
+                  title="Conflicts"
+                  count={conflictList.length}
+                  tone="danger"
+                  icon={<AlertTriangle className="h-3.5 w-3.5" />}
+                >
                   {conflictList.map((c) => (
                     <ConflictRow
                       key={`c-${c.path}`}
@@ -146,6 +151,7 @@ export function ChangesView({ repoPath }: Props) {
                 >
                   <FileTree
                     items={staged}
+                    persistKey={`${repoPath}:changes:staged`}
                     renderItem={(f, { depth, displayName, indentPx }) => (
                       <FileRow
                         key={`s-${f.path}`}
@@ -183,6 +189,7 @@ export function ChangesView({ repoPath }: Props) {
                 >
                   <FileTree
                     items={unstaged}
+                    persistKey={`${repoPath}:changes:unstaged`}
                     renderItem={(f, { depth, displayName, indentPx }) => (
                       <FileRow
                         key={`u-${f.path}`}
@@ -235,6 +242,7 @@ export function ChangesView({ repoPath }: Props) {
                 >
                   <FileTree
                     items={untrackedEntries}
+                    persistKey={`${repoPath}:changes:untracked`}
                     renderItem={(f, { depth, displayName, indentPx }) => (
                       <FileRow
                         key={`n-${f.path}`}
@@ -347,17 +355,35 @@ function Group({
   count,
   action,
   children,
+  tone = "default",
+  icon,
 }: {
   title: string;
   count: number;
   action?: React.ReactNode;
   children: React.ReactNode;
+  tone?: "default" | "danger";
+  icon?: React.ReactNode;
 }) {
   if (count === 0) return null;
+  const isDanger = tone === "danger";
   return (
-    <div className="border-b last:border-b-0">
-      <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        <span>
+    <div
+      className={cn(
+        "border-b last:border-b-0",
+        isDanger && "border-destructive/40 bg-destructive/5",
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider",
+          isDanger
+            ? "border-b border-destructive/30 bg-destructive/10 text-destructive"
+            : "bg-muted/40 text-muted-foreground",
+        )}
+      >
+        <span className="inline-flex items-center gap-1.5">
+          {icon}
           {title} ({count})
         </span>
         {action}
@@ -529,18 +555,23 @@ function ConflictRow({
 function StatusBadge({ code }: { code: string }) {
   const c = code.trim();
   let letter = "M";
+  let label = "Modified";
   let tone = "bg-muted-foreground/15 text-muted-foreground";
   if (c === "??") {
     letter = "U";
+    label = "Untracked";
     tone = "bg-amber-500/15 text-amber-600 dark:text-amber-400";
   } else if (c.includes("A")) {
     letter = "A";
+    label = "Added";
     tone = "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
   } else if (c.includes("D")) {
     letter = "D";
+    label = "Deleted";
     tone = "bg-rose-500/15 text-rose-600 dark:text-rose-400";
   } else if (c.includes("R")) {
     letter = "R";
+    label = "Renamed";
     tone = "bg-sky-500/15 text-sky-600 dark:text-sky-400";
   } else if (c.includes("M")) {
     tone = "bg-amber-500/15 text-amber-600 dark:text-amber-400";
@@ -551,8 +582,11 @@ function StatusBadge({ code }: { code: string }) {
         "ml-1 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded font-mono text-[10px] font-bold",
         tone,
       )}
+      role="img"
+      aria-label={label}
+      title={label}
     >
-      {letter}
+      <span aria-hidden>{letter}</span>
     </span>
   );
 }

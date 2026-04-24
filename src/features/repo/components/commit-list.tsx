@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import { Search, X } from "lucide-react";
+import { AlertTriangle, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -197,6 +197,7 @@ export function CommitList({ repoPath }: Props) {
                         Mixed (keep worktree only)
                       </ContextMenuItem>
                       <ContextMenuItem variant="destructive" onSelect={() => setHardResetTarget(c)}>
+                        <AlertTriangle />
                         Hard (discard everything)
                       </ContextMenuItem>
                     </ContextMenuSubContent>

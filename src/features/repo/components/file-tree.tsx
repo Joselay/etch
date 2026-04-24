@@ -1,7 +1,8 @@
 import { ChevronRight, Folder, FolderOpen } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { buildFileTree, type FileTreeNode } from "@/lib/file-tree";
 import { cn } from "@/lib/utils";
+import { useFileTreeStore } from "@/stores/file-tree-store";
 
 export const TREE_INDENT_PX = 20;
 export const TREE_GUTTER_PX = 10;
@@ -16,24 +17,42 @@ type Props<T extends { path: string }> = {
   items: T[];
   renderItem: (item: T, args: RenderItemArgs) => ReactNode;
   indentPx?: number;
+  persistKey?: string;
 };
 
 export function FileTree<T extends { path: string }>({
   items,
   renderItem,
   indentPx = TREE_INDENT_PX,
+  persistKey,
 }: Props<T>) {
   const nodes = buildFileTree(items);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [localCollapsed, setLocalCollapsed] = useState<Set<string>>(() => new Set());
+  const persistedList = useFileTreeStore((s) =>
+    persistKey ? (s.collapsed[persistKey] ?? null) : null,
+  );
+  const persistedToggle = useFileTreeStore((s) => s.toggle);
 
-  const toggle = (path: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
-  };
+  const collapsed = useMemo(
+    () => (persistKey ? new Set(persistedList ?? []) : localCollapsed),
+    [persistKey, persistedList, localCollapsed],
+  );
+
+  const toggle = useCallback(
+    (path: string) => {
+      if (persistKey) {
+        persistedToggle(persistKey, path);
+        return;
+      }
+      setLocalCollapsed((prev) => {
+        const next = new Set(prev);
+        if (next.has(path)) next.delete(path);
+        else next.add(path);
+        return next;
+      });
+    },
+    [persistKey, persistedToggle],
+  );
 
   return (
     <div className="flex flex-col py-0.5">
