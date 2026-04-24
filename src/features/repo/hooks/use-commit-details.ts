@@ -1,0 +1,18 @@
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/tauri";
+
+export function useCommitChanges(path: string | null, commitId: string | null) {
+  return useQuery({
+    queryKey: ["commit-changes", path, commitId],
+    enabled: !!path && !!commitId,
+    queryFn: () => api.commitChanges(path as string, commitId as string),
+  });
+}
+
+export function useFileDiff(path: string | null, commitId: string | null, filePath: string | null) {
+  return useQuery({
+    queryKey: ["file-diff", path, commitId, filePath],
+    enabled: !!path && !!commitId && !!filePath,
+    queryFn: () => api.fileDiff(path as string, commitId as string, filePath as string),
+  });
+}
