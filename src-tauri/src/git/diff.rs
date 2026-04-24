@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use base64::Engine as _;
 use gix::object::tree::diff::change::EventDetached;
 use gix::objs::tree::EntryKind;
 use serde::Serialize;
@@ -57,6 +58,71 @@ pub struct FileDiff {
     pub old_path: Option<String>,
     pub is_binary: bool,
     pub hunks: Vec<DiffHunk>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_mime_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_dimensions: Option<ImageDimensions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_dimensions: Option<ImageDimensions>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageDimensions {
+    pub width: u32,
+    pub height: u32,
+}
+
+fn image_dimensions(bytes: &[u8]) -> Option<ImageDimensions> {
+    if bytes.is_empty() {
+        return None;
+    }
+    imagesize::blob_size(bytes).ok().map(|s| ImageDimensions {
+        width: s.width as u32,
+        height: s.height as u32,
+    })
+}
+
+fn maybe_size(bytes: &[u8]) -> Option<u64> {
+    if bytes.is_empty() {
+        None
+    } else {
+        Some(bytes.len() as u64)
+    }
+}
+
+fn image_mime_for(file_path: &str) -> Option<&'static str> {
+    let ext = Path::new(file_path)
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())?;
+    match ext.as_str() {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        "bmp" => Some("image/bmp"),
+        "ico" => Some("image/x-icon"),
+        "avif" => Some("image/avif"),
+        "svg" => Some("image/svg+xml"),
+        _ => None,
+    }
+}
+
+fn encode_image(bytes: &[u8]) -> Option<String> {
+    if bytes.is_empty() {
+        None
+    } else {
+        Some(base64::engine::general_purpose::STANDARD.encode(bytes))
+    }
 }
 
 fn resolve_trees<'r>(
@@ -244,11 +310,29 @@ pub fn file_diff(path: &Path, commit_id: &str, file_path: &str) -> AppResult<Fil
         build_hunks(&old_str, &new_str)
     };
 
+    let mime = if is_bin { image_mime_for(file_path) } else { None };
+    let (old_image, new_image) = match mime {
+        Some(_) => (encode_image(&old_bytes), encode_image(&new_bytes)),
+        None => (None, None),
+    };
+
+    let (old_dimensions, new_dimensions) = match mime {
+        Some(_) => (image_dimensions(&old_bytes), image_dimensions(&new_bytes)),
+        None => (None, None),
+    };
+
     Ok(FileDiff {
         path: file_path.to_string(),
         old_path: None,
         is_binary: is_bin,
         hunks,
+        image_mime_type: mime.map(|s| s.to_string()),
+        old_image,
+        new_image,
+        old_size: maybe_size(&old_bytes),
+        new_size: maybe_size(&new_bytes),
+        old_dimensions,
+        new_dimensions,
     })
 }
 
@@ -277,11 +361,29 @@ pub fn working_diff(path: &Path, file_path: &str, staged: bool) -> AppResult<Fil
         build_hunks(&old_str, &new_str)
     };
 
+    let mime = if is_bin { image_mime_for(file_path) } else { None };
+    let (old_image, new_image) = match mime {
+        Some(_) => (encode_image(&old_bytes), encode_image(&new_bytes)),
+        None => (None, None),
+    };
+
+    let (old_dimensions, new_dimensions) = match mime {
+        Some(_) => (image_dimensions(&old_bytes), image_dimensions(&new_bytes)),
+        None => (None, None),
+    };
+
     Ok(FileDiff {
         path: file_path.to_string(),
         old_path: None,
         is_binary: is_bin,
         hunks,
+        image_mime_type: mime.map(|s| s.to_string()),
+        old_image,
+        new_image,
+        old_size: maybe_size(&old_bytes),
+        new_size: maybe_size(&new_bytes),
+        old_dimensions,
+        new_dimensions,
     })
 }
 
