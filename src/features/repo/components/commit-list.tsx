@@ -83,6 +83,17 @@ export function CommitList({ repoPath }: Props) {
     selectCommit(data[0].id, data[0]);
   }, [data, selectedCommitId, selectCommit]);
 
+  // Scroll the selected commit into view when selection changes from outside
+  // the list (e.g. clicking a branch/tag in the sidebar). align:"auto" is a
+  // no-op when the row is already visible, so it's safe on every change.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: virtualizer is recreated each render but operates on the stable parentRef.
+  useEffect(() => {
+    if (!selectedCommitId || !data) return;
+    const idx = data.findIndex((c) => c.id === selectedCommitId);
+    if (idx === -1) return;
+    virtualizer.scrollToIndex(idx, { align: "auto" });
+  }, [selectedCommitId, data]);
+
   const rows = data ?? [];
 
   const graph = useMemo(

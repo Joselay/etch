@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useSelectionStore } from "@/stores/selection-store";
 import {
   useCheckout,
   useCheckoutTracking,
@@ -49,6 +50,7 @@ export function RefsSidebar({ repoPath }: Props) {
   const { data, isLoading, error } = useRefs(repoPath);
   const checkout = useCheckout(repoPath);
   const checkoutTracking = useCheckoutTracking(repoPath);
+  const selectCommit = useSelectionStore((s) => s.selectCommit);
 
   const [createState, setCreateState] = useState<CreateState>({ open: false, startPoint: null });
   const [renameState, setRenameState] = useState<BranchDialogState>({ open: false, name: "" });
@@ -195,6 +197,9 @@ export function RefsSidebar({ repoPath }: Props) {
                           icon={b.isHead ? <Check className="h-3 w-3 text-primary" /> : null}
                           label={b.name}
                           emphasized={b.isHead}
+                          onClick={() => {
+                            if (b.target) selectCommit(b.target, null);
+                          }}
                           onDoubleClick={() => {
                             if (!b.isHead) checkout.mutate({ target: b.name });
                           }}
@@ -290,7 +295,12 @@ export function RefsSidebar({ repoPath }: Props) {
                         return (
                           <ContextMenu key={b.fullName}>
                             <ContextMenuTrigger asChild>
-                              <RefItem label={b.name} />
+                              <RefItem
+                                label={b.name}
+                                onClick={() => {
+                                  if (b.target) selectCommit(b.target, null);
+                                }}
+                              />
                             </ContextMenuTrigger>
                             <ContextMenuContent>
                               <ContextMenuItem
@@ -358,7 +368,12 @@ export function RefsSidebar({ repoPath }: Props) {
                   {filteredTags.map((t) => (
                     <ContextMenu key={t.fullName}>
                       <ContextMenuTrigger asChild>
-                        <RefItem label={t.name} />
+                        <RefItem
+                          label={t.name}
+                          onClick={() => {
+                            if (t.target) selectCommit(t.target, null);
+                          }}
+                        />
                       </ContextMenuTrigger>
                       <ContextMenuContent>
                         <ContextMenuItem

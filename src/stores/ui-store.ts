@@ -5,9 +5,6 @@ type UiState = {
   settingsOpen: boolean;
   openSettings: () => void;
   setSettingsOpen: (open: boolean) => void;
-  sidebarCollapsed: boolean;
-  toggleSidebar: () => void;
-  setSidebarCollapsed: (collapsed: boolean) => void;
   paletteOpen: boolean;
   openPalette: () => void;
   togglePalette: () => void;
@@ -27,9 +24,6 @@ export const useUiStore = create<UiState>()(
       settingsOpen: false,
       openSettings: () => set({ settingsOpen: true }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
-      sidebarCollapsed: false,
-      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       paletteOpen: false,
       openPalette: () => set({ paletteOpen: true }),
       togglePalette: () => set((s) => ({ paletteOpen: !s.paletteOpen })),
@@ -46,7 +40,6 @@ export const useUiStore = create<UiState>()(
     {
       name: "loom-ui",
       partialize: (s) => ({
-        sidebarCollapsed: s.sidebarCollapsed,
         diffWordWrap: s.diffWordWrap,
         diffLineNumbers: s.diffLineNumbers,
         commitLogAllBranches: s.commitLogAllBranches,

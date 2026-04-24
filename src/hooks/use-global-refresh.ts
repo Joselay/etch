@@ -14,7 +14,6 @@ function isTypingTarget(t: EventTarget | null): boolean {
 export function useGlobalRefresh() {
   const qc = useQueryClient();
   const togglePalette = useUiStore((s) => s.togglePalette);
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const toggleCommitLogAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
   const setView = useSelectionStore((s) => s.setView);
 
@@ -46,12 +45,6 @@ export function useGlobalRefresh() {
       // inputs (e.g., branch name fields, commit messages).
       if (isTypingTarget(e.target)) return;
 
-      // ⌘B: toggle sidebar
-      if (key === "b" && !e.altKey && !e.shiftKey) {
-        e.preventDefault();
-        toggleSidebar();
-        return;
-      }
       // ⌘⇧B: toggle commit-log scope (current branch ↔ all branches)
       if (key === "b" && !e.altKey && e.shiftKey) {
         e.preventDefault();
@@ -72,5 +65,5 @@ export function useGlobalRefresh() {
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [qc, togglePalette, toggleSidebar, toggleCommitLogAllBranches, setView]);
+  }, [qc, togglePalette, toggleCommitLogAllBranches, setView]);
 }

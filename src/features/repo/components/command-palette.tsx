@@ -4,7 +4,6 @@ import {
   GitBranch,
   GitMerge,
   History,
-  PanelLeft,
   Pencil,
   RefreshCw,
   Settings,
@@ -30,7 +29,6 @@ import { useFetch, usePull, usePush, useUpstreamStatus } from "../hooks/use-remo
 export function CommandPalette() {
   const open = useUiStore((s) => s.paletteOpen);
   const setOpen = useUiStore((s) => s.setPaletteOpen);
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const allBranches = useUiStore((s) => s.commitLogAllBranches);
   const toggleAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
   const openSettings = useUiStore((s) => s.openSettings);
@@ -82,11 +80,6 @@ export function CommandPalette() {
             <Pencil />
             Changes
             <CommandShortcut>⌘2</CommandShortcut>
-          </CommandItem>
-          <CommandItem keywords={["sidebar", "refs"]} onSelect={() => run(() => toggleSidebar())}>
-            <PanelLeft />
-            Toggle sidebar
-            <CommandShortcut>⌘B</CommandShortcut>
           </CommandItem>
           <CommandItem
             keywords={["history", "scope", "branches", "all"]}
