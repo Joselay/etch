@@ -1,5 +1,6 @@
-import { FileMinus, FilePen, FilePlus, FileQuestion, Undo2 } from "lucide-react";
+import { Undo2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { FileIcon } from "@/components/file-icon";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -308,14 +309,17 @@ function FileRow({
       size="sm"
       variant="muted"
       data-selected={selected || undefined}
-      className="group cursor-pointer rounded-none border-0 bg-transparent px-3 data-[selected]:bg-primary/10"
+      className="group cursor-pointer rounded-none border-0 bg-transparent px-3 py-1.5 data-[selected]:bg-primary/10"
       onClick={onSelect}
     >
       <ItemMedia>
-        <CodeIcon code={entry.code} />
+        <FileIcon path={entry.path} />
       </ItemMedia>
       <ItemContent className="min-w-0">
-        <ItemTitle className="truncate text-xs font-normal">{entry.path}</ItemTitle>
+        <ItemTitle className="truncate text-[13px] font-normal">
+          {entry.path}
+          <StatusBadge code={entry.code} />
+        </ItemTitle>
       </ItemContent>
       <ItemActions className="opacity-0 group-hover:opacity-100">
         {secondary}
@@ -335,13 +339,24 @@ function FileRow({
   );
 }
 
-function CodeIcon({ code }: { code: string }) {
-  const cls = "h-3.5 w-3.5 shrink-0";
+function StatusBadge({ code }: { code: string }) {
   const c = code.trim();
-  if (c === "??") return <FileQuestion className={`${cls} text-amber-500`} />;
-  if (c.includes("A")) return <FilePlus className={`${cls} text-emerald-500`} />;
-  if (c.includes("D")) return <FileMinus className={`${cls} text-rose-500`} />;
-  return <FilePen className={`${cls} text-muted-foreground`} />;
+  let letter = "M";
+  let color = "text-muted-foreground";
+  if (c === "??") {
+    letter = "U";
+    color = "text-amber-500";
+  } else if (c.includes("A")) {
+    letter = "A";
+    color = "text-emerald-500";
+  } else if (c.includes("D")) {
+    letter = "D";
+    color = "text-rose-500";
+  } else if (c.includes("R")) {
+    letter = "R";
+    color = "text-sky-500";
+  }
+  return <span className={`ml-1.5 font-mono text-[10px] font-semibold ${color}`}>{letter}</span>;
 }
 
 function WorkingDiffPane({

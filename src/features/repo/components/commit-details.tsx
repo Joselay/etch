@@ -1,6 +1,6 @@
 import { format, formatDistanceToNow } from "date-fns";
-import { FileMinus, FilePen, FilePlus, FileSymlink } from "lucide-react";
 import { useEffect, useMemo } from "react";
+import { FileIcon } from "@/components/file-icon";
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
 import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -63,14 +63,17 @@ export function CommitDetails({ repoPath }: Props) {
                     size="sm"
                     variant="muted"
                     data-selected={selectedFilePath === f.path || undefined}
-                    className="cursor-pointer rounded-none border-0 bg-transparent px-3 data-[selected]:bg-primary/10"
+                    className="cursor-pointer rounded-none border-0 bg-transparent px-3 py-1.5 data-[selected]:bg-primary/10"
                     onClick={() => selectFile(f.path)}
                   >
                     <ItemMedia>
-                      <StatusIcon status={f.status} />
+                      <FileIcon path={f.path} />
                     </ItemMedia>
                     <ItemContent className="min-w-0">
-                      <ItemTitle className="truncate text-xs font-normal">{f.path}</ItemTitle>
+                      <ItemTitle className="truncate text-[13px] font-normal">
+                        {f.path}
+                        <StatusBadge status={f.status} />
+                      </ItemTitle>
                     </ItemContent>
                   </Item>
                 ))}
@@ -134,17 +137,26 @@ function CommitHeader({ commit }: { commit: CommitSummary }) {
   );
 }
 
-function StatusIcon({ status }: { status: ChangeStatus }) {
-  const cls = "h-3.5 w-3.5 shrink-0";
+function StatusBadge({ status }: { status: ChangeStatus }) {
+  let letter = "M";
+  let color = "text-muted-foreground";
   switch (status) {
     case "added":
-      return <FilePlus className={`${cls} text-emerald-500`} />;
+      letter = "A";
+      color = "text-emerald-500";
+      break;
     case "deleted":
-      return <FileMinus className={`${cls} text-rose-500`} />;
+      letter = "D";
+      color = "text-rose-500";
+      break;
     case "renamed":
+      letter = "R";
+      color = "text-sky-500";
+      break;
     case "copied":
-      return <FileSymlink className={`${cls} text-amber-500`} />;
-    default:
-      return <FilePen className={`${cls} text-muted-foreground`} />;
+      letter = "C";
+      color = "text-amber-500";
+      break;
   }
+  return <span className={`ml-1.5 font-mono text-[10px] font-semibold ${color}`}>{letter}</span>;
 }
