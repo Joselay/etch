@@ -76,13 +76,21 @@ pub fn parse_remote_url(url: &str) -> Option<(String, String, String)> {
 }
 
 /// SSH host aliases like `github.com-personal` canonicalize to `github.com`.
+/// The alias suffix appears after the full hostname, so only strip a `-`
+/// that comes after the last `.` — otherwise a real hostname containing a
+/// hyphen (e.g. `gitlab.company-name.com`) would be mangled.
 fn canonical_host(host: &str) -> String {
-    let base = host.split('-').next().unwrap_or(host);
-    if base.contains('.') {
-        base.to_string()
-    } else {
-        host.to_string()
+    let Some(last_dot) = host.rfind('.') else {
+        return host.to_string();
+    };
+    if let Some(dash_offset) = host[last_dot..].find('-') {
+        let dash = last_dot + dash_offset;
+        let base = &host[..dash];
+        if base.contains('.') {
+            return base.to_string();
+        }
     }
+    host.to_string()
 }
 
 #[cfg(test)]
@@ -109,6 +117,13 @@ mod tests {
             got,
             Some(("github.com".into(), "foo".into(), "bar".into()))
         );
+    }
+
+    #[test]
+    fn preserves_hyphenated_hostnames() {
+        // Hyphens inside a domain segment (not an SSH alias suffix) must be kept.
+        let got = parse_remote_url("git@gitlab.company-name.com:org/proj.git");
+        assert_eq!(got.as_ref().map(|(h, _, _)| h.as_str()), Some("gitlab.company-name.com"));
     }
 
     #[test]
