@@ -15,6 +15,29 @@ export default defineConfig(async () => ({
     },
   },
 
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("/shiki/") || id.includes("@shikijs/")) return "shiki";
+          if (id.includes("/@codemirror/") || id.includes("/@uiw/react-codemirror/"))
+            return "codemirror";
+          if (id.includes("/recharts/") || id.includes("/d3-")) return "charts";
+          if (id.includes("/motion/") || id.includes("/framer-motion/")) return "motion";
+          if (id.includes("/date-fns/")) return "date-fns";
+          if (id.includes("/material-icon-theme/")) return "material-icons";
+          if (id.includes("/@radix-ui/") || id.includes("/radix-ui/")) return "radix";
+          if (id.includes("/@base-ui/")) return "base-ui";
+          if (id.includes("/@tanstack/")) return "tanstack";
+          if (id.includes("/lucide-react/")) return "lucide";
+          if (id.includes("/react-dom/") || id.includes("/react/") || id.includes("/scheduler/"))
+            return "react";
+        },
+      },
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

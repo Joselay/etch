@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
 import { AlertTriangle, Search, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -75,7 +75,7 @@ export function CommitList({ repoPath }: Props) {
     const idx = data.findIndex((c) => c.id === headCommitId);
     if (idx === -1) return;
     prevHeadRef.current = headCommitId;
-    selectCommit(headCommitId);
+    selectCommit(headCommitId, data[idx]);
     virtualizer.scrollToIndex(idx, { align: "start" });
   }, [headCommitId, data, selectCommit]);
 
@@ -84,7 +84,7 @@ export function CommitList({ repoPath }: Props) {
   useEffect(() => {
     if (!data || data.length === 0) return;
     if (selectedCommitId && data.some((c) => c.id === selectedCommitId)) return;
-    selectCommit(data[0].id);
+    selectCommit(data[0].id, data[0]);
   }, [data, selectedCommitId, selectCommit]);
 
   const rows = data ?? [];
@@ -208,7 +208,7 @@ export function CommitList({ repoPath }: Props) {
                 <ContextMenuTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => selectCommit(c.id)}
+                    onClick={() => selectCommit(c.id, c)}
                     className={cn(
                       "flex w-full items-center gap-3 border-b border-border/50 pr-4 text-left",
                       isSelected ? "bg-primary/10" : "hover:bg-muted/40",
@@ -317,7 +317,13 @@ function buildRefsByCommit(
 
 const MAX_CHIPS = 4;
 
-function RefChips({ entry, laneColor }: { entry: RefEntry | undefined; laneColor: string }) {
+const RefChips = memo(function RefChips({
+  entry,
+  laneColor,
+}: {
+  entry: RefEntry | undefined;
+  laneColor: string;
+}) {
   if (!entry) return null;
   const items: React.ReactElement[] = [];
   const fullList: string[] = [];
@@ -420,9 +426,17 @@ function RefChips({ entry, laneColor }: { entry: RefEntry | undefined; laneColor
       </TooltipContent>
     </Tooltip>
   );
-}
+});
 
-function GraphCell({ row, height, width }: { row: GraphRow; height: number; width: number }) {
+const GraphCell = memo(function GraphCell({
+  row,
+  height,
+  width,
+}: {
+  row: GraphRow;
+  height: number;
+  width: number;
+}) {
   const mid = height / 2;
   const laneX = (i: number) => GRAPH_PAD_LEFT + i * LANE_WIDTH + LANE_WIDTH / 2;
 
@@ -497,4 +511,4 @@ function GraphCell({ row, height, width }: { row: GraphRow; height: number; widt
       />
     </svg>
   );
-}
+});

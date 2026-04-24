@@ -11,7 +11,6 @@ export function useStatus(path: string | null) {
     queryKey: ["status", path],
     enabled: !!path,
     queryFn: () => api.status(path as string),
-    refetchOnWindowFocus: true,
   });
 }
 

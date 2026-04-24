@@ -1,5 +1,5 @@
 import { format, formatDistanceToNow } from "date-fns";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { FileIcon } from "@/components/file-icon";
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -7,9 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { ChangeStatus, CommitSummary } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
-import { useUiStore } from "@/stores/ui-store";
 import { useCommitChanges } from "../hooks/use-commit-details";
-import { useCommitLog } from "../hooks/use-commit-log";
 import { AuthorAvatar } from "./author-avatar";
 import { DiffViewer } from "./diff-viewer";
 import { FileRowContextMenu } from "./file-row-context-menu";
@@ -19,15 +17,10 @@ type Props = { repoPath: string };
 
 export function CommitDetails({ repoPath }: Props) {
   const selectedCommitId = useSelectionStore((s) => s.selectedCommitId);
+  const commit = useSelectionStore((s) => s.selectedCommit);
   const selectedFilePath = useSelectionStore((s) => s.selectedFilePath);
   const selectFile = useSelectionStore((s) => s.selectFile);
   const { data, isLoading, error } = useCommitChanges(repoPath, selectedCommitId);
-  const allBranches = useUiStore((s) => s.commitLogAllBranches);
-  const { data: commits } = useCommitLog(repoPath, null, 500, allBranches);
-  const commit = useMemo(
-    () => commits?.find((c) => c.id === selectedCommitId) ?? null,
-    [commits, selectedCommitId],
-  );
 
   useEffect(() => {
     if (data && data.length > 0 && !selectedFilePath) {

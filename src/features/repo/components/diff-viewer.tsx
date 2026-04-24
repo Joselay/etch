@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Copy, Hash, WrapText } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Highlighter, ThemedToken } from "shiki";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -169,7 +169,7 @@ function useHighlighter(path: string): { hl: Highlighter | null; lang: string | 
   return { hl: ready ? hl : null, lang };
 }
 
-function HighlightedLine({
+const HighlightedLine = memo(function HighlightedLine({
   hl,
   lang,
   content,
@@ -196,7 +196,7 @@ function HighlightedLine({
       ))}
     </>
   );
-}
+});
 
 type DiffRow =
   | { kind: "header"; hunkIdx: number }
