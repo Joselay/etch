@@ -1,3 +1,4 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Copy, Hash, WrapText } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Highlighter, ThemedToken } from "shiki";
@@ -197,6 +198,13 @@ function HighlightedLine({
   );
 }
 
+type DiffRow =
+  | { kind: "header"; hunkIdx: number }
+  | { kind: "line"; hunkIdx: number; lineIdx: number };
+
+const HEADER_ROW_PX = 28;
+const LINE_ROW_PX = 20;
+
 function DiffBody({ data, hunkActions }: { data: FileDiff; hunkActions?: HunkAction[] }) {
   const { hl, lang } = useHighlighter(data.path);
   const isDark = useIsDark();
@@ -206,10 +214,30 @@ function DiffBody({ data, hunkActions }: { data: FileDiff; hunkActions?: HunkAct
   const toggleLineNumbers = useUiStore((s) => s.toggleDiffLineNumbers);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const hunkRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [activeHunk, setActiveHunk] = useState(0);
 
   const hunkCount = data.hunks.length;
+
+  const { rows, headerIndices } = useMemo(() => {
+    const out: DiffRow[] = [];
+    const heads: number[] = [];
+    for (let hi = 0; hi < data.hunks.length; hi++) {
+      heads.push(out.length);
+      out.push({ kind: "header", hunkIdx: hi });
+      const hunk = data.hunks[hi];
+      for (let li = 0; li < hunk.lines.length; li++) {
+        out.push({ kind: "line", hunkIdx: hi, lineIdx: li });
+      }
+    }
+    return { rows: out, headerIndices: heads };
+  }, [data.hunks]);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (i) => (rows[i]?.kind === "header" ? HEADER_ROW_PX : LINE_ROW_PX),
+    overscan: 24,
+  });
 
   useEffect(() => {
     if (hunkCount === 0) return;
@@ -226,25 +254,24 @@ function DiffBody({ data, hunkActions }: { data: FileDiff; hunkActions?: HunkAct
         e.preventDefault();
         setActiveHunk((a) => {
           const next = Math.min(hunkCount - 1, a + 1);
-          hunkRefs.current[next]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          virtualizer.scrollToIndex(headerIndices[next] ?? 0, { align: "start" });
           return next;
         });
       } else if (e.key === "k") {
         e.preventDefault();
         setActiveHunk((a) => {
           const next = Math.max(0, a - 1);
-          hunkRefs.current[next]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          virtualizer.scrollToIndex(headerIndices[next] ?? 0, { align: "start" });
           return next;
         });
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [hunkCount]);
+  }, [hunkCount, virtualizer, headerIndices]);
 
   useEffect(() => {
     setActiveHunk(0);
-    hunkRefs.current = [];
   }, []);
 
   if (data.isBinary) {
@@ -265,6 +292,9 @@ function DiffBody({ data, hunkActions }: { data: FileDiff; hunkActions?: HunkAct
       toast.error(`Couldn't copy: ${(err as Error).message}`);
     }
   };
+
+  const totalSize = virtualizer.getTotalSize();
+  const items = virtualizer.getVirtualItems();
 
   return (
     <div className="flex h-full flex-col">
@@ -304,98 +334,108 @@ function DiffBody({ data, hunkActions }: { data: FileDiff; hunkActions?: HunkAct
         </div>
       </div>
       <div ref={scrollRef} className="flex-1 overflow-auto font-mono text-[12px] leading-5">
-        {data.hunks.map((hunk, hi) => (
-          <div
-            // biome-ignore lint/suspicious/noArrayIndexKey: diff hunks are immutable for a given file/commit
-            key={hi}
-            ref={(el) => {
-              hunkRefs.current[hi] = el;
-            }}
-            className={cn(
-              "border-b border-border/50",
-              activeHunk === hi && "ring-1 ring-inset ring-primary/30",
-            )}
-          >
-            <div className="flex items-center justify-between gap-2 bg-muted/60 px-3 py-1">
-              <span className="truncate text-muted-foreground">{hunk.header}</span>
-              <div className="flex shrink-0 items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0 text-muted-foreground"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    copyHunk(hi);
-                  }}
-                  aria-label="Copy hunk"
-                  title="Copy hunk"
+        <div style={{ height: totalSize, position: "relative", width: "100%" }}>
+          {items.map((vi) => {
+            const row = rows[vi.index];
+            const style: React.CSSProperties = {
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${vi.start}px)`,
+            };
+            if (row.kind === "header") {
+              const hunk = data.hunks[row.hunkIdx];
+              return (
+                <div
+                  key={vi.key}
+                  data-index={vi.index}
+                  ref={virtualizer.measureElement}
+                  style={style}
+                  className={cn(
+                    "border-b border-border/50",
+                    activeHunk === row.hunkIdx && "ring-1 ring-inset ring-primary/30",
+                  )}
                 >
-                  <Copy className="h-3 w-3" />
-                </Button>
-                {hunkActions?.map((a) => (
-                  <Button
-                    key={a.label}
-                    size="sm"
-                    variant="ghost"
-                    className={
-                      a.destructive
-                        ? "h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
-                        : "h-6 px-2 text-xs"
-                    }
-                    disabled={a.disabled}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      a.onClick(hi);
-                    }}
-                  >
-                    {a.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div>
-              {hunk.lines.map((line, li) => {
-                const bg =
-                  line.kind === "addition"
-                    ? "bg-emerald-500/10"
-                    : line.kind === "deletion"
-                      ? "bg-rose-500/10"
-                      : "";
-                const marker =
-                  line.kind === "addition" ? "+" : line.kind === "deletion" ? "-" : " ";
-                return (
-                  <div
-                    // biome-ignore lint/suspicious/noArrayIndexKey: diff lines are immutable for a given file/commit
-                    key={li}
-                    className={cn("flex", !wordWrap && "w-max min-w-full", bg)}
-                  >
-                    {showLineNumbers && (
-                      <>
-                        <span className="w-10 shrink-0 select-none px-2 text-right text-muted-foreground/70">
-                          {line.oldLine ?? ""}
-                        </span>
-                        <span className="w-10 shrink-0 select-none px-2 text-right text-muted-foreground/70">
-                          {line.newLine ?? ""}
-                        </span>
-                      </>
-                    )}
-                    <span className="w-4 shrink-0 select-none text-muted-foreground/80">
-                      {marker}
-                    </span>
-                    <span
-                      className={cn(
-                        "flex-1 px-2",
-                        wordWrap ? "whitespace-pre-wrap break-all" : "whitespace-pre",
-                      )}
-                    >
-                      <HighlightedLine hl={hl} lang={lang} content={line.content} isDark={isDark} />
-                    </span>
+                  <div className="flex items-center justify-between gap-2 bg-muted/60 px-3 py-1">
+                    <span className="truncate text-muted-foreground">{hunk.header}</span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 text-muted-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyHunk(row.hunkIdx);
+                        }}
+                        aria-label="Copy hunk"
+                        title="Copy hunk"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                      {hunkActions?.map((a) => (
+                        <Button
+                          key={a.label}
+                          size="sm"
+                          variant="ghost"
+                          className={
+                            a.destructive
+                              ? "h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                              : "h-6 px-2 text-xs"
+                          }
+                          disabled={a.disabled}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            a.onClick(row.hunkIdx);
+                          }}
+                        >
+                          {a.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+                </div>
+              );
+            }
+            const line = data.hunks[row.hunkIdx].lines[row.lineIdx];
+            const bg =
+              line.kind === "addition"
+                ? "bg-emerald-500/10"
+                : line.kind === "deletion"
+                  ? "bg-rose-500/10"
+                  : "";
+            const marker = line.kind === "addition" ? "+" : line.kind === "deletion" ? "-" : " ";
+            return (
+              <div
+                key={vi.key}
+                data-index={vi.index}
+                ref={virtualizer.measureElement}
+                style={style}
+                className={cn("flex", !wordWrap && "w-max min-w-full", bg)}
+              >
+                {showLineNumbers && (
+                  <>
+                    <span className="w-10 shrink-0 select-none px-2 text-right text-muted-foreground/70">
+                      {line.oldLine ?? ""}
+                    </span>
+                    <span className="w-10 shrink-0 select-none px-2 text-right text-muted-foreground/70">
+                      {line.newLine ?? ""}
+                    </span>
+                  </>
+                )}
+                <span className="w-4 shrink-0 select-none text-muted-foreground/80">{marker}</span>
+                <span
+                  className={cn(
+                    "flex-1 px-2",
+                    wordWrap ? "whitespace-pre-wrap break-all" : "whitespace-pre",
+                  )}
+                >
+                  <HighlightedLine hl={hl} lang={lang} content={line.content} isDark={isDark} />
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -51,65 +51,108 @@ pub fn cmd_open_repo(
 }
 
 #[tauri::command]
-pub fn cmd_commit_log(
+pub async fn cmd_commit_log(
     path: String,
     limit: Option<usize>,
     skip: Option<usize>,
     query: Option<String>,
     all_branches: Option<bool>,
 ) -> AppResult<Vec<CommitSummary>> {
-    commit_log(
-        &PathBuf::from(path),
-        limit.unwrap_or(200),
-        skip.unwrap_or(0),
-        query.as_deref(),
-        all_branches.unwrap_or(false),
-    )
+    tauri::async_runtime::spawn_blocking(move || {
+        commit_log(
+            &PathBuf::from(path),
+            limit.unwrap_or(200),
+            skip.unwrap_or(0),
+            query.as_deref(),
+            all_branches.unwrap_or(false),
+        )
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
-pub fn cmd_list_refs(path: String) -> AppResult<RefListing> {
-    list_refs(&PathBuf::from(path))
+pub async fn cmd_list_refs(path: String) -> AppResult<RefListing> {
+    tauri::async_runtime::spawn_blocking(move || list_refs(&PathBuf::from(path)))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
-pub fn cmd_file_history(
+pub async fn cmd_file_history(
     path: String,
     file: String,
     limit: Option<usize>,
     skip: Option<usize>,
 ) -> AppResult<Vec<CommitSummary>> {
-    commit_log_for_file(
-        &PathBuf::from(path),
-        &file,
-        limit.unwrap_or(500),
-        skip.unwrap_or(0),
-    )
+    tauri::async_runtime::spawn_blocking(move || {
+        commit_log_for_file(
+            &PathBuf::from(path),
+            &file,
+            limit.unwrap_or(500),
+            skip.unwrap_or(0),
+        )
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
-pub fn cmd_blame(path: String, file: String, rev: Option<String>) -> AppResult<Vec<BlameLine>> {
-    blame(&PathBuf::from(path), &file, rev.as_deref())
+pub async fn cmd_blame(
+    path: String,
+    file: String,
+    rev: Option<String>,
+) -> AppResult<Vec<BlameLine>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        blame(&PathBuf::from(path), &file, rev.as_deref())
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
-pub fn cmd_commit_changes(path: String, commit_id: String) -> AppResult<Vec<FileChange>> {
-    commit_changes(&PathBuf::from(path), &commit_id)
+pub async fn cmd_commit_changes(
+    path: String,
+    commit_id: String,
+) -> AppResult<Vec<FileChange>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        commit_changes(&PathBuf::from(path), &commit_id)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
-pub fn cmd_file_diff(path: String, commit_id: String, file_path: String) -> AppResult<FileDiff> {
-    file_diff(&PathBuf::from(path), &commit_id, &file_path)
+pub async fn cmd_file_diff(
+    path: String,
+    commit_id: String,
+    file_path: String,
+) -> AppResult<FileDiff> {
+    tauri::async_runtime::spawn_blocking(move || {
+        file_diff(&PathBuf::from(path), &commit_id, &file_path)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
-pub fn cmd_status(path: String) -> AppResult<RepoStatus> {
-    status(&PathBuf::from(path))
+pub async fn cmd_status(path: String) -> AppResult<RepoStatus> {
+    tauri::async_runtime::spawn_blocking(move || status(&PathBuf::from(path)))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
-pub fn cmd_working_diff(path: String, file_path: String, staged: bool) -> AppResult<FileDiff> {
-    working_diff(&PathBuf::from(path), &file_path, staged)
+pub async fn cmd_working_diff(
+    path: String,
+    file_path: String,
+    staged: bool,
+) -> AppResult<FileDiff> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_diff(&PathBuf::from(path), &file_path, staged)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
@@ -177,8 +220,10 @@ pub fn cmd_rename_branch(
 }
 
 #[tauri::command]
-pub fn cmd_upstream_status(path: String) -> AppResult<UpstreamStatus> {
-    upstream_status(&PathBuf::from(path))
+pub async fn cmd_upstream_status(path: String) -> AppResult<UpstreamStatus> {
+    tauri::async_runtime::spawn_blocking(move || upstream_status(&PathBuf::from(path)))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
@@ -266,8 +311,10 @@ pub fn cmd_write_identity(
 }
 
 #[tauri::command]
-pub fn cmd_list_stashes(path: String) -> AppResult<Vec<StashEntry>> {
-    list_stashes(&PathBuf::from(path))
+pub async fn cmd_list_stashes(path: String) -> AppResult<Vec<StashEntry>> {
+    tauri::async_runtime::spawn_blocking(move || list_stashes(&PathBuf::from(path)))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
@@ -353,8 +400,10 @@ pub fn cmd_delete_tag(path: String, name: String) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub fn cmd_repo_state(path: String) -> AppResult<RepoState> {
-    repo_state(&PathBuf::from(path))
+pub async fn cmd_repo_state(path: String) -> AppResult<RepoState> {
+    tauri::async_runtime::spawn_blocking(move || repo_state(&PathBuf::from(path)))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
@@ -467,13 +516,19 @@ pub fn cmd_start_interactive_rebase(
 }
 
 #[tauri::command]
-pub fn cmd_list_conflicts(path: String) -> AppResult<Vec<ConflictEntry>> {
-    list_conflicts(&PathBuf::from(path))
+pub async fn cmd_list_conflicts(path: String) -> AppResult<Vec<ConflictEntry>> {
+    tauri::async_runtime::spawn_blocking(move || list_conflicts(&PathBuf::from(path)))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
-pub fn cmd_conflict_sides(path: String, file: String) -> AppResult<ConflictSides> {
-    read_conflict_sides(&PathBuf::from(path), &file)
+pub async fn cmd_conflict_sides(path: String, file: String) -> AppResult<ConflictSides> {
+    tauri::async_runtime::spawn_blocking(move || {
+        read_conflict_sides(&PathBuf::from(path), &file)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
