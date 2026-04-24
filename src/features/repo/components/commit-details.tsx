@@ -2,15 +2,16 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo } from "react";
 import { FileIcon } from "@/components/file-icon";
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
-import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ChangeStatus, CommitSummary } from "@/lib/tauri";
+import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
 import { useCommitChanges } from "../hooks/use-commit-details";
 import { useCommitLog } from "../hooks/use-commit-log";
 import { AuthorAvatar } from "./author-avatar";
 import { DiffViewer } from "./diff-viewer";
+import { FileTree, TreeIndentGuides, TreeLeafSpacer } from "./file-tree";
 
 type Props = { repoPath: string };
 
@@ -44,59 +45,80 @@ export function CommitDetails({ repoPath }: Props) {
   return (
     <div className="flex h-full flex-col">
       {commit && <CommitHeader commit={commit} />}
-      <div className="flex min-h-0 flex-1">
-        <aside className="w-72 shrink-0 border-r">
-          <ScrollArea className="h-full">
-            {isLoading ? (
-              <div className="flex flex-col gap-1 p-2">
-                {["a", "b", "c", "d"].map((k) => (
-                  <Skeleton key={k} className="h-6 w-full" />
-                ))}
-              </div>
-            ) : error ? (
-              <div className="p-3 text-xs text-destructive">{(error as Error).message}</div>
-            ) : data && data.length > 0 ? (
-              <ItemGroup>
-                {data.map((f) => (
-                  <Item
-                    key={f.path}
-                    size="sm"
-                    variant="muted"
-                    data-selected={selectedFilePath === f.path || undefined}
-                    className="cursor-pointer rounded-none border-0 bg-transparent px-3 py-1.5 data-[selected]:bg-primary/10"
-                    onClick={() => selectFile(f.path)}
-                  >
-                    <ItemMedia>
-                      <FileIcon path={f.path} />
-                    </ItemMedia>
-                    <ItemContent className="min-w-0">
-                      <ItemTitle className="truncate text-[13px] font-normal">
-                        {f.path}
-                        <StatusBadge status={f.status} />
-                      </ItemTitle>
-                    </ItemContent>
-                  </Item>
-                ))}
-              </ItemGroup>
-            ) : (
-              <Empty className="py-12">
-                <EmptyHeader>
-                  <EmptyDescription>No file changes.</EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+      <ResizablePanelGroup
+        id="loom:commit-details-inner:v1"
+        orientation="horizontal"
+        className="min-h-0 flex-1"
+      >
+        <ResizablePanel id="loom:commit-files" defaultSize="28%" minSize="15%" maxSize="60%">
+          <aside className="h-full overflow-hidden border-r">
+            <div className="h-full overflow-y-auto">
+              {isLoading ? (
+                <div className="flex flex-col gap-1 p-2">
+                  {["a", "b", "c", "d"].map((k) => (
+                    <Skeleton key={k} className="h-6 w-full" />
+                  ))}
+                </div>
+              ) : error ? (
+                <div className="p-3 text-xs text-destructive">{(error as Error).message}</div>
+              ) : data && data.length > 0 ? (
+                <FileTree
+                  items={data}
+                  renderItem={(f, { depth, displayName, indentPx }) => {
+                    const selected = selectedFilePath === f.path;
+                    return (
+                      <button
+                        key={f.path}
+                        type="button"
+                        data-selected={selected || undefined}
+                        onClick={() => selectFile(f.path)}
+                        className={cn(
+                          "group relative flex w-full min-w-0 cursor-pointer items-stretch text-left text-[13px]",
+                          "hover:bg-muted/60",
+                          "data-[selected]:bg-primary/10 data-[selected]:text-foreground",
+                        )}
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "pointer-events-none absolute inset-y-0 left-0 w-[2px]",
+                            selected ? "bg-primary" : "bg-transparent",
+                          )}
+                        />
+                        <TreeIndentGuides depth={depth} indentPx={indentPx} />
+                        <div className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-3">
+                          <TreeLeafSpacer />
+                          <FileIcon path={f.path} />
+                          <span className="min-w-0 flex-1 truncate">{displayName}</span>
+                          <StatusBadge status={f.status} />
+                        </div>
+                      </button>
+                    );
+                  }}
+                />
+              ) : (
+                <Empty className="py-12">
+                  <EmptyHeader>
+                    <EmptyDescription>No file changes.</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              )}
+            </div>
+          </aside>
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel id="loom:commit-diff" defaultSize="72%" minSize="30%">
+          <section className="h-full min-w-0">
+            {selectedFilePath && selectedCommitId && (
+              <DiffViewer
+                repoPath={repoPath}
+                commitId={selectedCommitId}
+                filePath={selectedFilePath}
+              />
             )}
-          </ScrollArea>
-        </aside>
-        <section className="min-w-0 flex-1">
-          {selectedFilePath && selectedCommitId && (
-            <DiffViewer
-              repoPath={repoPath}
-              commitId={selectedCommitId}
-              filePath={selectedFilePath}
-            />
-          )}
-        </section>
-      </div>
+          </section>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
@@ -139,24 +161,33 @@ function CommitHeader({ commit }: { commit: CommitSummary }) {
 
 function StatusBadge({ status }: { status: ChangeStatus }) {
   let letter = "M";
-  let color = "text-muted-foreground";
+  let tone = "bg-amber-500/15 text-amber-600 dark:text-amber-400";
   switch (status) {
     case "added":
       letter = "A";
-      color = "text-emerald-500";
+      tone = "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
       break;
     case "deleted":
       letter = "D";
-      color = "text-rose-500";
+      tone = "bg-rose-500/15 text-rose-600 dark:text-rose-400";
       break;
     case "renamed":
       letter = "R";
-      color = "text-sky-500";
+      tone = "bg-sky-500/15 text-sky-600 dark:text-sky-400";
       break;
     case "copied":
       letter = "C";
-      color = "text-amber-500";
+      tone = "bg-violet-500/15 text-violet-600 dark:text-violet-400";
       break;
   }
-  return <span className={`ml-1.5 font-mono text-[10px] font-semibold ${color}`}>{letter}</span>;
+  return (
+    <span
+      className={cn(
+        "ml-1 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded font-mono text-[10px] font-bold",
+        tone,
+      )}
+    >
+      {letter}
+    </span>
+  );
 }
