@@ -101,4 +101,14 @@ export const api = {
     invoke<void>("cmd_discard_paths", { path, paths }),
   commit: (path: string, message: string, amend: boolean) =>
     invoke<CommitResult>("cmd_commit", { path, message, amend }),
+  createBranch: (path: string, name: string, startPoint: string | null) =>
+    invoke<void>("cmd_create_branch", { path, name, startPoint }),
+  checkout: (path: string, target: string, create: boolean) =>
+    invoke<void>("cmd_checkout", { path, target, create }),
+  checkoutTracking: (path: string, localName: string, upstream: string) =>
+    invoke<void>("cmd_checkout_tracking", { path, localName, upstream }),
+  deleteBranch: (path: string, name: string, force: boolean) =>
+    invoke<void>("cmd_delete_branch", { path, name, force }),
+  renameBranch: (path: string, oldName: string, newName: string, force: boolean) =>
+    invoke<void>("cmd_rename_branch", { path, oldName, newName, force }),
 };

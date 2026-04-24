@@ -5,6 +5,7 @@ use tauri::{AppHandle, State};
 use crate::error::{AppError, AppResult};
 use crate::watcher::{watch, WatcherState};
 use crate::git::{
+    branch::{checkout, checkout_tracking, create_branch, delete_branch, rename_branch},
     diff::{commit_changes, file_diff, working_diff, FileChange, FileDiff},
     log::{commit_log, CommitSummary},
     refs::{list_refs, RefListing},
@@ -78,4 +79,38 @@ pub fn cmd_discard_paths(path: String, paths: Vec<String>) -> AppResult<()> {
 #[tauri::command]
 pub fn cmd_commit(path: String, message: String, amend: bool) -> AppResult<CommitResult> {
     commit(&PathBuf::from(path), &message, amend)
+}
+
+#[tauri::command]
+pub fn cmd_create_branch(
+    path: String,
+    name: String,
+    start_point: Option<String>,
+) -> AppResult<()> {
+    create_branch(&PathBuf::from(path), &name, start_point.as_deref())
+}
+
+#[tauri::command]
+pub fn cmd_checkout(path: String, target: String, create: bool) -> AppResult<()> {
+    checkout(&PathBuf::from(path), &target, create)
+}
+
+#[tauri::command]
+pub fn cmd_checkout_tracking(path: String, local_name: String, upstream: String) -> AppResult<()> {
+    checkout_tracking(&PathBuf::from(path), &local_name, &upstream)
+}
+
+#[tauri::command]
+pub fn cmd_delete_branch(path: String, name: String, force: bool) -> AppResult<()> {
+    delete_branch(&PathBuf::from(path), &name, force)
+}
+
+#[tauri::command]
+pub fn cmd_rename_branch(
+    path: String,
+    old_name: String,
+    new_name: String,
+    force: bool,
+) -> AppResult<()> {
+    rename_branch(&PathBuf::from(path), &old_name, &new_name, force)
 }

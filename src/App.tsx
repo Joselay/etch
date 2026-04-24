@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { Toaster } from "@/components/ui/sonner";
 import { RepoLayout } from "@/features/repo/components/repo-layout";
 import { WelcomeScreen } from "@/features/repo/components/welcome-screen";
 import { queryClient } from "@/lib/query-client";
@@ -24,6 +25,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppInner />
+      <Toaster />
     </QueryClientProvider>
   );
 }

@@ -1,4 +1,4 @@
-import { FolderGit2, GitBranch, History, Pencil, X } from "lucide-react";
+import { FolderGit2, History, Pencil, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -7,6 +7,7 @@ import { useRepoStore } from "@/stores/repo-store";
 import { type RepoView, useSelectionStore } from "@/stores/selection-store";
 import { useRepoWatcher } from "../hooks/use-repo-watcher";
 import { useStatus } from "../hooks/use-status";
+import { BranchSwitcher } from "./branch-switcher";
 import { ChangesView } from "./changes-view";
 import { CommitDetails } from "./commit-details";
 import { CommitList } from "./commit-list";
@@ -41,10 +42,7 @@ export function RepoLayout() {
         <div className="flex min-w-0 items-center gap-3">
           <FolderGit2 className="h-4 w-4 text-muted-foreground" />
           <span className="truncate font-semibold">{name}</span>
-          <Badge variant="secondary" className="gap-1">
-            <GitBranch className="h-3 w-3" />
-            {branchLabel}
-          </Badge>
+          <BranchSwitcher repoPath={activeRepo.path} label={branchLabel} />
         </div>
         <div className="flex items-center gap-2">
           <TabsList>
