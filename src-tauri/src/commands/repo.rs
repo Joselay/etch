@@ -56,12 +56,14 @@ pub fn cmd_commit_log(
     limit: Option<usize>,
     skip: Option<usize>,
     query: Option<String>,
+    all_branches: Option<bool>,
 ) -> AppResult<Vec<CommitSummary>> {
     commit_log(
         &PathBuf::from(path),
         limit.unwrap_or(200),
         skip.unwrap_or(0),
         query.as_deref(),
+        all_branches.unwrap_or(false),
     )
 }
 

@@ -25,6 +25,7 @@ pub fn commit_log(
     limit: usize,
     skip: usize,
     query: Option<&str>,
+    all_branches: bool,
 ) -> AppResult<Vec<CommitSummary>> {
     let needle = query
         .map(|q| q.trim().to_lowercase())
@@ -32,16 +33,57 @@ pub fn commit_log(
     let repo = gix::open(path).map_err(|e| AppError::Git(e.to_string()))?;
 
     let head_id = match repo.head().map_err(|e| AppError::Git(e.to_string()))?.kind {
-        gix::head::Kind::Unborn(_) => return Ok(Vec::new()),
-        gix::head::Kind::Detached { target, .. } => target,
-        gix::head::Kind::Symbolic(r) => match r.target.try_id() {
-            Some(id) => id.to_owned(),
+        gix::head::Kind::Unborn(_) => None,
+        gix::head::Kind::Detached { target, .. } => Some(target),
+        gix::head::Kind::Symbolic(r) => r.target.try_id().map(|id| id.to_owned()),
+    };
+
+    let tips: Vec<gix::ObjectId> = if all_branches {
+        let platform = repo
+            .references()
+            .map_err(|e| AppError::Git(e.to_string()))?;
+        let mut seen: std::collections::HashSet<gix::ObjectId> = std::collections::HashSet::new();
+        let mut tips = Vec::new();
+        if let Some(id) = head_id.clone() {
+            if seen.insert(id.clone()) {
+                tips.push(id);
+            }
+        }
+        for iter in [
+            platform
+                .local_branches()
+                .map_err(|e| AppError::Git(e.to_string()))?,
+            platform
+                .remote_branches()
+                .map_err(|e| AppError::Git(e.to_string()))?,
+        ] {
+            for r in iter {
+                let mut r = match r {
+                    Ok(r) => r,
+                    Err(_) => continue,
+                };
+                if let Ok(id) = r.peel_to_id_in_place() {
+                    let id = id.detach();
+                    if seen.insert(id) {
+                        tips.push(id);
+                    }
+                }
+            }
+        }
+        if tips.is_empty() {
+            return Ok(Vec::new());
+        }
+        tips
+    } else {
+        match head_id {
+            Some(id) => vec![id],
             None => return Ok(Vec::new()),
-        },
+        }
     };
 
     let walk = repo
-        .rev_walk([head_id])
+        .rev_walk(tips)
+        .sorting(gix::traverse::commit::simple::Sorting::ByCommitTimeNewestFirst)
         .all()
         .map_err(|e| AppError::Git(e.to_string()))?;
 
@@ -175,7 +217,7 @@ mod tests {
         let here = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .expect("workspace dir");
-        let commits = commit_log(here, 5, 0, None).expect("log");
+        let commits = commit_log(here, 5, 0, None, false).expect("log");
         assert!(!commits.is_empty());
         assert_eq!(commits[0].short_id.len(), 7);
     }
@@ -219,8 +261,35 @@ mod tests {
         // Query the word "Initial" — real repos may or may not have such a
         // commit, so the assertion is just that filtering never panics and
         // respects the limit.
-        let filtered = commit_log(here, 50, 0, Some("initial")).expect("log");
-        let all = commit_log(here, 50, 0, None).expect("log");
+        let filtered = commit_log(here, 50, 0, Some("initial"), false).expect("log");
+        let all = commit_log(here, 50, 0, None, false).expect("log");
         assert!(filtered.len() <= all.len());
+    }
+
+    #[test]
+    fn all_branches_includes_unmerged_tips() {
+        use std::fs;
+        let tmp = tempfile::tempdir().unwrap();
+        run_git(tmp.path(), &["init", "-q", "-b", "main"]).unwrap();
+        run_git(tmp.path(), &["config", "user.email", "t@t.com"]).unwrap();
+        run_git(tmp.path(), &["config", "user.name", "t"]).unwrap();
+        run_git(tmp.path(), &["config", "commit.gpgsign", "false"]).unwrap();
+
+        fs::write(tmp.path().join("a.txt"), "v1\n").unwrap();
+        run_git(tmp.path(), &["add", "a.txt"]).unwrap();
+        run_git(tmp.path(), &["commit", "-q", "-m", "base"]).unwrap();
+
+        run_git(tmp.path(), &["checkout", "-q", "-b", "feature"]).unwrap();
+        fs::write(tmp.path().join("b.txt"), "x\n").unwrap();
+        run_git(tmp.path(), &["add", "b.txt"]).unwrap();
+        run_git(tmp.path(), &["commit", "-q", "-m", "only-on-feature"]).unwrap();
+
+        run_git(tmp.path(), &["checkout", "-q", "main"]).unwrap();
+
+        let head_only = commit_log(tmp.path(), 50, 0, None, false).unwrap();
+        assert!(head_only.iter().all(|c| c.summary != "only-on-feature"));
+
+        let all = commit_log(tmp.path(), 50, 0, None, true).unwrap();
+        assert!(all.iter().any(|c| c.summary == "only-on-feature"));
     }
 }

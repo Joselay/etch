@@ -40,6 +40,8 @@ export type RefListing = {
   remote: BranchRef[];
   tags: TagRef[];
   headRef: string | null;
+  headCommitId: string | null;
+  isDetached: boolean;
 };
 
 export type ChangeStatus = "added" | "deleted" | "modified" | "renamed" | "copied";
@@ -284,8 +286,13 @@ export const api = {
   deleteTag: (path: string, name: string) => invoke<void>("cmd_delete_tag", { path, name }),
   pushTag: (path: string, remote: string, name: string, deleteRemote: boolean) =>
     invoke<void>("cmd_push_tag", { path, remote, name, delete: deleteRemote }),
-  commitLog: (path: string, limit = 200, skip = 0, query: string | null = null) =>
-    invoke<CommitSummary[]>("cmd_commit_log", { path, limit, skip, query }),
+  commitLog: (
+    path: string,
+    limit = 200,
+    skip = 0,
+    query: string | null = null,
+    allBranches = false,
+  ) => invoke<CommitSummary[]>("cmd_commit_log", { path, limit, skip, query, allBranches }),
   fileHistory: (path: string, file: string, limit = 500, skip = 0) =>
     invoke<CommitSummary[]>("cmd_file_history", { path, file, limit, skip }),
   blame: (path: string, file: string, rev: string | null = null) =>

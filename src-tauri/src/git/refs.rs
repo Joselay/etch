@@ -29,6 +29,8 @@ pub struct RefListing {
     pub remote: Vec<BranchRef>,
     pub tags: Vec<TagRef>,
     pub head_ref: Option<String>,
+    pub head_commit_id: Option<String>,
+    pub is_detached: bool,
 }
 
 fn short_name(full: &str, prefix: &str) -> String {
@@ -38,10 +40,14 @@ fn short_name(full: &str, prefix: &str) -> String {
 pub fn list_refs(path: &Path) -> AppResult<RefListing> {
     let repo = gix::open(path).map_err(|e| AppError::Git(e.to_string()))?;
 
-    let head_ref = match repo.head().map_err(|e| AppError::Git(e.to_string()))?.kind {
-        gix::head::Kind::Symbolic(r) => Some(r.name.as_bstr().to_string()),
-        gix::head::Kind::Unborn(name) => Some(name.as_bstr().to_string()),
-        gix::head::Kind::Detached { .. } => None,
+    let head = repo.head().map_err(|e| AppError::Git(e.to_string()))?;
+    let (head_ref, head_commit_id, is_detached) = match &head.kind {
+        gix::head::Kind::Symbolic(r) => {
+            let target = r.target.try_id().map(|id| id.to_string());
+            (Some(r.name.as_bstr().to_string()), target, false)
+        }
+        gix::head::Kind::Unborn(name) => (Some(name.as_bstr().to_string()), None, false),
+        gix::head::Kind::Detached { target, .. } => (None, Some(target.to_string()), true),
     };
 
     let platform = repo.references().map_err(|e| AppError::Git(e.to_string()))?;
@@ -107,6 +113,8 @@ pub fn list_refs(path: &Path) -> AppResult<RefListing> {
         remote,
         tags,
         head_ref,
+        head_commit_id,
+        is_detached,
     })
 }
 

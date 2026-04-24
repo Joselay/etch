@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRepoStore } from "@/stores/repo-store";
 import { type RepoView, useSelectionStore } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
+import { useRefs } from "../hooks/use-refs";
 import { useRemoteAuthorsContextValue } from "../hooks/use-remote-authors";
 import { useRepoWatcher } from "../hooks/use-repo-watcher";
 import { useStatus } from "../hooks/use-status";
@@ -27,6 +28,7 @@ export function RepoLayout() {
 
   useRepoWatcher(activeRepo?.path ?? null);
   const { data: status } = useStatus(activeRepo?.path ?? null);
+  const { data: refs } = useRefs(activeRepo?.path ?? null);
   const remoteAuthorsValue = useRemoteAuthorsContextValue(activeRepo?.path ?? null);
   const openSettings = useUiStore((s) => s.openSettings);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
@@ -35,9 +37,13 @@ export function RepoLayout() {
   if (!activeRepo) return null;
 
   const name = activeRepo.path.split(/[\\/]/).filter(Boolean).pop() ?? activeRepo.path;
-  const branchLabel = activeRepo.isDetached
-    ? `detached @ ${activeRepo.headCommitId?.slice(0, 7) ?? "?"}`
-    : (activeRepo.headRef?.replace(/^refs\/heads\//, "") ?? "unborn");
+  const branchLabel = refs
+    ? refs.isDetached
+      ? `detached @ ${refs.headCommitId?.slice(0, 7) ?? "?"}`
+      : (refs.headRef?.replace(/^refs\/heads\//, "") ?? "unborn")
+    : activeRepo.isDetached
+      ? `detached @ ${activeRepo.headCommitId?.slice(0, 7) ?? "?"}`
+      : (activeRepo.headRef?.replace(/^refs\/heads\//, "") ?? "unborn");
 
   const dirtyCount =
     (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0);

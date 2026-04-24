@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import { AlertTriangle, Search, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, GitBranch, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,14 +13,24 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type GraphRow, laneColor, layoutGraph } from "@/lib/commit-graph";
 import type { CommitSummary } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
+import { useUiStore } from "@/stores/ui-store";
 import { useCherryPick, useReset, useRevert } from "../hooks/use-branch-mutations";
 import { useCommitLog } from "../hooks/use-commit-log";
+import { useRefs } from "../hooks/use-refs";
 import { AuthorAvatar } from "./author-avatar";
 import { ResetHardConfirmDialog } from "./reset-confirm-dialog";
 
@@ -40,7 +50,16 @@ export function CommitList({ repoPath }: Props) {
     return () => window.clearTimeout(t);
   }, [rawQuery]);
 
-  const { data, isLoading, error, isFetching } = useCommitLog(repoPath, debouncedQuery);
+  const allBranches = useUiStore((s) => s.commitLogAllBranches);
+  const setAllBranches = useUiStore((s) => s.setCommitLogAllBranches);
+  const { data: refs } = useRefs(repoPath);
+  const currentBranch = refs?.headRef?.replace(/^refs\/heads\//, "") ?? null;
+  const { data, isLoading, error, isFetching } = useCommitLog(
+    repoPath,
+    debouncedQuery,
+    500,
+    allBranches,
+  );
   const parentRef = useRef<HTMLDivElement>(null);
   const selectedCommitId = useSelectionStore((s) => s.selectedCommitId);
   const selectCommit = useSelectionStore((s) => s.selectCommit);
@@ -70,8 +89,40 @@ export function CommitList({ repoPath }: Props) {
     overscan: 12,
   });
 
+  const scopeLabel = allBranches
+    ? "All branches"
+    : currentBranch
+      ? currentBranch
+      : "Current branch";
+
   const searchBar = (
     <div className="flex items-center gap-2 border-b bg-background/95 p-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-7 max-w-[10rem] gap-1.5 px-2 text-xs">
+            <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{scopeLabel}</span>
+            <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuLabel>Show commits from</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setAllBranches(false)}>
+            <Check className={cn("h-3.5 w-3.5", allBranches ? "opacity-0" : "opacity-100")} />
+            <span className="flex-1 truncate">
+              Current branch
+              {currentBranch && (
+                <span className="ml-1 text-muted-foreground">({currentBranch})</span>
+              )}
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setAllBranches(true)}>
+            <Check className={cn("h-3.5 w-3.5", allBranches ? "opacity-100" : "opacity-0")} />
+            <span>All branches</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input

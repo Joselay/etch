@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { ChangeStatus, CommitSummary } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
+import { useUiStore } from "@/stores/ui-store";
 import { useCommitChanges } from "../hooks/use-commit-details";
 import { useCommitLog } from "../hooks/use-commit-log";
 import { AuthorAvatar } from "./author-avatar";
@@ -21,7 +22,8 @@ export function CommitDetails({ repoPath }: Props) {
   const selectedFilePath = useSelectionStore((s) => s.selectedFilePath);
   const selectFile = useSelectionStore((s) => s.selectFile);
   const { data, isLoading, error } = useCommitChanges(repoPath, selectedCommitId);
-  const { data: commits } = useCommitLog(repoPath);
+  const allBranches = useUiStore((s) => s.commitLogAllBranches);
+  const { data: commits } = useCommitLog(repoPath, null, 500, allBranches);
   const commit = useMemo(
     () => commits?.find((c) => c.id === selectedCommitId) ?? null,
     [commits, selectedCommitId],

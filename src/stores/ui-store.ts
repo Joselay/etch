@@ -16,6 +16,8 @@ type UiState = {
   toggleDiffWordWrap: () => void;
   diffLineNumbers: boolean;
   toggleDiffLineNumbers: () => void;
+  commitLogAllBranches: boolean;
+  setCommitLogAllBranches: (value: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -35,6 +37,8 @@ export const useUiStore = create<UiState>()(
       toggleDiffWordWrap: () => set((s) => ({ diffWordWrap: !s.diffWordWrap })),
       diffLineNumbers: true,
       toggleDiffLineNumbers: () => set((s) => ({ diffLineNumbers: !s.diffLineNumbers })),
+      commitLogAllBranches: false,
+      setCommitLogAllBranches: (value) => set({ commitLogAllBranches: value }),
     }),
     {
       name: "loom-ui",
@@ -42,6 +46,7 @@ export const useUiStore = create<UiState>()(
         sidebarCollapsed: s.sidebarCollapsed,
         diffWordWrap: s.diffWordWrap,
         diffLineNumbers: s.diffLineNumbers,
+        commitLogAllBranches: s.commitLogAllBranches,
       }),
     },
   ),
