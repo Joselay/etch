@@ -121,15 +121,15 @@ export function RepoLayout() {
             {!sidebarCollapsed && <ResizableHandle withHandle />}
             <ResizablePanel id="loom:main-history" defaultSize="84%" minSize="40%">
               <ResizablePanelGroup
-                id="loom:repo-history:v3"
+                id="loom:repo-history:v7"
                 orientation="vertical"
                 className="h-full"
               >
-                <ResizablePanel id="loom:commit-list" defaultSize="28%" minSize="15%">
+                <ResizablePanel id="loom:commit-list" defaultSize="45%" minSize="25%">
                   <CommitList repoPath={activeRepo.path} />
                 </ResizablePanel>
                 <ResizableHandle withHandle />
-                <ResizablePanel id="loom:commit-details" defaultSize="72%" minSize="25%">
+                <ResizablePanel id="loom:commit-details" defaultSize="55%" minSize="30%">
                   <CommitDetails repoPath={activeRepo.path} />
                 </ResizablePanel>
               </ResizablePanelGroup>
