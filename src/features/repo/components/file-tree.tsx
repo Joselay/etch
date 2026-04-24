@@ -121,7 +121,7 @@ export function TreeIndentGuides({
           // biome-ignore lint/suspicious/noArrayIndexKey: positional guides
           key={i}
           style={{ width: indentPx }}
-          className="border-border/50 border-l"
+          className="border-border/80 border-l"
         />
       ))}
     </div>
