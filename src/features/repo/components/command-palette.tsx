@@ -4,6 +4,7 @@ import {
   GitBranch,
   GitMerge,
   History,
+  Keyboard,
   Pencil,
   RefreshCw,
   Settings,
@@ -32,6 +33,7 @@ export function CommandPalette() {
   const allBranches = useUiStore((s) => s.commitLogAllBranches);
   const toggleAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
   const openSettings = useUiStore((s) => s.openSettings);
+  const openShortcuts = useUiStore((s) => s.openShortcuts);
   const activeRepo = useRepoStore((s) => s.activeRepo);
   const setView = useSelectionStore((s) => s.setView);
 
@@ -92,6 +94,14 @@ export function CommandPalette() {
           <CommandItem keywords={["preferences"]} onSelect={() => run(() => openSettings())}>
             <Settings />
             Open settings
+          </CommandItem>
+          <CommandItem
+            keywords={["shortcuts", "keyboard", "cheatsheet", "help"]}
+            onSelect={() => run(() => openShortcuts())}
+          >
+            <Keyboard />
+            Keyboard shortcuts
+            <CommandShortcut>?</CommandShortcut>
           </CommandItem>
         </CommandGroup>
 

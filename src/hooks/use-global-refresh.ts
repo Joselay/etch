@@ -14,6 +14,7 @@ function isTypingTarget(t: EventTarget | null): boolean {
 export function useGlobalRefresh() {
   const qc = useQueryClient();
   const togglePalette = useUiStore((s) => s.togglePalette);
+  const toggleShortcuts = useUiStore((s) => s.toggleShortcuts);
   const toggleCommitLogAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
   const setView = useSelectionStore((s) => s.setView);
 
@@ -28,6 +29,14 @@ export function useGlobalRefresh() {
         e.stopPropagation();
         void qc.invalidateQueries();
         toast.success("Refreshed", { duration: 1200 });
+        return;
+      }
+
+      // ?: shortcuts cheatsheet (skip in inputs so it doesn't steal typed "?")
+      if (!mod && e.key === "?" && !isTypingTarget(e.target)) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleShortcuts();
         return;
       }
 
@@ -65,5 +74,5 @@ export function useGlobalRefresh() {
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [qc, togglePalette, toggleCommitLogAllBranches, setView]);
+  }, [qc, togglePalette, toggleShortcuts, toggleCommitLogAllBranches, setView]);
 }

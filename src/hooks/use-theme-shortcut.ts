@@ -16,7 +16,7 @@ export function useThemeShortcut() {
     const onKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (!mod || !e.shiftKey || e.altKey) return;
-      if (e.key.toLowerCase() !== "l") return;
+      if (e.key.toLowerCase() !== "y") return;
       if (isTypingTarget(e.target)) return;
 
       e.preventDefault();

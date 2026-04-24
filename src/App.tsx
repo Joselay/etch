@@ -2,6 +2,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { ThemeProvider } from "next-themes";
 import { useCallback, useEffect } from "react";
+import { ShortcutsDialog } from "@/components/shortcuts-dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CloneDialog } from "@/features/repo/components/clone-dialog";
@@ -89,6 +90,7 @@ function App() {
         <TooltipProvider delayDuration={200}>
           <AppInner />
           <SettingsDialog />
+          <ShortcutsDialog />
           <Toaster />
         </TooltipProvider>
       </PersistQueryClientProvider>

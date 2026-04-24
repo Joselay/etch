@@ -11,6 +11,10 @@ type UiState = {
   setPaletteOpen: (open: boolean) => void;
   cloneOpen: boolean;
   setCloneOpen: (open: boolean) => void;
+  shortcutsOpen: boolean;
+  openShortcuts: () => void;
+  toggleShortcuts: () => void;
+  setShortcutsOpen: (open: boolean) => void;
   diffWordWrap: boolean;
   toggleDiffWordWrap: () => void;
   diffLineNumbers: boolean;
@@ -32,6 +36,10 @@ export const useUiStore = create<UiState>()(
       setPaletteOpen: (open) => set({ paletteOpen: open }),
       cloneOpen: false,
       setCloneOpen: (open) => set({ cloneOpen: open }),
+      shortcutsOpen: false,
+      openShortcuts: () => set({ shortcutsOpen: true }),
+      toggleShortcuts: () => set((s) => ({ shortcutsOpen: !s.shortcutsOpen })),
+      setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
       diffWordWrap: true,
       toggleDiffWordWrap: () => set((s) => ({ diffWordWrap: !s.diffWordWrap })),
       diffLineNumbers: true,
