@@ -14,6 +14,9 @@ export type CommitSummary = {
   authorName: string;
   authorEmail: string;
   timestamp: number;
+  committerName: string;
+  committerEmail: string;
+  committerTimestamp: number;
   parentIds: string[];
 };
 

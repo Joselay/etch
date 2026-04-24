@@ -13,6 +13,9 @@ pub struct CommitSummary {
     pub author_name: String,
     pub author_email: String,
     pub timestamp: i64,
+    pub committer_name: String,
+    pub committer_email: String,
+    pub committer_timestamp: i64,
     pub parent_ids: Vec<String>,
 }
 
@@ -47,6 +50,7 @@ pub fn commit_log(path: &Path, limit: usize, skip: usize) -> AppResult<Vec<Commi
             .map_err(|e| AppError::Git(e.to_string()))?;
         let msg = commit.message().map_err(|e| AppError::Git(e.to_string()))?;
         let author = commit.author().map_err(|e| AppError::Git(e.to_string()))?;
+        let committer = commit.committer().map_err(|e| AppError::Git(e.to_string()))?;
 
         out.push(CommitSummary {
             id: info.id.to_string(),
@@ -55,6 +59,9 @@ pub fn commit_log(path: &Path, limit: usize, skip: usize) -> AppResult<Vec<Commi
             author_name: author.name.to_string(),
             author_email: author.email.to_string(),
             timestamp: author.time.seconds,
+            committer_name: committer.name.to_string(),
+            committer_email: committer.email.to_string(),
+            committer_timestamp: committer.time.seconds,
             parent_ids: info.parent_ids.iter().map(|p| p.to_string()).collect(),
         });
     }

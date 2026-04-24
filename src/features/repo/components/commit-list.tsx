@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
 import { useCommitLog } from "../hooks/use-commit-log";
+import { AuthorAvatar } from "./author-avatar";
 
 type Props = { repoPath: string };
 
@@ -73,6 +74,7 @@ export function CommitList({ repoPath }: Props) {
                 transform: `translateY(${v.start}px)`,
               }}
             >
+              <AuthorAvatar name={c.authorName} email={c.authorEmail} size={28} />
               <code className="w-[4.5rem] shrink-0 font-mono text-xs text-muted-foreground">
                 {c.shortId}
               </code>
