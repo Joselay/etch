@@ -169,34 +169,51 @@ pub fn commit_changes(path: &Path, commit_id: &str) -> AppResult<Vec<FileChange>
             let loc = change.location.to_string();
             let change = change.detach();
             match change.event {
-                EventDetached::Addition { .. } => out.push(FileChange {
-                    path: loc,
-                    old_path: None,
-                    status: ChangeStatus::Added,
-                }),
-                EventDetached::Deletion { .. } => out.push(FileChange {
-                    path: loc,
-                    old_path: None,
-                    status: ChangeStatus::Deleted,
-                }),
-                EventDetached::Modification { .. } => out.push(FileChange {
-                    path: loc,
-                    old_path: None,
-                    status: ChangeStatus::Modified,
-                }),
+                EventDetached::Addition { entry_mode, .. } => {
+                    if is_blob_kind(entry_mode.kind()) {
+                        out.push(FileChange {
+                            path: loc,
+                            old_path: None,
+                            status: ChangeStatus::Added,
+                        });
+                    }
+                }
+                EventDetached::Deletion { entry_mode, .. } => {
+                    if is_blob_kind(entry_mode.kind()) {
+                        out.push(FileChange {
+                            path: loc,
+                            old_path: None,
+                            status: ChangeStatus::Deleted,
+                        });
+                    }
+                }
+                EventDetached::Modification { entry_mode, .. } => {
+                    if is_blob_kind(entry_mode.kind()) {
+                        out.push(FileChange {
+                            path: loc,
+                            old_path: None,
+                            status: ChangeStatus::Modified,
+                        });
+                    }
+                }
                 EventDetached::Rewrite {
                     source_location,
                     copy,
+                    entry_mode,
                     ..
-                } => out.push(FileChange {
-                    path: loc,
-                    old_path: Some(source_location.to_string()),
-                    status: if copy {
-                        ChangeStatus::Copied
-                    } else {
-                        ChangeStatus::Renamed
-                    },
-                }),
+                } => {
+                    if is_blob_kind(entry_mode.kind()) {
+                        out.push(FileChange {
+                            path: loc,
+                            old_path: Some(source_location.to_string()),
+                            status: if copy {
+                                ChangeStatus::Copied
+                            } else {
+                                ChangeStatus::Renamed
+                            },
+                        });
+                    }
+                }
             }
             Ok(gix::object::tree::diff::Action::Continue)
         })
@@ -211,6 +228,13 @@ fn blob_bytes(repo: &gix::Repository, id: gix::ObjectId) -> AppResult<Vec<u8>> {
         .find_blob(id)
         .map_err(|e| AppError::Git(e.to_string()))?;
     Ok(blob.data.clone())
+}
+
+fn is_blob_kind(kind: EntryKind) -> bool {
+    matches!(
+        kind,
+        EntryKind::Blob | EntryKind::BlobExecutable | EntryKind::Link
+    )
 }
 
 fn is_binary(bytes: &[u8]) -> bool {
