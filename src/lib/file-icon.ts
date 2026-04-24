@@ -39,10 +39,16 @@ function basename(path: string): string {
 }
 
 function resolveIconName(path: string): string {
-  const name = basename(path).toLowerCase();
-  if (m.fileNames[name]) return m.fileNames[name];
+  // Filename mappings are case-sensitive in the manifest (e.g. `CLAUDE.md`,
+  // `Dockerfile`). Try the original casing first, fall back to lowercase
+  // for entries like `readme.md` / `license`.
+  const raw = basename(path);
+  const lower = raw.toLowerCase();
+  if (m.fileNames[raw]) return m.fileNames[raw];
+  if (m.fileNames[lower]) return m.fileNames[lower];
 
-  const segments = name.split(".");
+  // Extensions are always lowercase in the manifest.
+  const segments = lower.split(".");
   for (let i = 1; i < segments.length; i++) {
     const ext = segments.slice(i).join(".");
     const hit = m.fileExtensions[ext] ?? EXTENSION_OVERRIDES[ext];
