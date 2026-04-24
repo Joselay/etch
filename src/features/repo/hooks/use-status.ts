@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/tauri";
+import { toast } from "sonner";
+import { api, toastGitError } from "@/lib/tauri";
+
+function pluralize(n: number, singular: string, plural = `${singular}s`) {
+  return n === 1 ? singular : plural;
+}
 
 export function useStatus(path: string | null) {
   return useQuery({
@@ -28,15 +33,36 @@ export function useStageActions(path: string | null) {
   return {
     stage: useMutation({
       mutationFn: (paths: string[]) => api.stagePaths(path as string, paths),
-      onSuccess: invalidate,
+      onSuccess: (_d, paths) => {
+        invalidate();
+        toast.success(`Staged ${paths.length} ${pluralize(paths.length, "file")}`);
+      },
+      onError: toastGitError,
     }),
     unstage: useMutation({
       mutationFn: (paths: string[]) => api.unstagePaths(path as string, paths),
-      onSuccess: invalidate,
+      onSuccess: (_d, paths) => {
+        invalidate();
+        toast.success(`Unstaged ${paths.length} ${pluralize(paths.length, "file")}`);
+      },
+      onError: toastGitError,
     }),
     discard: useMutation({
       mutationFn: (paths: string[]) => api.discardPaths(path as string, paths),
-      onSuccess: invalidate,
+      onSuccess: (_d, paths) => {
+        invalidate();
+        toast.success(`Discarded changes in ${paths.length} ${pluralize(paths.length, "file")}`);
+      },
+      onError: toastGitError,
+    }),
+    applyPatch: useMutation({
+      mutationFn: (vars: { patch: string; cached: boolean; reverse: boolean; toast: string }) =>
+        api.applyPatch(path as string, vars.patch, vars.cached, vars.reverse),
+      onSuccess: (_d, vars) => {
+        invalidate();
+        toast.success(vars.toast);
+      },
+      onError: toastGitError,
     }),
   };
 }
@@ -46,10 +72,13 @@ export function useCommit(path: string | null) {
   return useMutation({
     mutationFn: ({ message, amend }: { message: string; amend: boolean }) =>
       api.commit(path as string, message, amend),
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["status", path] });
       qc.invalidateQueries({ queryKey: ["commit-log", path] });
       qc.invalidateQueries({ queryKey: ["refs", path] });
+      qc.invalidateQueries({ queryKey: ["upstream-status", path] });
+      toast.success(vars.amend ? "Amended last commit" : "Commit created");
     },
+    onError: toastGitError,
   });
 }

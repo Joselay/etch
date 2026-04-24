@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 
 export type RepoInfo = {
   path: string;
@@ -104,6 +105,14 @@ export type RemoteAuthor = {
   profileUrl: string | null;
 };
 
+export type UpstreamStatus = {
+  branch: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  detached: boolean;
+};
+
 export type ProviderToken = {
   host: string;
   label: string;
@@ -123,6 +132,10 @@ export function errorMessage(err: unknown): string {
   return (err as { message?: string } | null)?.message ?? "unknown error";
 }
 
+export function toastGitError(err: unknown) {
+  toast.error(errorMessage(err));
+}
+
 export const api = {
   openRepo: (path: string) => invoke<RepoInfo>("cmd_open_repo", { path }),
   commitLog: (path: string, limit = 200, skip = 0) =>
@@ -140,6 +153,8 @@ export const api = {
     invoke<void>("cmd_unstage_paths", { path, paths }),
   discardPaths: (path: string, paths: string[]) =>
     invoke<void>("cmd_discard_paths", { path, paths }),
+  applyPatch: (path: string, patch: string, cached: boolean, reverse: boolean) =>
+    invoke<void>("cmd_apply_patch", { path, patch, cached, reverse }),
   commit: (path: string, message: string, amend: boolean) =>
     invoke<CommitResult>("cmd_commit", { path, message, amend }),
   createBranch: (path: string, name: string, startPoint: string | null) =>
@@ -152,6 +167,26 @@ export const api = {
     invoke<void>("cmd_delete_branch", { path, name, force }),
   renameBranch: (path: string, oldName: string, newName: string, force: boolean) =>
     invoke<void>("cmd_rename_branch", { path, oldName, newName, force }),
+  upstreamStatus: (path: string) => invoke<UpstreamStatus>("cmd_upstream_status", { path }),
+  fetch: (path: string, remote: string | null = null, prune = true) =>
+    invoke<void>("cmd_fetch", { path, remote, prune }),
+  pull: (path: string, ffOnly = true) => invoke<void>("cmd_pull", { path, ffOnly }),
+  push: (
+    path: string,
+    opts: {
+      remote?: string | null;
+      branch?: string | null;
+      setUpstream?: boolean;
+      forceWithLease?: boolean;
+    } = {},
+  ) =>
+    invoke<void>("cmd_push", {
+      path,
+      remote: opts.remote ?? null,
+      branch: opts.branch ?? null,
+      setUpstream: opts.setUpstream ?? false,
+      forceWithLease: opts.forceWithLease ?? false,
+    }),
   remoteAuthors: (path: string) => invoke<RemoteAuthor[]>("cmd_remote_authors", { path }),
   listProviderTokens: () => invoke<ProviderToken[]>("cmd_list_provider_tokens"),
   setProviderToken: (host: string, token: string) =>

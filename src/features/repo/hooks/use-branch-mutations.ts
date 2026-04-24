@@ -1,16 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/tauri";
+import { api, toastGitError } from "@/lib/tauri";
 
 function invalidateRepo(qc: ReturnType<typeof useQueryClient>, path: string) {
   qc.invalidateQueries({ queryKey: ["refs", path] });
   qc.invalidateQueries({ queryKey: ["status", path] });
   qc.invalidateQueries({ queryKey: ["commit-log", path] });
+  qc.invalidateQueries({ queryKey: ["upstream-status", path] });
   qc.invalidateQueries({ queryKey: ["repo", path] });
-}
-
-function onError(err: unknown) {
-  toast.error((err as Error).message || "git error");
 }
 
 export function useCreateBranch(path: string) {
@@ -22,7 +19,7 @@ export function useCreateBranch(path: string) {
       invalidateRepo(qc, path);
       toast.success(`Created branch ${vars.name}`);
     },
-    onError,
+    onError: toastGitError,
   });
 }
 
@@ -35,7 +32,7 @@ export function useCheckout(path: string) {
       invalidateRepo(qc, path);
       toast.success(`Switched to ${vars.target}`);
     },
-    onError,
+    onError: toastGitError,
   });
 }
 
@@ -48,7 +45,7 @@ export function useCheckoutTracking(path: string) {
       invalidateRepo(qc, path);
       toast.success(`Tracking ${vars.upstream} as ${vars.localName}`);
     },
-    onError,
+    onError: toastGitError,
   });
 }
 
@@ -74,6 +71,6 @@ export function useRenameBranch(path: string) {
       invalidateRepo(qc, path);
       toast.success(`Renamed to ${vars.newName}`);
     },
-    onError,
+    onError: toastGitError,
   });
 }

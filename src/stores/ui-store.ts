@@ -8,6 +8,14 @@ type UiState = {
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  paletteOpen: boolean;
+  openPalette: () => void;
+  togglePalette: () => void;
+  setPaletteOpen: (open: boolean) => void;
+  diffWordWrap: boolean;
+  toggleDiffWordWrap: () => void;
+  diffLineNumbers: boolean;
+  toggleDiffLineNumbers: () => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -19,10 +27,22 @@ export const useUiStore = create<UiState>()(
       sidebarCollapsed: false,
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+      paletteOpen: false,
+      openPalette: () => set({ paletteOpen: true }),
+      togglePalette: () => set((s) => ({ paletteOpen: !s.paletteOpen })),
+      setPaletteOpen: (open) => set({ paletteOpen: open }),
+      diffWordWrap: true,
+      toggleDiffWordWrap: () => set((s) => ({ diffWordWrap: !s.diffWordWrap })),
+      diffLineNumbers: true,
+      toggleDiffLineNumbers: () => set((s) => ({ diffLineNumbers: !s.diffLineNumbers })),
     }),
     {
       name: "loom-ui",
-      partialize: (s) => ({ sidebarCollapsed: s.sidebarCollapsed }),
+      partialize: (s) => ({
+        sidebarCollapsed: s.sidebarCollapsed,
+        diffWordWrap: s.diffWordWrap,
+        diffLineNumbers: s.diffLineNumbers,
+      }),
     },
   ),
 );

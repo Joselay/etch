@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -61,37 +62,42 @@ export function CreateBranchDialog({ repoPath, open, onOpenChange, startPoint }:
             )}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="branch-name">Name</Label>
-            <Input
-              id="branch-name"
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submit();
-              }}
-              placeholder="feature/my-work"
-            />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+          className="flex flex-col gap-4"
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="branch-name">Name</Label>
+              <Input
+                id="branch-name"
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="feature/my-work"
+              />
+            </div>
+            <label htmlFor="checkout-after-create" className="flex items-center gap-2 text-sm">
+              <Checkbox
+                id="checkout-after-create"
+                checked={checkoutAfter}
+                onCheckedChange={(v) => setCheckoutAfter(v === true)}
+              />
+              Checkout after create
+            </label>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={checkoutAfter}
-              onChange={(e) => setCheckoutAfter(e.target.checked)}
-            />
-            Checkout after create
-          </label>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={!name.trim() || create.isPending}>
-            Create
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!name.trim() || create.isPending}>
+              Create
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

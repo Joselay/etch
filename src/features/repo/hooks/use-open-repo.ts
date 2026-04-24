@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import { api } from "@/lib/tauri";
 import { useRepoStore } from "@/stores/repo-store";
 import { remoteAuthorsQueryOptions } from "./use-remote-authors";
@@ -25,6 +26,7 @@ export function useOpenRepo() {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(msg);
+        toast.error(`Couldn't open repository: ${msg}`);
         throw e;
       } finally {
         setIsOpening(false);

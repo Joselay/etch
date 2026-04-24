@@ -1,6 +1,7 @@
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { RepoLayout } from "@/features/repo/components/repo-layout";
 import { WelcomeScreen } from "@/features/repo/components/welcome-screen";
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
@@ -42,9 +43,11 @@ function App() {
         },
       }}
     >
-      <AppInner />
-      <SettingsDialog />
-      <Toaster />
+      <TooltipProvider delayDuration={200}>
+        <AppInner />
+        <SettingsDialog />
+        <Toaster />
+      </TooltipProvider>
     </PersistQueryClientProvider>
   );
 }

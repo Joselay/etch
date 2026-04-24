@@ -12,9 +12,11 @@ import { useStatus } from "../hooks/use-status";
 import { RemoteAuthorsContext } from "../remote-authors-context";
 import { BranchSwitcher } from "./branch-switcher";
 import { ChangesView } from "./changes-view";
+import { CommandPalette } from "./command-palette";
 import { CommitDetails } from "./commit-details";
 import { CommitList } from "./commit-list";
 import { RefsSidebar } from "./refs-sidebar";
+import { RemoteActions } from "./remote-actions";
 
 export function RepoLayout() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
@@ -41,6 +43,7 @@ export function RepoLayout() {
 
   return (
     <RemoteAuthorsContext.Provider value={remoteAuthorsValue}>
+      <CommandPalette />
       <Tabs
         value={view}
         onValueChange={(v) => setView(v as RepoView)}
@@ -59,6 +62,7 @@ export function RepoLayout() {
             <FolderGit2 className="h-4 w-4 text-muted-foreground" />
             <span className="truncate font-semibold">{name}</span>
             <BranchSwitcher repoPath={activeRepo.path} label={branchLabel} />
+            <RemoteActions repoPath={activeRepo.path} />
           </div>
           <div className="flex items-center gap-2">
             <TabsList>

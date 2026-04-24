@@ -9,8 +9,9 @@ use crate::git::{
     diff::{commit_changes, file_diff, working_diff, FileChange, FileDiff},
     log::{commit_log, CommitSummary},
     refs::{list_refs, RefListing},
+    remote::{fetch, pull, push, upstream_status, UpstreamStatus},
     repo::{open_repo, RepoInfo},
-    stage::{commit, discard_paths, stage_paths, unstage_paths, CommitResult},
+    stage::{apply_patch, commit, discard_paths, stage_paths, unstage_paths, CommitResult},
     status::{status, RepoStatus},
 };
 use crate::providers::{fetch_authors_for_remote, Author};
@@ -79,6 +80,16 @@ pub fn cmd_discard_paths(path: String, paths: Vec<String>) -> AppResult<()> {
 }
 
 #[tauri::command]
+pub fn cmd_apply_patch(
+    path: String,
+    patch: String,
+    cached: bool,
+    reverse: bool,
+) -> AppResult<()> {
+    apply_patch(&PathBuf::from(path), &patch, cached, reverse)
+}
+
+#[tauri::command]
 pub fn cmd_commit(path: String, message: String, amend: bool) -> AppResult<CommitResult> {
     commit(&PathBuf::from(path), &message, amend)
 }
@@ -115,6 +126,48 @@ pub fn cmd_rename_branch(
     force: bool,
 ) -> AppResult<()> {
     rename_branch(&PathBuf::from(path), &old_name, &new_name, force)
+}
+
+#[tauri::command]
+pub fn cmd_upstream_status(path: String) -> AppResult<UpstreamStatus> {
+    upstream_status(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub async fn cmd_fetch(path: String, remote: Option<String>, prune: bool) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch(&PathBuf::from(&path), remote.as_deref(), prune)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
+}
+
+#[tauri::command]
+pub async fn cmd_pull(path: String, ff_only: bool) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || pull(&PathBuf::from(&path), ff_only))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
+}
+
+#[tauri::command]
+pub async fn cmd_push(
+    path: String,
+    remote: Option<String>,
+    branch: Option<String>,
+    set_upstream: bool,
+    force_with_lease: bool,
+) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        push(
+            &PathBuf::from(&path),
+            remote.as_deref(),
+            branch.as_deref(),
+            set_upstream,
+            force_with_lease,
+        )
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]

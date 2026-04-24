@@ -1,4 +1,4 @@
-import { Check, ChevronRight, GitBranch, Plus, Tag } from "lucide-react";
+import { Check, ChevronRight, GitBranch, Plus, Search, Tag, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -9,6 +9,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Input } from "@/components/ui/input";
 import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,6 +32,20 @@ export function RefsSidebar({ repoPath }: Props) {
   const [createState, setCreateState] = useState<CreateState>({ open: false, startPoint: null });
   const [renameState, setRenameState] = useState<BranchDialogState>({ open: false, name: "" });
   const [deleteState, setDeleteState] = useState<BranchDialogState>({ open: false, name: "" });
+  const [filter, setFilter] = useState("");
+
+  const needle = filter.trim().toLowerCase();
+
+  const localBranches = useMemo(() => {
+    if (!data) return [];
+    if (!needle) return data.local;
+    return data.local.filter((b) => b.name.toLowerCase().includes(needle));
+  }, [data, needle]);
+  const filteredTags = useMemo(() => {
+    if (!data) return [];
+    if (!needle) return data.tags;
+    return data.tags.filter((t) => t.name.toLowerCase().includes(needle));
+  }, [data, needle]);
 
   const remoteGroups = useMemo(() => {
     const map = new Map<
@@ -39,13 +54,14 @@ export function RefsSidebar({ repoPath }: Props) {
     >();
     if (!data) return map;
     for (const r of data.remote) {
+      if (needle && !r.name.toLowerCase().includes(needle)) continue;
       const key = r.remote ?? "origin";
       const arr = map.get(key) ?? [];
       arr.push({ name: r.name, fullName: r.fullName, target: r.target, remote: key });
       map.set(key, arr);
     }
     return map;
-  }, [data]);
+  }, [data, needle]);
 
   if (isLoading) {
     return (
@@ -64,131 +80,165 @@ export function RefsSidebar({ repoPath }: Props) {
   if (!data) return null;
 
   const localBranchNames = new Set(data.local.map((b) => b.name));
+  const hasAnyMatch = localBranches.length > 0 || remoteGroups.size > 0 || filteredTags.length > 0;
 
   return (
     <>
-      <ScrollArea className="h-full">
-        <div className="flex flex-col gap-1 p-2">
-          <Section
-            title="Branches"
-            icon={<GitBranch className="h-3.5 w-3.5" />}
-            action={
+      <div className="flex h-full flex-col">
+        <div className="border-b bg-background/95 p-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter refs"
+              className="h-7 pl-7 pr-7 text-xs"
+            />
+            {filter && (
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-5 w-5"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCreateState({ open: true, startPoint: null });
-                }}
-                aria-label="New branch"
+                onClick={() => setFilter("")}
+                aria-label="Clear filter"
+                className="absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2"
               >
-                <Plus className="h-3 w-3" />
+                <X className="h-3 w-3" />
               </Button>
-            }
-          >
-            {data.local.length === 0 ? (
-              <div className="px-2 py-1 text-xs text-muted-foreground">No local branches</div>
-            ) : (
-              <ItemGroup>
-                {data.local.map((b) => (
-                  <ContextMenu key={b.fullName}>
-                    <ContextMenuTrigger asChild>
-                      <RefItem
-                        icon={b.isHead ? <Check className="h-3 w-3 text-primary" /> : null}
-                        label={b.name}
-                        emphasized={b.isHead}
-                        onDoubleClick={() => {
-                          if (!b.isHead) checkout.mutate({ target: b.name });
-                        }}
-                      />
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem
-                        disabled={b.isHead}
-                        onSelect={() => checkout.mutate({ target: b.name })}
-                      >
-                        Checkout
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        onSelect={() => setCreateState({ open: true, startPoint: b.name })}
-                      >
-                        New branch from here
-                      </ContextMenuItem>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem
-                        onSelect={() => setRenameState({ open: true, name: b.name })}
-                      >
-                        Rename…
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        variant="destructive"
-                        disabled={b.isHead}
-                        onSelect={() => setDeleteState({ open: true, name: b.name })}
-                      >
-                        Delete
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-                ))}
-              </ItemGroup>
             )}
-          </Section>
-
-          {remoteGroups.size > 0 && (
-            <Section title="Remotes" icon={<GitBranch className="h-3.5 w-3.5" />}>
-              {[...remoteGroups.entries()].map(([remote, branches]) => (
-                <div key={remote} className="flex flex-col gap-0.5">
-                  <div className="px-2 pt-1 text-xs font-medium text-muted-foreground">
-                    {remote}
-                  </div>
-                  <ItemGroup>
-                    {branches.map((b) => {
-                      const upstream = `${b.remote}/${b.name}`;
-                      const hasLocal = localBranchNames.has(b.name);
-                      return (
-                        <ContextMenu key={b.fullName}>
-                          <ContextMenuTrigger asChild>
-                            <RefItem label={b.name} />
-                          </ContextMenuTrigger>
-                          <ContextMenuContent>
-                            <ContextMenuItem
-                              disabled={hasLocal}
-                              onSelect={() =>
-                                checkoutTracking.mutate({
-                                  localName: b.name,
-                                  upstream,
-                                })
-                              }
-                            >
-                              Checkout as new local
-                            </ContextMenuItem>
-                            <ContextMenuItem
-                              onSelect={() => setCreateState({ open: true, startPoint: upstream })}
-                            >
-                              New branch from here…
-                            </ContextMenuItem>
-                          </ContextMenuContent>
-                        </ContextMenu>
-                      );
-                    })}
-                  </ItemGroup>
-                </div>
-              ))}
-            </Section>
-          )}
-
-          {data.tags.length > 0 && (
-            <Section title="Tags" icon={<Tag className="h-3.5 w-3.5" />}>
-              <ItemGroup>
-                {data.tags.map((t) => (
-                  <RefItem key={t.fullName} label={t.name} />
-                ))}
-              </ItemGroup>
-            </Section>
-          )}
+          </div>
         </div>
-      </ScrollArea>
+        <ScrollArea className="flex-1">
+          <div className="flex flex-col gap-1 p-2">
+            {needle && !hasAnyMatch && (
+              <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+                No refs match “{filter}”.
+              </div>
+            )}
+            <Section
+              title="Branches"
+              icon={<GitBranch className="h-3.5 w-3.5" />}
+              action={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-5 w-5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCreateState({ open: true, startPoint: null });
+                  }}
+                  aria-label="New branch"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              }
+            >
+              {localBranches.length === 0 ? (
+                <div className="px-2 py-1 text-xs text-muted-foreground">
+                  {needle ? "No matches" : "No local branches"}
+                </div>
+              ) : (
+                <ItemGroup>
+                  {localBranches.map((b) => (
+                    <ContextMenu key={b.fullName}>
+                      <ContextMenuTrigger asChild>
+                        <RefItem
+                          icon={b.isHead ? <Check className="h-3 w-3 text-primary" /> : null}
+                          label={b.name}
+                          emphasized={b.isHead}
+                          onDoubleClick={() => {
+                            if (!b.isHead) checkout.mutate({ target: b.name });
+                          }}
+                        />
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem
+                          disabled={b.isHead}
+                          onSelect={() => checkout.mutate({ target: b.name })}
+                        >
+                          Checkout
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() => setCreateState({ open: true, startPoint: b.name })}
+                        >
+                          New branch from here
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          onSelect={() => setRenameState({ open: true, name: b.name })}
+                        >
+                          Rename…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          variant="destructive"
+                          disabled={b.isHead}
+                          onSelect={() => setDeleteState({ open: true, name: b.name })}
+                        >
+                          Delete
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
+                  ))}
+                </ItemGroup>
+              )}
+            </Section>
+
+            {remoteGroups.size > 0 && (
+              <Section title="Remotes" icon={<GitBranch className="h-3.5 w-3.5" />}>
+                {[...remoteGroups.entries()].map(([remote, branches]) => (
+                  <div key={remote} className="flex flex-col gap-0.5">
+                    <div className="px-2 pt-1 text-xs font-medium text-muted-foreground">
+                      {remote}
+                    </div>
+                    <ItemGroup>
+                      {branches.map((b) => {
+                        const upstream = `${b.remote}/${b.name}`;
+                        const hasLocal = localBranchNames.has(b.name);
+                        return (
+                          <ContextMenu key={b.fullName}>
+                            <ContextMenuTrigger asChild>
+                              <RefItem label={b.name} />
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                              <ContextMenuItem
+                                disabled={hasLocal}
+                                onSelect={() =>
+                                  checkoutTracking.mutate({
+                                    localName: b.name,
+                                    upstream,
+                                  })
+                                }
+                              >
+                                Checkout as new local
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                onSelect={() =>
+                                  setCreateState({ open: true, startPoint: upstream })
+                                }
+                              >
+                                New branch from here…
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
+                        );
+                      })}
+                    </ItemGroup>
+                  </div>
+                ))}
+              </Section>
+            )}
+
+            {filteredTags.length > 0 && (
+              <Section title="Tags" icon={<Tag className="h-3.5 w-3.5" />}>
+                <ItemGroup>
+                  {filteredTags.map((t) => (
+                    <RefItem key={t.fullName} label={t.name} />
+                  ))}
+                </ItemGroup>
+              </Section>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
       <CreateBranchDialog
         repoPath={repoPath}

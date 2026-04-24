@@ -11,6 +11,7 @@ import { useCommitChanges } from "../hooks/use-commit-details";
 import { useCommitLog } from "../hooks/use-commit-log";
 import { AuthorAvatar } from "./author-avatar";
 import { DiffViewer } from "./diff-viewer";
+import { FileRowContextMenu } from "./file-row-context-menu";
 import { FileTree, TreeIndentGuides, TreeLeafSpacer } from "./file-tree";
 
 type Props = { repoPath: string };
@@ -67,25 +68,26 @@ export function CommitDetails({ repoPath }: Props) {
                   renderItem={(f, { depth, displayName, indentPx }) => {
                     const selected = selectedFilePath === f.path;
                     return (
-                      <button
-                        key={f.path}
-                        type="button"
-                        data-selected={selected || undefined}
-                        onClick={() => selectFile(f.path)}
-                        className={cn(
-                          "group flex w-full min-w-0 cursor-pointer items-stretch text-left text-[13px]",
-                          "hover:bg-muted/60",
-                          "data-[selected]:bg-primary/10 data-[selected]:text-foreground",
-                        )}
-                      >
-                        <TreeIndentGuides depth={depth} indentPx={indentPx} />
-                        <div className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-3">
-                          <TreeLeafSpacer />
-                          <FileIcon path={f.path} />
-                          <span className="min-w-0 flex-1 truncate">{displayName}</span>
-                          <StatusBadge status={f.status} />
-                        </div>
-                      </button>
+                      <FileRowContextMenu key={f.path} repoPath={repoPath} relPath={f.path}>
+                        <button
+                          type="button"
+                          data-selected={selected || undefined}
+                          onClick={() => selectFile(f.path)}
+                          className={cn(
+                            "group flex w-full min-w-0 cursor-pointer items-stretch text-left text-[13px]",
+                            "hover:bg-muted/60",
+                            "data-[selected]:bg-primary/10 data-[selected]:text-foreground",
+                          )}
+                        >
+                          <TreeIndentGuides depth={depth} indentPx={indentPx} />
+                          <div className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-3">
+                            <TreeLeafSpacer />
+                            <FileIcon path={f.path} />
+                            <span className="min-w-0 flex-1 truncate">{displayName}</span>
+                            <StatusBadge status={f.status} />
+                          </div>
+                        </button>
+                      </FileRowContextMenu>
                     );
                   }}
                 />

@@ -46,26 +46,32 @@ export function RenameBranchDialog({ repoPath, open, onOpenChange, oldName }: Pr
         <DialogHeader>
           <DialogTitle>Rename branch</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="rename-branch-name">New name</Label>
-          <Input
-            id="rename-branch-name"
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
-            }}
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={!name.trim() || rename.isPending}>
-            Rename
-          </Button>
-        </DialogFooter>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+          className="flex flex-col gap-4"
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="rename-branch-name">New name</Label>
+            <Input
+              id="rename-branch-name"
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!name.trim() || rename.isPending}>
+              Rename
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
