@@ -9,7 +9,7 @@ import {
   Tag,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { onMenuEvent } from "@/lib/menu-events";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
 import {
@@ -77,6 +78,17 @@ export function RefsSidebar({ repoPath }: Props) {
   }>({ open: false, target: null });
 
   const needle = filter.trim().toLowerCase();
+
+  useEffect(() => {
+    const offs = [
+      onMenuEvent("new-branch", () => setCreateState({ open: true, startPoint: null })),
+      onMenuEvent("create-stash", () => setStashOpen(true)),
+      onMenuEvent("new-tag", () => setTagDialog({ open: true, target: null })),
+    ];
+    return () => {
+      for (const off of offs) off();
+    };
+  }, []);
 
   const filteredStashes = useMemo(() => {
     const list = stashes.data ?? [];

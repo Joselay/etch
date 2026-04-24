@@ -10,7 +10,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,7 +39,6 @@ import { useUiStore } from "@/stores/ui-store";
 import pkg from "../../../../package.json";
 import { useCloneRepo, useInitRepo } from "../hooks/use-clone-repo";
 import { useOpenRepo } from "../hooks/use-open-repo";
-import { CloneDialog } from "./clone-dialog";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const modKey = isMac ? "⌘" : "Ctrl";
@@ -73,7 +72,7 @@ export function WelcomeScreen() {
   const removeRecent = useRepoStore((s) => s.removeRecent);
   const hydrate = useRepoStore((s) => s.hydrate);
   const openSettings = useUiStore((s) => s.openSettings);
-  const [cloneOpen, setCloneOpen] = useState(false);
+  const setCloneOpen = useUiStore((s) => s.setCloneOpen);
 
   const pickAndInit = useCallback(async () => {
     const selected = await openDialog({ directory: true, multiple: false });
@@ -113,7 +112,7 @@ export function WelcomeScreen() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [pickAndOpen, pickAndInit, openSettings]);
+  }, [pickAndOpen, pickAndInit, openSettings, setCloneOpen]);
 
   const hasRecents = recents.length > 0;
 
@@ -336,8 +335,6 @@ export function WelcomeScreen() {
           </>
         )}
       </div>
-
-      <CloneDialog open={cloneOpen} onOpenChange={setCloneOpen} />
     </main>
   );
 }

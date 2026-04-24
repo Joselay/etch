@@ -9,6 +9,8 @@ type UiState = {
   openPalette: () => void;
   togglePalette: () => void;
   setPaletteOpen: (open: boolean) => void;
+  cloneOpen: boolean;
+  setCloneOpen: (open: boolean) => void;
   diffWordWrap: boolean;
   toggleDiffWordWrap: () => void;
   diffLineNumbers: boolean;
@@ -28,6 +30,8 @@ export const useUiStore = create<UiState>()(
       openPalette: () => set({ paletteOpen: true }),
       togglePalette: () => set((s) => ({ paletteOpen: !s.paletteOpen })),
       setPaletteOpen: (open) => set({ paletteOpen: open }),
+      cloneOpen: false,
+      setCloneOpen: (open) => set({ cloneOpen: open }),
       diffWordWrap: true,
       toggleDiffWordWrap: () => set((s) => ({ diffWordWrap: !s.diffWordWrap })),
       diffLineNumbers: true,

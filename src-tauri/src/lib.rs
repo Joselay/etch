@@ -1,6 +1,8 @@
 mod commands;
 mod error;
 mod git;
+#[cfg(target_os = "macos")]
+mod menu;
 mod providers;
 mod settings;
 mod watcher;
@@ -28,11 +30,16 @@ use commands::settings::{
 use watcher::WatcherState;
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .manage(WatcherState::default())
+        .manage(WatcherState::default());
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(menu::build).on_menu_event(menu::on_event);
+
+    builder
         .setup(|app| {
             settings::init(app)?;
             Ok(())
@@ -109,3 +116,4 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

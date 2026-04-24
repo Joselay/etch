@@ -1,7 +1,9 @@
 import { ArrowDown, ArrowUp, RefreshCw } from "lucide-react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { onMenuEvent } from "@/lib/menu-events";
 import { cn } from "@/lib/utils";
 import { useFetch, usePull, usePush, useUpstreamStatus } from "../hooks/use-remote-ops";
 
@@ -18,6 +20,33 @@ export function RemoteActions({ repoPath }: Props) {
   const behind = upstream?.behind ?? 0;
 
   const anyPending = fetchOp.isPending || pullOp.isPending || pushOp.isPending;
+
+  useEffect(() => {
+    const offs = [
+      onMenuEvent("fetch", () => {
+        if (!fetchOp.isPending && !pullOp.isPending && !pushOp.isPending) {
+          fetchOp.mutate({});
+        }
+      }),
+      onMenuEvent("pull", () => {
+        if (anyPendingRef()) return;
+        if (upstream?.upstream && (upstream.behind ?? 0) > 0) pullOp.mutate({});
+      }),
+      onMenuEvent("push", () => {
+        if (anyPendingRef()) return;
+        const has = !!upstream?.upstream;
+        if (!has || (upstream.ahead ?? 0) > 0) {
+          pushOp.mutate(has ? {} : { setUpstream: true });
+        }
+      }),
+    ];
+    function anyPendingRef() {
+      return fetchOp.isPending || pullOp.isPending || pushOp.isPending;
+    }
+    return () => {
+      for (const off of offs) off();
+    };
+  }, [fetchOp, pullOp, pushOp, upstream]);
 
   const upstreamLabel = upstream?.upstream ?? "no upstream";
   const branchLabel = upstream?.branch ?? (upstream?.detached ? "detached" : "unborn");
