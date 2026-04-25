@@ -1,4 +1,16 @@
-import { AlertTriangle, FolderGit2, GitBranch, History, Pencil, Settings, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  FolderGit2,
+  FolderOpen,
+  FolderPlus,
+  GitBranch,
+  GitFork,
+  History,
+  Pencil,
+  Settings,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertDialog,
@@ -12,14 +24,23 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { onMenuEvent } from "@/lib/menu-events";
+import { dispatchMenuEvent, onMenuEvent } from "@/lib/menu-events";
 import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/stores/repo-store";
 import { type RepoView, useSelectionStore } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
+import { useOpenRepo } from "../hooks/use-open-repo";
 import { useRefs } from "../hooks/use-refs";
 import { useRemoteAuthorsContextValue } from "../hooks/use-remote-authors";
 import { useRepoWatcher } from "../hooks/use-repo-watcher";
@@ -39,6 +60,7 @@ const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(na
 export function RepoLayout() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
   const clearActive = useRepoStore((s) => s.clearActive);
+  const recentRepos = useRepoStore((s) => s.recentRepos);
   const view = useSelectionStore((s) => s.view);
   const setView = useSelectionStore((s) => s.setView);
 
@@ -47,6 +69,7 @@ export function RepoLayout() {
   const { data: refs } = useRefs(activeRepo?.path ?? null);
   const remoteAuthorsValue = useRemoteAuthorsContextValue(activeRepo?.path ?? null);
   const openSettings = useUiStore((s) => s.openSettings);
+  const { openAt } = useOpenRepo();
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 
   const dirtyCount =
@@ -79,6 +102,8 @@ export function RepoLayout() {
     else clearActive();
   };
 
+  const otherRecents = recentRepos.filter((r) => r.path !== activeRepo.path);
+
   return (
     <RemoteAuthorsContext.Provider value={remoteAuthorsValue}>
       <CommandPalette />
@@ -107,16 +132,64 @@ export function RepoLayout() {
                 data-tauri-drag-region
                 className="flex h-12 shrink-0 items-center justify-between gap-3 px-4"
               >
-                <div data-tauri-drag-region className="flex min-w-0 items-center gap-3">
-                  <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate font-semibold">{name}</span>
-                  <span
-                    className="flex items-center gap-1.5 text-sm text-muted-foreground"
-                    title={branchLabel}
-                  >
-                    <GitBranch className="h-3.5 w-3.5" />
-                    <span className="max-w-[24ch] truncate">{branchLabel}</span>
-                  </span>
+                <div className="flex min-w-0 items-center gap-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      aria-label="Switch repository"
+                      className="group -mx-1.5 flex min-w-0 items-center gap-3 rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent"
+                    >
+                      <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate font-semibold">{name}</span>
+                      <span
+                        className="flex items-center gap-1.5 text-sm text-muted-foreground"
+                        title={branchLabel}
+                      >
+                        <GitBranch className="h-3.5 w-3.5" />
+                        <span className="max-w-[24ch] truncate">{branchLabel}</span>
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-64">
+                      {otherRecents.length > 0 ? (
+                        <>
+                          <DropdownMenuLabel>Switch to</DropdownMenuLabel>
+                          {otherRecents.map((r) => {
+                            const folder = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
+                            return (
+                              <DropdownMenuItem
+                                key={r.path}
+                                onSelect={() => {
+                                  void openAt(r.path);
+                                }}
+                                title={r.path}
+                              >
+                                <FolderGit2 className="text-muted-foreground" />
+                                <span className="truncate">{folder}</span>
+                              </DropdownMenuItem>
+                            );
+                          })}
+                          <DropdownMenuSeparator />
+                        </>
+                      ) : null}
+                      <DropdownMenuItem onSelect={() => dispatchMenuEvent("open-repo")}>
+                        <FolderOpen />
+                        Open repository…
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => dispatchMenuEvent("clone-repo")}>
+                        <GitFork />
+                        Clone repository…
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => dispatchMenuEvent("new-repo")}>
+                        <FolderPlus />
+                        New repository…
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem variant="destructive" onSelect={requestClose}>
+                        <X />
+                        Close repository
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <RemoteActions repoPath={activeRepo.path} />
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -157,15 +230,6 @@ export function RepoLayout() {
                     </TooltipTrigger>
                     <TooltipContent>Settings</TooltipContent>
                   </Tooltip>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={requestClose}
-                    aria-label="Close repository"
-                  >
-                    <X className="h-4 w-4" />
-                    Close
-                  </Button>
                 </div>
               </header>
 
