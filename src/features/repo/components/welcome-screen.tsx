@@ -35,6 +35,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/stores/repo-store";
 import { useUiStore } from "@/stores/ui-store";
 import pkg from "../../../../package.json";
@@ -115,11 +116,16 @@ export function WelcomeScreen() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div
+        data-tauri-drag-region
+        aria-hidden
+        className={cn("absolute inset-x-0 top-0 z-20", isMac ? "h-8" : "h-6")}
+      />
+      <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--color-muted)_0%,_transparent_55%)] opacity-60"
       />
 
-      <div className="absolute right-4 top-4 z-10">
+      <div className={cn("absolute right-4 z-30", isMac ? "top-10" : "top-4")}>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="icon" variant="ghost" onClick={openSettings} aria-label="Settings">
@@ -138,7 +144,12 @@ export function WelcomeScreen() {
         </Tooltip>
       </div>
 
-      <div className="relative mx-auto flex max-w-4xl flex-col gap-10 px-6 py-16">
+      <div
+        className={cn(
+          "relative mx-auto flex max-w-4xl flex-col gap-10 px-6 pb-16",
+          isMac ? "pt-20" : "pt-16",
+        )}
+      >
         <header className="flex flex-col items-center gap-4 text-center">
           <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-border shadow-sm">
             <GitBranch className="h-7 w-7 text-primary" strokeWidth={2.25} />
