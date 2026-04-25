@@ -118,18 +118,30 @@ export function layoutGraph(commits: GraphCommit[]): GraphLayout {
   return { rows, width, idColor };
 }
 
-// Qualitative palette that reads on both light and dark themes.
-export const LANE_COLORS = [
-  "hsl(210 75% 55%)",
-  "hsl(150 60% 45%)",
-  "hsl(35 90% 55%)",
-  "hsl(330 70% 58%)",
-  "hsl(265 65% 62%)",
-  "hsl(185 60% 45%)",
-  "hsl(15 80% 55%)",
-  "hsl(85 55% 45%)",
-];
+// Qualitative palette tuned per-theme: dark mode gets brighter, more
+// saturated colors so lanes pop against the dark background; light mode is
+// kept slightly deeper so they read against white. Hues are shared between
+// the two so a given lane keeps its identity across theme switches.
+const LANE_HUES = [210, 150, 35, 330, 265, 185, 15, 85];
 
-export function laneColor(colorIndex: number): string {
-  return LANE_COLORS[colorIndex % LANE_COLORS.length];
+const LIGHT_LANE_COLORS = LANE_HUES.map((h, i) => {
+  const sat = i % 2 === 0 ? 70 : 60;
+  const light = i % 2 === 0 ? 50 : 45;
+  return `hsl(${h} ${sat}% ${light}%)`;
+});
+
+const DARK_LANE_COLORS = LANE_HUES.map((h, i) => {
+  const sat = i % 2 === 0 ? 80 : 70;
+  const light = i % 2 === 0 ? 65 : 60;
+  return `hsl(${h} ${sat}% ${light}%)`;
+});
+
+// Kept as the public default so existing callers that read it directly
+// (e.g. for legend chips) get the light palette. Use `laneColor` for
+// rendering.
+export const LANE_COLORS = LIGHT_LANE_COLORS;
+
+export function laneColor(colorIndex: number, isDark = false): string {
+  const palette = isDark ? DARK_LANE_COLORS : LIGHT_LANE_COLORS;
+  return palette[colorIndex % palette.length];
 }

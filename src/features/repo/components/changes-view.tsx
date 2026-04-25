@@ -1,6 +1,7 @@
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileIcon } from "@/components/file-icon";
+import { ErrorState, LoadingState } from "@/components/states";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +22,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { buildHunkPatch } from "@/lib/patch";
+import { buildHunkPatch, buildPartialHunkPatch } from "@/lib/patch";
 import type { ConflictEntry, ConflictKind, FileDiff, StatusEntry } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
@@ -30,7 +31,7 @@ import { useConflictActions, useConflicts } from "../hooks/use-conflicts";
 import { useRefs } from "../hooks/use-refs";
 import { useCommit, useStageActions, useStatus, useWorkingDiff } from "../hooks/use-status";
 import { ConflictViewer } from "./conflict-viewer";
-import { DiffViewer, type HunkAction } from "./diff-viewer";
+import { DiffViewer, type HunkAction, type LineAction } from "./diff-viewer";
 import { FileRowContextMenu } from "./file-row-context-menu";
 import { FileTree, TreeIndentGuides, TreeLeafSpacer } from "./file-tree";
 
@@ -474,7 +475,7 @@ function FileRow({
           <FileIcon path={entry.path} />
           <span className="min-w-0 flex-1 truncate">{displayName}</span>
           <StatusBadge code={entry.code} />
-          <span className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[selected]:opacity-100 group-focus-within:opacity-100">
             {secondary}
             <Button
               asChild
@@ -545,7 +546,7 @@ function ConflictRow({
           <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-destructive">
             {conflictKindLabel[entry.kind]}
           </span>
-          <span className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[selected]:opacity-100 group-focus-within:opacity-100">
             <Button
               size="sm"
               variant="ghost"
@@ -642,20 +643,21 @@ function WorkingDiffPane({
   onApplyPatch: (vars: { patch: string; cached: boolean; reverse: boolean; toast: string }) => void;
   applyPatchPending: boolean;
 }) {
-  const { data, isLoading, error } = useWorkingDiff(_repoPath, filePath, staged);
+  const { data, isLoading, error, refetch } = useWorkingDiff(_repoPath, filePath, staged);
   const [pendingDiscardHunk, setPendingDiscardHunk] = useState<number | null>(null);
 
-  if (isLoading) return <div className="p-4 text-xs text-muted-foreground">Loading diff…</div>;
-  if (error) return <div className="p-4 text-xs text-destructive">{(error as Error).message}</div>;
+  if (isLoading) return <LoadingState label="Loading diff…" />;
+  if (error) return <ErrorState error={error as Error} onRetry={() => void refetch()} />;
   if (!data) return null;
 
   const hunkActions = buildHunkActions(data, staged, onApplyPatch, applyPatchPending, (hi) =>
     setPendingDiscardHunk(hi),
   );
+  const lineActions = buildLineActions(data, staged, onApplyPatch, applyPatchPending);
 
   return (
     <>
-      <DiffViewer data={data} hunkActions={hunkActions} />
+      <DiffViewer data={data} hunkActions={hunkActions} lineActions={lineActions} />
       <AlertDialog
         open={pendingDiscardHunk !== null}
         onOpenChange={(o) => !o && setPendingDiscardHunk(null)}
@@ -702,9 +704,10 @@ function WorkingDiffPane({
 }
 
 function DiscardPreview({ repoPath, filePath }: { repoPath: string; filePath: string }) {
-  const { data, isLoading, error } = useWorkingDiff(repoPath, filePath, false);
-  if (isLoading) return <div className="p-3 text-xs text-muted-foreground">Loading diff…</div>;
-  if (error) return <div className="p-3 text-xs text-destructive">{(error as Error).message}</div>;
+  const { data, isLoading, error, refetch } = useWorkingDiff(repoPath, filePath, false);
+  if (isLoading) return <LoadingState label="Loading preview…" tone="compact" />;
+  if (error)
+    return <ErrorState error={error as Error} onRetry={() => void refetch()} tone="compact" />;
   if (!data) return <div className="p-3 text-xs text-muted-foreground">No preview available.</div>;
   return (
     <div className="h-full overflow-auto">
@@ -753,6 +756,49 @@ function buildHunkActions(
       destructive: true,
       disabled: pending,
       onClick: (hi) => requestDiscard(hi),
+    },
+  ];
+}
+
+function buildLineActions(
+  diff: FileDiff,
+  staged: boolean,
+  onApplyPatch: (vars: { patch: string; cached: boolean; reverse: boolean; toast: string }) => void,
+  pending: boolean,
+): LineAction[] | undefined {
+  if (diff.isBinary || diff.hunks.length === 0) return undefined;
+
+  const apply = (
+    lines: ReadonlyArray<{ hunkIdx: number; lineIdx: number }>,
+    reverse: boolean,
+    toast: string,
+  ) => {
+    if (lines.length === 0) return;
+    // The DiffViewer keeps every selection within a single hunk so we don't
+    // need to renumber subsequent hunks. Defensive guard in case that ever
+    // changes.
+    const hunkIdx = lines[0].hunkIdx;
+    if (lines.some((l) => l.hunkIdx !== hunkIdx)) return;
+    const selected = new Set(lines.map((l) => l.lineIdx));
+    const patch = buildPartialHunkPatch(diff, hunkIdx, selected);
+    if (!patch) return;
+    onApplyPatch({ patch, cached: true, reverse, toast });
+  };
+
+  if (staged) {
+    return [
+      {
+        label: "Unstage lines",
+        disabled: pending,
+        onClick: (lines) => apply(lines, true, "Unstaged lines"),
+      },
+    ];
+  }
+  return [
+    {
+      label: "Stage lines",
+      disabled: pending,
+      onClick: (lines) => apply(lines, false, "Staged lines"),
     },
   ];
 }

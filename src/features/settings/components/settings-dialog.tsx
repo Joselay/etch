@@ -1,17 +1,22 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   Check,
+  Columns2,
   ExternalLink,
+  Eye,
+  Hash,
   KeyRound,
   Monitor,
   Moon,
   Palette,
+  Rows2,
   Sun,
   Trash2,
   UserRound,
+  WrapText,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProviderToken } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -39,7 +45,7 @@ import {
   useSetProviderToken,
 } from "../hooks/use-provider-tokens";
 
-type Tab = "appearance" | "identity" | "providers";
+type Tab = "appearance" | "review" | "identity" | "providers";
 
 export function SettingsDialog() {
   const open = useUiStore((s) => s.settingsOpen);
@@ -60,10 +66,14 @@ export function SettingsDialog() {
           onValueChange={(v) => setTab(v as Tab)}
           className="flex max-h-[70vh] flex-col"
         >
-          <TabsList className="mx-6 grid w-auto grid-cols-3">
+          <TabsList className="mx-6 grid w-auto grid-cols-4">
             <TabsTrigger value="appearance">
               <Palette className="h-3.5 w-3.5" />
               Appearance
+            </TabsTrigger>
+            <TabsTrigger value="review">
+              <Eye className="h-3.5 w-3.5" />
+              Review
             </TabsTrigger>
             <TabsTrigger value="identity">
               <UserRound className="h-3.5 w-3.5" />
@@ -77,6 +87,9 @@ export function SettingsDialog() {
           <div className="flex-1 overflow-y-auto px-6 py-5">
             <TabsContent value="appearance" className="m-0 flex flex-col gap-4">
               <AppearanceSection />
+            </TabsContent>
+            <TabsContent value="review" className="m-0 flex flex-col gap-6">
+              <ReviewSection />
             </TabsContent>
             <TabsContent value="identity" className="m-0 flex flex-col gap-6">
               <IdentitySection title="Global identity" repoPath={null} />
@@ -105,17 +118,26 @@ function ActiveRepoIdentity() {
 
 function ProvidersSection() {
   const { data, isLoading } = useProviderTokens();
-  if (isLoading || !data) {
-    return <Skeleton className="h-16 w-full" />;
-  }
   return (
     <div className="flex flex-col gap-4">
-      {data.map((p, i) => (
-        <div key={p.host} className="flex flex-col gap-3">
-          {i > 0 && <Separator />}
-          <ProviderRow provider={p} />
-        </div>
-      ))}
+      <div className="rounded-md border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+        <p className="font-medium text-foreground">What tokens are used for</p>
+        <p className="mt-1">
+          Loom uses provider tokens to resolve commit author avatars and display names from public
+          profiles. They are not used to push, pull, or sign commits — those still go through your
+          system Git credentials and SSH keys. PR and issue features are not yet built.
+        </p>
+      </div>
+      {isLoading || !data ? (
+        <Skeleton className="h-16 w-full" />
+      ) : (
+        data.map((p, i) => (
+          <div key={p.host} className="flex flex-col gap-3">
+            {i > 0 && <Separator />}
+            <ProviderRow provider={p} />
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -154,6 +176,121 @@ function AppearanceSection() {
         ))}
       </RadioGroup>
     </div>
+  );
+}
+
+const DIFF_LAYOUT_OPTIONS = [
+  { value: "unified", label: "Unified", Icon: Rows2 },
+  { value: "split", label: "Split", Icon: Columns2 },
+] as const;
+
+function ReviewSection() {
+  const diffLayout = useUiStore((s) => s.diffLayout);
+  const setDiffLayout = useUiStore((s) => s.setDiffLayout);
+  const diffWordWrap = useUiStore((s) => s.diffWordWrap);
+  const toggleWrap = useUiStore((s) => s.toggleDiffWordWrap);
+  const diffLineNumbers = useUiStore((s) => s.diffLineNumbers);
+  const toggleLineNumbers = useUiStore((s) => s.toggleDiffLineNumbers);
+  const diffWordHighlight = useUiStore((s) => s.diffWordHighlight);
+  const toggleWordHighlight = useUiStore((s) => s.toggleDiffWordHighlight);
+  const allBranches = useUiStore((s) => s.commitLogAllBranches);
+  const setAllBranches = useUiStore((s) => s.setCommitLogAllBranches);
+
+  return (
+    <>
+      <section className="flex flex-col gap-3">
+        <div>
+          <Label className="text-sm font-medium">Diff layout</Label>
+          <p className="text-xs text-muted-foreground">
+            How added and removed lines are arranged. You can also toggle this from the diff header.
+          </p>
+        </div>
+        <RadioGroup
+          value={diffLayout}
+          onValueChange={(v) => setDiffLayout(v as "unified" | "split")}
+          className="grid grid-cols-2 gap-2"
+        >
+          {DIFF_LAYOUT_OPTIONS.map(({ value, label, Icon }) => (
+            <Label
+              key={value}
+              htmlFor={`difflayout-${value}`}
+              className="flex cursor-pointer items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm font-normal hover:bg-accent has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-accent"
+            >
+              <span className="flex items-center gap-2">
+                <Icon className="h-4 w-4" />
+                {label}
+              </span>
+              <RadioGroupItem id={`difflayout-${value}`} value={value} />
+            </Label>
+          ))}
+        </RadioGroup>
+      </section>
+      <Separator />
+      <section className="flex flex-col gap-3">
+        <Label className="text-sm font-medium">Diff display</Label>
+        <ToggleRow
+          icon={<Hash className="h-4 w-4" />}
+          title="Show line numbers"
+          description="Show old and new line numbers in the gutter."
+          checked={diffLineNumbers}
+          onChange={toggleLineNumbers}
+        />
+        <ToggleRow
+          icon={<WrapText className="h-4 w-4" />}
+          title="Wrap long lines"
+          description="Wrap diff lines instead of scrolling horizontally."
+          checked={diffWordWrap}
+          onChange={toggleWrap}
+        />
+        <ToggleRow
+          icon={<Eye className="h-4 w-4" />}
+          title="Highlight word changes"
+          description="Emphasize changed words within paired add/remove lines."
+          checked={diffWordHighlight}
+          onChange={toggleWordHighlight}
+        />
+      </section>
+      <Separator />
+      <section className="flex flex-col gap-3">
+        <Label className="text-sm font-medium">History</Label>
+        <ToggleRow
+          icon={<KeyRound className="h-4 w-4" />}
+          title="Show all branches by default"
+          description="Include commits from every branch in the log, not just the current one."
+          checked={allBranches}
+          onChange={() => setAllBranches(!allBranches)}
+        />
+      </section>
+    </>
+  );
+}
+
+function ToggleRow({
+  icon,
+  title,
+  description,
+  checked,
+  onChange,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  const id = useId();
+  return (
+    <Label
+      htmlFor={id}
+      className="flex cursor-pointer items-start gap-3 rounded-md border border-input bg-background px-3 py-2.5 text-sm font-normal hover:bg-accent/60"
+    >
+      <span className="mt-0.5 text-muted-foreground">{icon}</span>
+      <span className="flex flex-1 flex-col gap-0.5">
+        <span className="font-medium">{title}</span>
+        <span className="text-xs text-muted-foreground">{description}</span>
+      </span>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+    </Label>
   );
 }
 

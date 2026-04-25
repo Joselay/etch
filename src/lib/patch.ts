@@ -70,3 +70,71 @@ export function buildHunkPatch(diff: FileDiff, hunkIndex: number): string {
   headerLines.push("");
   return headerLines.join("\n") + serializeHunk(hunk);
 }
+
+// Build a patch for a single hunk where only the user-selected addition /
+// deletion lines are kept. Unselected `+` lines are dropped (they remain in
+// the working tree only); unselected `-` lines are demoted to context (they
+// remain in both old and new). Returns null if no real changes remain after
+// filtering.
+//
+// We deliberately restrict each call to a single hunk so we don't need to
+// recompute downstream hunk offsets, which is what makes general partial-line
+// staging notoriously fiddly.
+export function buildPartialHunkPatch(
+  diff: FileDiff,
+  hunkIndex: number,
+  selectedLineIndices: ReadonlySet<number>,
+): string | null {
+  const hunk = diff.hunks[hunkIndex];
+  if (!hunk) throw new Error(`hunk ${hunkIndex} out of range`);
+  const oldRange = hunkRange(hunk.header, "-");
+  const newRange = hunkRange(hunk.header, "+");
+  if (!oldRange || !newRange) return null;
+
+  const oldPath = diff.oldPath ?? diff.path;
+  const newPath = diff.path;
+  const headerLines = [`diff --git a/${oldPath} b/${newPath}`];
+  // Partial-line staging never makes sense for full add/delete — caller
+  // should stage the whole hunk in those cases. Treat the file as a normal
+  // modification.
+  headerLines.push(`--- a/${oldPath}`);
+  headerLines.push(`+++ b/${newPath}`);
+
+  const body: string[] = [];
+  let oldCount = 0;
+  let newCount = 0;
+  let hasRealChange = false;
+
+  for (let li = 0; li < hunk.lines.length; li++) {
+    const line = hunk.lines[li];
+    if (line.kind === "context") {
+      body.push(` ${line.content}\n`);
+      oldCount++;
+      newCount++;
+    } else if (line.kind === "deletion") {
+      if (selectedLineIndices.has(li)) {
+        body.push(`-${line.content}\n`);
+        oldCount++;
+        hasRealChange = true;
+      } else {
+        // Unselected deletion: act as if the line stays in both versions.
+        body.push(` ${line.content}\n`);
+        oldCount++;
+        newCount++;
+      }
+    } else {
+      // addition
+      if (selectedLineIndices.has(li)) {
+        body.push(`+${line.content}\n`);
+        newCount++;
+        hasRealChange = true;
+      }
+      // Unselected addition: drop entirely.
+    }
+  }
+
+  if (!hasRealChange) return null;
+
+  const newHeader = `@@ -${oldRange.start},${oldCount} +${newRange.start},${newCount} @@`;
+  return `${headerLines.join("\n")}\n${newHeader}\n${body.join("")}`;
+}

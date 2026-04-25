@@ -1,9 +1,10 @@
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { formatDistanceToNow } from "date-fns";
 import {
-  Cloud,
   FolderGit2,
   GitBranch,
   GitCommitHorizontal,
+  Layers,
   Plus,
   Settings,
   Sparkles,
@@ -42,20 +43,6 @@ import { useOpenRepo } from "../hooks/use-open-repo";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const modKey = isMac ? "⌘" : "Ctrl";
-
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const m = Math.round(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.round(h / 24);
-  if (d < 7) return `${d}d ago`;
-  const w = Math.round(d / 7);
-  if (w < 5) return `${w}w ago`;
-  return new Date(ts).toLocaleDateString();
-}
 
 function isTypingTarget(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false;
@@ -163,8 +150,8 @@ export function WelcomeScreen() {
             Welcome to <span className="font-bold">Loom</span>
           </h1>
           <p className="max-w-xl text-balance text-muted-foreground">
-            A fast, native git client for macOS &amp; Windows — built to make branching, committing,
-            and reviewing code feel effortless.
+            A fast, native git client for macOS, Windows &amp; Linux — built to make branching,
+            committing, and reviewing code feel effortless.
           </p>
           <div className="mt-2 flex flex-wrap justify-center gap-2">
             <Tooltip>
@@ -256,8 +243,11 @@ export function WelcomeScreen() {
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions className="items-center gap-1">
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {relativeTime(r.lastOpenedAt)}
+                      <span
+                        className="text-xs text-muted-foreground tabular-nums"
+                        title={new Date(r.lastOpenedAt).toLocaleString()}
+                      >
+                        {formatDistanceToNow(new Date(r.lastOpenedAt), { addSuffix: true })}
                       </span>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -294,9 +284,9 @@ export function WelcomeScreen() {
                 description="Craft clean commits without leaving the diff."
               />
               <FeatureCard
-                icon={<Cloud className="h-5 w-5 text-muted-foreground" />}
-                title="GitHub native"
-                description="PRs, reviews, and checks — all in one place."
+                icon={<Layers className="h-5 w-5 text-muted-foreground" />}
+                title="Stash, branch, rebase"
+                description="Switch context fast and keep history clean."
               />
             </section>
           </>
@@ -314,9 +304,9 @@ export function WelcomeScreen() {
                 description="Craft clean commits without leaving the diff."
               />
               <FeatureCard
-                icon={<Cloud className="h-5 w-5 text-muted-foreground" />}
-                title="GitHub native"
-                description="PRs, reviews, and checks — all in one place."
+                icon={<Layers className="h-5 w-5 text-muted-foreground" />}
+                title="Stash, branch, rebase"
+                description="Switch context fast and keep history clean."
               />
             </section>
 

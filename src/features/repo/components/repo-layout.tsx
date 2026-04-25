@@ -1,5 +1,5 @@
 import { AlertTriangle, FolderGit2, GitBranch, History, Pencil, Settings, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { onMenuEvent } from "@/lib/menu-events";
 import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/stores/repo-store";
 import { type RepoView, useSelectionStore } from "@/stores/selection-store";
@@ -31,6 +32,7 @@ import { CommitList } from "./commit-list";
 import { RefsSidebar } from "./refs-sidebar";
 import { RemoteActions } from "./remote-actions";
 import { RepoStateBanner } from "./repo-state-banner";
+import { StatusBar } from "./status-bar";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 
@@ -47,6 +49,20 @@ export function RepoLayout() {
   const openSettings = useUiStore((s) => s.openSettings);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 
+  const dirtyCount =
+    (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0);
+  const conflictCount = status?.conflicted.length ?? 0;
+  const hasDirty = dirtyCount > 0 || conflictCount > 0;
+  const hasDirtyRef = useRef(hasDirty);
+  hasDirtyRef.current = hasDirty;
+
+  useEffect(() => {
+    return onMenuEvent("close-repo", () => {
+      if (hasDirtyRef.current) setConfirmCloseOpen(true);
+      else clearActive();
+    });
+  }, [clearActive]);
+
   if (!activeRepo) return null;
 
   const name = activeRepo.path.split(/[\\/]/).filter(Boolean).pop() ?? activeRepo.path;
@@ -58,12 +74,8 @@ export function RepoLayout() {
       ? `detached @ ${activeRepo.headCommitId?.slice(0, 7) ?? "?"}`
       : (activeRepo.headRef?.replace(/^refs\/heads\//, "") ?? "unborn");
 
-  const dirtyCount =
-    (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0);
-  const conflictCount = status?.conflicted.length ?? 0;
-  const hasDirty = dirtyCount > 0 || conflictCount > 0;
   const requestClose = () => {
-    if (hasDirty) setConfirmCloseOpen(true);
+    if (hasDirtyRef.current) setConfirmCloseOpen(true);
     else clearActive();
   };
 
@@ -184,6 +196,7 @@ export function RepoLayout() {
             </ResizablePanel>
           </ResizablePanelGroup>
         </TabsContent>
+        <StatusBar />
       </Tabs>
       <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
         <AlertDialogContent>

@@ -31,5 +31,6 @@ export function useCommitLog(
     hasNextPage: q.hasNextPage,
     isFetchingNextPage: q.isFetchingNextPage,
     fetchNextPage: q.fetchNextPage,
+    refetch: q.refetch,
   };
 }

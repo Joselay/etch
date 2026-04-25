@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export type DiffLayout = "unified" | "split";
+
 type UiState = {
   settingsOpen: boolean;
   openSettings: () => void;
@@ -19,6 +21,11 @@ type UiState = {
   toggleDiffWordWrap: () => void;
   diffLineNumbers: boolean;
   toggleDiffLineNumbers: () => void;
+  diffLayout: DiffLayout;
+  setDiffLayout: (layout: DiffLayout) => void;
+  toggleDiffLayout: () => void;
+  diffWordHighlight: boolean;
+  toggleDiffWordHighlight: () => void;
   commitLogAllBranches: boolean;
   setCommitLogAllBranches: (value: boolean) => void;
   toggleCommitLogAllBranches: () => void;
@@ -44,6 +51,12 @@ export const useUiStore = create<UiState>()(
       toggleDiffWordWrap: () => set((s) => ({ diffWordWrap: !s.diffWordWrap })),
       diffLineNumbers: true,
       toggleDiffLineNumbers: () => set((s) => ({ diffLineNumbers: !s.diffLineNumbers })),
+      diffLayout: "unified",
+      setDiffLayout: (layout) => set({ diffLayout: layout }),
+      toggleDiffLayout: () =>
+        set((s) => ({ diffLayout: s.diffLayout === "unified" ? "split" : "unified" })),
+      diffWordHighlight: true,
+      toggleDiffWordHighlight: () => set((s) => ({ diffWordHighlight: !s.diffWordHighlight })),
       commitLogAllBranches: false,
       setCommitLogAllBranches: (value) => set({ commitLogAllBranches: value }),
       toggleCommitLogAllBranches: () =>
@@ -54,6 +67,8 @@ export const useUiStore = create<UiState>()(
       partialize: (s) => ({
         diffWordWrap: s.diffWordWrap,
         diffLineNumbers: s.diffLineNumbers,
+        diffLayout: s.diffLayout,
+        diffWordHighlight: s.diffWordHighlight,
         commitLogAllBranches: s.commitLogAllBranches,
       }),
     },

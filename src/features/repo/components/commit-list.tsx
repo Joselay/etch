@@ -1,7 +1,9 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import { AlertTriangle, GitCommitVertical, RotateCcw, Search, X } from "lucide-react";
+import { AlertTriangle, GitCommitVertical, Pencil, RotateCcw, Search, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ErrorState } from "@/components/states";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -17,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useIsDark } from "@/hooks/use-is-dark";
 import { type GraphRow, laneColor, layoutGraph } from "@/lib/commit-graph";
 import type { BranchRef, CommitSummary, ResetMode, TagRef } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -25,6 +28,7 @@ import { useUiStore } from "@/stores/ui-store";
 import { useCherryPick, useRevert } from "../hooks/use-branch-mutations";
 import { useCommitLog } from "../hooks/use-commit-log";
 import { useRefs } from "../hooks/use-refs";
+import { useStatus } from "../hooks/use-status";
 import { AuthorAvatar } from "./author-avatar";
 import { ResetConfirmDialog } from "./reset-confirm-dialog";
 
@@ -32,7 +36,8 @@ type Props = { repoPath: string };
 
 const ROW_HEIGHT = 56;
 const LANE_WIDTH = 14;
-const DOT_RADIUS = 4;
+const DOT_RADIUS = 4.5;
+const STROKE_WIDTH = 1.75;
 const GRAPH_PAD_LEFT = 8;
 const GRAPH_PAD_RIGHT = 6;
 const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
@@ -48,10 +53,25 @@ export function CommitList({ repoPath }: Props) {
   const allBranches = useUiStore((s) => s.commitLogAllBranches);
   const setAllBranches = useUiStore((s) => s.setCommitLogAllBranches);
   const { data: refs } = useRefs(repoPath);
+  const { data: status } = useStatus(repoPath);
   const currentBranch = refs?.headRef?.replace(/^refs\/heads\//, "") ?? null;
   const refsByCommit = useMemo(() => buildRefsByCommit(refs), [refs]);
-  const { data, isLoading, error, isFetching, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useCommitLog(repoPath, debouncedQuery, allBranches);
+  const setView = useSelectionStore((s) => s.setView);
+
+  const dirtyCount =
+    (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0);
+  const conflictCount = status?.conflicted.length ?? 0;
+  const hasWorkingTree = dirtyCount > 0 || conflictCount > 0;
+  const {
+    data,
+    isLoading,
+    error,
+    isFetching,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    refetch,
+  } = useCommitLog(repoPath, debouncedQuery, allBranches);
   const parentRef = useRef<HTMLDivElement>(null);
   const selectedCommitId = useSelectionStore((s) => s.selectedCommitId);
   const selectCommit = useSelectionStore((s) => s.selectCommit);
@@ -106,6 +126,23 @@ export function CommitList({ repoPath }: Props) {
     [rows],
   );
   const graphWidth = GRAPH_PAD_LEFT + Math.max(1, graph.width) * LANE_WIDTH + GRAPH_PAD_RIGHT;
+  const isDark = useIsDark();
+
+  // HEAD's lane color — used to tint the pinned working-tree row so it reads
+  // as "sitting on top of HEAD."
+  const headIdxForColor = headCommitId ? rows.findIndex((c) => c.id === headCommitId) : -1;
+  const headLaneColorIndex = headIdxForColor >= 0 ? (graph.rows[headIdxForColor]?.color ?? 0) : 0;
+  const headLaneColor = laneColor(headLaneColorIndex, isDark);
+
+  const workingTreeRow = hasWorkingTree ? (
+    <WorkingTreeRow
+      width={graphWidth}
+      color={headLaneColor}
+      dirtyCount={dirtyCount}
+      conflictCount={conflictCount}
+      onClick={() => setView("changes")}
+    />
+  ) : null;
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -124,6 +161,40 @@ export function CommitList({ repoPath }: Props) {
       void fetchNextPage();
     }
   }, [lastVisibleIndex, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Arrow-key navigation through the commit list. Active when the focused
+  // element is the list (or empty body), so it doesn't interfere with the
+  // diff viewer's `j`/`k` or any input field.
+  useEffect(() => {
+    if (rows.length === 0) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target;
+      if (target instanceof HTMLElement) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable) {
+          return;
+        }
+        // Scope to the commit list — only consume arrow keys when focus is
+        // inside our scroll container (or nothing in particular is focused).
+        const inList = parentRef.current?.contains(target) || target === document.body;
+        if (!inList) return;
+      }
+      const key = e.key;
+      if (key !== "ArrowDown" && key !== "ArrowUp" && key !== "Home" && key !== "End") return;
+      const currentIdx = selectedCommitId ? rows.findIndex((r) => r.id === selectedCommitId) : -1;
+      let nextIdx = currentIdx;
+      if (key === "ArrowDown") nextIdx = Math.min(rows.length - 1, currentIdx + 1);
+      else if (key === "ArrowUp") nextIdx = Math.max(0, currentIdx - 1);
+      else if (key === "Home") nextIdx = 0;
+      else if (key === "End") nextIdx = rows.length - 1;
+      if (nextIdx === currentIdx || nextIdx < 0) return;
+      e.preventDefault();
+      selectCommit(rows[nextIdx].id, rows[nextIdx]);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [rows, selectedCommitId, selectCommit]);
 
   const searchBar = (
     <div className="flex items-center gap-2 border-b bg-background/95 p-2">
@@ -188,6 +259,7 @@ export function CommitList({ repoPath }: Props) {
     return (
       <div className="flex h-full flex-col">
         {searchBar}
+        {workingTreeRow}
         <div className="flex flex-1 flex-col">
           {SKELETON_KEYS.map((k) => (
             <div
@@ -213,9 +285,12 @@ export function CommitList({ repoPath }: Props) {
     return (
       <div className="flex h-full flex-col">
         {searchBar}
-        <div className="p-4 text-destructive text-sm">
-          Failed to load commits: {(error as Error).message}
-        </div>
+        {workingTreeRow}
+        <ErrorState
+          error={error as Error}
+          title="Failed to load commits"
+          onRetry={() => void refetch()}
+        />
       </div>
     );
   }
@@ -224,6 +299,7 @@ export function CommitList({ repoPath }: Props) {
     return (
       <div className="flex h-full flex-col">
         {searchBar}
+        {workingTreeRow}
         <div className="p-4 text-muted-foreground text-sm">
           {debouncedQuery ? `No commits match “${debouncedQuery}”.` : "No commits yet."}
         </div>
@@ -234,6 +310,7 @@ export function CommitList({ repoPath }: Props) {
   return (
     <div className="flex h-full flex-col">
       {searchBar}
+      {workingTreeRow}
       <div ref={parentRef} className="flex-1 overflow-auto">
         <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
           {virtualItems.map((v) => {
@@ -263,7 +340,7 @@ export function CommitList({ repoPath }: Props) {
                       )}
                       style={{ minHeight: ROW_HEIGHT }}
                     >
-                      <GraphCell row={g} height={ROW_HEIGHT} width={graphWidth} />
+                      <GraphCell row={g} height={ROW_HEIGHT} width={graphWidth} isDark={isDark} />
                       <AuthorAvatar name={c.authorName} email={c.authorEmail} size={28} />
                       <code className="w-[4.5rem] shrink-0 font-mono text-xs text-muted-foreground">
                         {c.shortId}
@@ -271,7 +348,10 @@ export function CommitList({ repoPath }: Props) {
                       <div className="min-w-0 flex-1 py-1.5">
                         <div className="truncate text-sm">{c.summary}</div>
                         <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                          <RefChips entry={refsByCommit.get(c.id)} laneColor={laneColor(g.color)} />
+                          <RefChips
+                            entry={refsByCommit.get(c.id)}
+                            laneColor={laneColor(g.color, isDark)}
+                          />
                           <span className="truncate">
                             {c.authorName} ·{" "}
                             {formatDistanceToNow(new Date(c.timestamp * 1000), {
@@ -531,14 +611,104 @@ const RefChips = memo(function RefChips({
   );
 });
 
+const WorkingTreeRow = memo(function WorkingTreeRow({
+  width,
+  color,
+  dirtyCount,
+  conflictCount,
+  onClick,
+}: {
+  width: number;
+  color: string;
+  dirtyCount: number;
+  conflictCount: number;
+  onClick: () => void;
+}) {
+  const height = 56;
+  const mid = height / 2;
+  const x = GRAPH_PAD_LEFT + LANE_WIDTH / 2;
+  const ariaLabel =
+    conflictCount > 0
+      ? `Working tree: ${dirtyCount} change${dirtyCount === 1 ? "" : "s"}, ${conflictCount} conflict${conflictCount === 1 ? "" : "s"}. Open Changes view.`
+      : `Working tree: ${dirtyCount} uncommitted change${dirtyCount === 1 ? "" : "s"}. Open Changes view.`;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      title="Open in Changes view"
+      className="group/wt flex w-full items-center gap-3 border-b border-border/50 pr-2 text-left hover:bg-muted/40"
+      style={{ minHeight: height }}
+    >
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className="shrink-0"
+        aria-hidden="true"
+      >
+        <line
+          x1={x}
+          y1={mid}
+          x2={x}
+          y2={height}
+          stroke={color}
+          strokeWidth={STROKE_WIDTH}
+          strokeDasharray="3 3"
+          opacity={0.7}
+        />
+        <circle
+          cx={x}
+          cy={mid}
+          r={DOT_RADIUS}
+          fill="var(--background)"
+          stroke={color}
+          strokeWidth={STROKE_WIDTH}
+          strokeDasharray="2.5 2"
+        />
+      </svg>
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/50 bg-muted/30 text-muted-foreground">
+        <Pencil className="h-3.5 w-3.5" />
+      </span>
+      <code className="w-[4.5rem] shrink-0 font-mono text-xs italic text-muted-foreground">
+        working
+      </code>
+      <div className="min-w-0 flex-1 py-1.5">
+        <div className="truncate text-sm italic text-foreground/90">Uncommitted changes</div>
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+          {dirtyCount > 0 && (
+            <span>
+              {dirtyCount} change{dirtyCount === 1 ? "" : "s"}
+            </span>
+          )}
+          {conflictCount > 0 && (
+            <Badge
+              variant="destructive"
+              className="h-4 gap-1 px-1.5 text-[10px] font-normal not-italic"
+            >
+              <AlertTriangle className="h-3 w-3" />
+              {conflictCount} conflict{conflictCount === 1 ? "" : "s"}
+            </Badge>
+          )}
+        </div>
+      </div>
+      <span className="ml-1 shrink-0 text-xs text-muted-foreground opacity-0 transition-opacity group-hover/wt:opacity-100">
+        Open →
+      </span>
+    </button>
+  );
+});
+
 const GraphCell = memo(function GraphCell({
   row,
   height,
   width,
+  isDark,
 }: {
   row: GraphRow;
   height: number;
   width: number;
+  isDark: boolean;
 }) {
   const mid = height / 2;
   const laneX = (i: number) => GRAPH_PAD_LEFT + i * LANE_WIDTH + LANE_WIDTH / 2;
@@ -556,9 +726,9 @@ const GraphCell = memo(function GraphCell({
         y1={0}
         x2={x}
         y2={mid}
-        stroke={laneColor(row.incomingColors[i])}
-        strokeWidth={1.5}
-        opacity={i === row.lane ? 1 : 0.75}
+        stroke={laneColor(row.incomingColors[i], isDark)}
+        strokeWidth={STROKE_WIDTH}
+        opacity={i === row.lane ? 1 : 0.8}
       />,
     );
   }
@@ -568,7 +738,7 @@ const GraphCell = memo(function GraphCell({
   for (let i = 0; i < row.outgoingLanes.length; i++) {
     if (!row.outgoingLanes[i]) continue;
     const x = laneX(i);
-    const color = laneColor(row.outgoingColors[i]);
+    const color = laneColor(row.outgoingColors[i], isDark);
     const isParentEdge = parentLaneSet.has(i);
     if (isParentEdge) {
       const from = { x: laneX(row.lane), y: mid };
@@ -576,7 +746,7 @@ const GraphCell = memo(function GraphCell({
       const c1y = mid + (height - mid) * 0.55;
       const path = `M ${from.x} ${from.y} C ${from.x} ${c1y}, ${to.x} ${c1y}, ${to.x} ${to.y}`;
       bottomSegments.push(
-        <path key={`b-${i}`} d={path} stroke={color} strokeWidth={1.5} fill="none" />,
+        <path key={`b-${i}`} d={path} stroke={color} strokeWidth={STROKE_WIDTH} fill="none" />,
       );
     } else {
       bottomSegments.push(
@@ -587,8 +757,8 @@ const GraphCell = memo(function GraphCell({
           x2={x}
           y2={height}
           stroke={color}
-          strokeWidth={1.5}
-          opacity={0.75}
+          strokeWidth={STROKE_WIDTH}
+          opacity={0.8}
         />,
       );
     }
@@ -608,7 +778,7 @@ const GraphCell = memo(function GraphCell({
         cx={laneX(row.lane)}
         cy={mid}
         r={DOT_RADIUS}
-        fill={laneColor(row.color)}
+        fill={laneColor(row.color, isDark)}
         stroke="var(--background)"
         strokeWidth={2}
       />

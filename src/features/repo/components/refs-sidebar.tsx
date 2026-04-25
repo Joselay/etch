@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -18,6 +19,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
@@ -33,6 +37,7 @@ import {
   useStartRebase,
 } from "../hooks/use-branch-mutations";
 import { useRefs } from "../hooks/use-refs";
+import { useRemotes } from "../hooks/use-remotes";
 import { useApplyStash, useDropStash, usePopStash, useStashes } from "../hooks/use-stash";
 import { useDeleteTag, usePushTag } from "../hooks/use-tag-mutations";
 import { CreateBranchDialog } from "./create-branch-dialog";
@@ -49,7 +54,7 @@ type CreateState = { open: boolean; startPoint: string | null };
 type BranchDialogState = { open: boolean; name: string };
 
 export function RefsSidebar({ repoPath }: Props) {
-  const { data, isLoading, error } = useRefs(repoPath);
+  const { data, isLoading, error, refetch } = useRefs(repoPath);
   const checkout = useCheckout(repoPath);
   const checkoutTracking = useCheckoutTracking(repoPath);
   const selectCommit = useSelectionStore((s) => s.selectCommit);
@@ -65,6 +70,7 @@ export function RefsSidebar({ repoPath }: Props) {
   const [remotesOpen, setRemotesOpen] = useState(false);
   const [filter, setFilter] = useState("");
 
+  const remotes = useRemotes(repoPath);
   const stashes = useStashes(repoPath);
   const applyStash = useApplyStash(repoPath);
   const popStash = usePopStash(repoPath);
@@ -135,7 +141,14 @@ export function RefsSidebar({ repoPath }: Props) {
   }
 
   if (error) {
-    return <div className="p-3 text-xs text-destructive">{(error as Error).message}</div>;
+    return (
+      <ErrorState
+        error={error as Error}
+        title="Couldn't load refs"
+        onRetry={() => void refetch()}
+        tone="compact"
+      />
+    );
   }
 
   if (!data) return null;
@@ -389,22 +402,14 @@ export function RefsSidebar({ repoPath }: Props) {
                         />
                       </ContextMenuTrigger>
                       <ContextMenuContent>
-                        <ContextMenuItem
-                          onSelect={() => pushTag.mutate({ remote: "origin", name: t.name })}
-                        >
-                          Push to origin
-                        </ContextMenuItem>
-                        <ContextMenuItem
-                          onSelect={() =>
-                            pushTag.mutate({
-                              remote: "origin",
-                              name: t.name,
-                              deleteRemote: true,
-                            })
+                        <TagRemoteMenu
+                          tagName={t.name}
+                          remotes={remotes.data ?? []}
+                          onPush={(remote) => pushTag.mutate({ remote, name: t.name })}
+                          onDelete={(remote) =>
+                            pushTag.mutate({ remote, name: t.name, deleteRemote: true })
                           }
-                        >
-                          Delete on origin
-                        </ContextMenuItem>
+                        />
                         <ContextMenuSeparator />
                         <ContextMenuItem
                           variant="destructive"
@@ -567,5 +572,69 @@ function RefItem({ icon, label, emphasized, ref, className, ...rest }: RefItemPr
         {label}
       </span>
     </button>
+  );
+}
+
+// Per-tag remote actions. Picks a sensible default when only one remote
+// exists (no menu, just a direct item); falls back to a sub-menu when the
+// repo has multiple remotes so the user can pick which one to push to.
+function TagRemoteMenu({
+  tagName,
+  remotes,
+  onPush,
+  onDelete,
+}: {
+  tagName: string;
+  remotes: { name: string }[];
+  onPush: (remote: string) => void;
+  onDelete: (remote: string) => void;
+}) {
+  if (remotes.length === 0) return null;
+
+  const sorted = [...remotes].sort((a, b) => {
+    if (a.name === "origin") return -1;
+    if (b.name === "origin") return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  if (sorted.length === 1) {
+    const remote = sorted[0].name;
+    return (
+      <>
+        <ContextMenuItem onSelect={() => onPush(remote)}>Push to {remote}</ContextMenuItem>
+        <ContextMenuItem onSelect={() => onDelete(remote)}>Delete on {remote}</ContextMenuItem>
+      </>
+    );
+  }
+
+  // Suppress unused-name warning by referencing it in the aria label below.
+  const _name = tagName;
+  return (
+    <>
+      <ContextMenuSub>
+        <ContextMenuSubTrigger>Push tag to…</ContextMenuSubTrigger>
+        <ContextMenuSubContent>
+          {sorted.map((r) => (
+            <ContextMenuItem
+              key={r.name}
+              onSelect={() => onPush(r.name)}
+              aria-label={`Push ${_name} to ${r.name}`}
+            >
+              {r.name}
+            </ContextMenuItem>
+          ))}
+        </ContextMenuSubContent>
+      </ContextMenuSub>
+      <ContextMenuSub>
+        <ContextMenuSubTrigger>Delete tag on…</ContextMenuSubTrigger>
+        <ContextMenuSubContent>
+          {sorted.map((r) => (
+            <ContextMenuItem key={r.name} variant="destructive" onSelect={() => onDelete(r.name)}>
+              {r.name}
+            </ContextMenuItem>
+          ))}
+        </ContextMenuSubContent>
+      </ContextMenuSub>
+    </>
   );
 }

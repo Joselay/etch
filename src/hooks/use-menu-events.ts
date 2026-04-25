@@ -29,10 +29,10 @@ function handle(name: MenuEventName): void {
     case "toggle-line-numbers":
       ui.toggleDiffLineNumbers();
       return;
-    case "close-repo":
-      if (repo.activeRepo) repo.clearActive();
-      return;
     default:
+      // close-repo and other component-scoped events fall through to
+      // dispatchMenuEvent so the owning component can apply local logic
+      // (e.g. RepoLayout warns about uncommitted changes before closing).
       dispatchMenuEvent(name);
   }
 }

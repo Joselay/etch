@@ -3,6 +3,7 @@ import { Check, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FileIcon } from "@/components/file-icon";
+import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -24,7 +25,7 @@ export function CommitDetails({ repoPath }: Props) {
   const commit = useSelectionStore((s) => s.selectedCommit);
   const selectedFilePath = useSelectionStore((s) => s.selectedFilePath);
   const selectFile = useSelectionStore((s) => s.selectFile);
-  const { data, isLoading, error } = useCommitChanges(repoPath, selectedCommitId);
+  const { data, isLoading, error, refetch } = useCommitChanges(repoPath, selectedCommitId);
 
   useEffect(() => {
     if (data && data.length > 0 && !selectedFilePath) {
@@ -60,7 +61,12 @@ export function CommitDetails({ repoPath }: Props) {
                   ))}
                 </div>
               ) : error ? (
-                <div className="p-3 text-xs text-destructive">{(error as Error).message}</div>
+                <ErrorState
+                  error={error as Error}
+                  title="Couldn't load changes"
+                  onRetry={() => void refetch()}
+                  tone="compact"
+                />
               ) : data && data.length > 0 ? (
                 <FileTree
                   items={data}
