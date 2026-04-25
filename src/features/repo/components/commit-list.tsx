@@ -54,7 +54,6 @@ export function CommitList({ repoPath }: Props) {
   const setAllBranches = useUiStore((s) => s.setCommitLogAllBranches);
   const { data: refs } = useRefs(repoPath);
   const { data: status } = useStatus(repoPath);
-  const currentBranch = refs?.headRef?.replace(/^refs\/heads\//, "") ?? null;
   const refsByCommit = useMemo(() => buildRefsByCommit(refs), [refs]);
   const setView = useSelectionStore((s) => s.setView);
 
@@ -220,11 +219,6 @@ export function CommitList({ repoPath }: Props) {
         </TooltipTrigger>
         <TooltipContent>Toggle branch scope · ⌘⇧B</TooltipContent>
       </Tooltip>
-      {currentBranch && (
-        <span className="hidden max-w-[8rem] truncate text-muted-foreground text-xs sm:inline">
-          on {currentBranch}
-        </span>
-      )}
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
