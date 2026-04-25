@@ -87,115 +87,112 @@ export function RepoLayout() {
         onValueChange={(v) => setView(v as RepoView)}
         className="flex h-screen flex-col gap-0 bg-background text-foreground"
       >
-        <header
-          data-tauri-drag-region
-          className={cn(
-            "flex items-center justify-between gap-3 border-b px-4 py-2",
-            isMac && "pl-[78px]",
-          )}
-        >
-          <div data-tauri-drag-region className="flex min-w-0 items-center gap-3">
-            <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="truncate font-semibold">{name}</span>
-            <span
-              className="flex items-center gap-1.5 text-sm text-muted-foreground"
-              title={branchLabel}
-            >
-              <GitBranch className="h-3.5 w-3.5" />
-              <span className="max-w-[24ch] truncate">{branchLabel}</span>
-            </span>
-            <RemoteActions repoPath={activeRepo.path} />
-          </div>
-          <div className="flex items-center gap-2">
-            <TabsList>
-              <TabsTrigger value="history">
-                <History className="h-3.5 w-3.5" />
-                History
-              </TabsTrigger>
-              <TabsTrigger value="changes">
-                <Pencil className="h-3.5 w-3.5" />
-                Changes
-                {conflictCount > 0 ? (
-                  <Badge
-                    variant="destructive"
-                    className="ml-1 h-5 gap-1 px-1.5 text-[10px]"
-                    aria-label={`${dirtyCount} changes, ${conflictCount} conflicts`}
-                  >
-                    <AlertTriangle className="h-3 w-3" />
-                    {dirtyCount}
-                  </Badge>
-                ) : dirtyCount > 0 ? (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                    {dirtyCount}
-                  </Badge>
-                ) : null}
-              </TabsTrigger>
-            </TabsList>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon" variant="ghost" onClick={openSettings} aria-label="Settings">
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Settings</TooltipContent>
-            </Tooltip>
-            <Button size="sm" variant="ghost" onClick={requestClose} aria-label="Close repository">
-              <X className="h-4 w-4" />
-              Close
-            </Button>
-          </div>
-        </header>
-
-        <RepoStateBanner repoPath={activeRepo.path} />
-
-        <TabsContent value="history" className="m-0 flex-1 overflow-hidden">
-          <ResizablePanelGroup id="loom:repo-outer:v3" orientation="horizontal" className="h-full">
-            <ResizablePanel id="loom:refs-sidebar" defaultSize="16%" minSize="10%" maxSize="22%">
-              <aside className="h-full overflow-hidden border-r">
+        <ResizablePanelGroup id="loom:repo-outer:v4" orientation="horizontal" className="flex-1">
+          <ResizablePanel id="loom:refs-sidebar:v2" defaultSize="16%" minSize="14%" maxSize="22%">
+            <aside className="flex h-full flex-col border-r border-border/60">
+              <div
+                data-tauri-drag-region
+                aria-hidden
+                className={cn("h-12 shrink-0", isMac && "pl-[78px]")}
+              />
+              <div className="min-h-0 flex-1 overflow-hidden">
                 <RefsSidebar repoPath={activeRepo.path} />
-              </aside>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel id="loom:main-history" defaultSize="84%" minSize="40%">
-              <ResizablePanelGroup
-                id="loom:repo-history:v7"
-                orientation="vertical"
-                className="h-full"
+              </div>
+            </aside>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel id="loom:main:v2" defaultSize="84%" minSize="40%">
+            <div className="flex h-full flex-col">
+              <header
+                data-tauri-drag-region
+                className="flex h-12 shrink-0 items-center justify-between gap-3 px-4"
               >
-                <ResizablePanel id="loom:commit-list" defaultSize="45%" minSize="25%">
-                  <CommitList repoPath={activeRepo.path} />
-                </ResizablePanel>
-                <ResizableHandle withHandle />
-                <ResizablePanel id="loom:commit-details" defaultSize="55%" minSize="30%">
-                  <CommitDetails repoPath={activeRepo.path} />
-                </ResizablePanel>
-              </ResizablePanelGroup>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </TabsContent>
+                <div data-tauri-drag-region className="flex min-w-0 items-center gap-3">
+                  <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate font-semibold">{name}</span>
+                  <span
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground"
+                    title={branchLabel}
+                  >
+                    <GitBranch className="h-3.5 w-3.5" />
+                    <span className="max-w-[24ch] truncate">{branchLabel}</span>
+                  </span>
+                  <RemoteActions repoPath={activeRepo.path} />
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <TabsList>
+                    <TabsTrigger value="history">
+                      <History className="h-3.5 w-3.5" />
+                      History
+                    </TabsTrigger>
+                    <TabsTrigger value="changes">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Changes
+                      {conflictCount > 0 ? (
+                        <Badge
+                          variant="destructive"
+                          className="ml-1 h-5 gap-1 px-1.5 text-[10px]"
+                          aria-label={`${dirtyCount} changes, ${conflictCount} conflicts`}
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          {dirtyCount}
+                        </Badge>
+                      ) : dirtyCount > 0 ? (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                          {dirtyCount}
+                        </Badge>
+                      ) : null}
+                    </TabsTrigger>
+                  </TabsList>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={openSettings}
+                        aria-label="Settings"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Settings</TooltipContent>
+                  </Tooltip>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={requestClose}
+                    aria-label="Close repository"
+                  >
+                    <X className="h-4 w-4" />
+                    Close
+                  </Button>
+                </div>
+              </header>
 
-        <TabsContent value="changes" className="m-0 flex-1 overflow-hidden">
-          <ResizablePanelGroup
-            id="loom:repo-outer-changes:v3"
-            orientation="horizontal"
-            className="h-full"
-          >
-            <ResizablePanel
-              id="loom:refs-sidebar-changes"
-              defaultSize="16%"
-              minSize="10%"
-              maxSize="22%"
-            >
-              <aside className="h-full overflow-hidden border-r">
-                <RefsSidebar repoPath={activeRepo.path} />
-              </aside>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel id="loom:main-changes" defaultSize="84%" minSize="40%">
-              <ChangesView repoPath={activeRepo.path} />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </TabsContent>
+              <RepoStateBanner repoPath={activeRepo.path} />
+
+              <TabsContent value="history" className="m-0 min-h-0 flex-1 overflow-hidden">
+                <ResizablePanelGroup
+                  id="loom:repo-history:v7"
+                  orientation="vertical"
+                  className="h-full"
+                >
+                  <ResizablePanel id="loom:commit-list" defaultSize="45%" minSize="25%">
+                    <CommitList repoPath={activeRepo.path} />
+                  </ResizablePanel>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel id="loom:commit-details" defaultSize="55%" minSize="30%">
+                    <CommitDetails repoPath={activeRepo.path} />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+              </TabsContent>
+
+              <TabsContent value="changes" className="m-0 min-h-0 flex-1 overflow-hidden">
+                <ChangesView repoPath={activeRepo.path} />
+              </TabsContent>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
         <StatusBar />
       </Tabs>
       <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
