@@ -77,3 +77,15 @@ export function useSkipRebase(path: string) {
     onError: toastGitError,
   });
 }
+
+export function useAbortBisect(path: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.abortBisect(path),
+    onSuccess: () => {
+      invalidateEverything(qc, path);
+      toast.success("Bisect reset");
+    },
+    onError: toastGitError,
+  });
+}

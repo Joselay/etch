@@ -1,7 +1,8 @@
 import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -19,6 +20,11 @@ export function ConflictViewer({ repoPath, entry }: Props) {
   const { data: sides, isLoading, error } = useConflictSides(repoPath, entry.path);
   const actions = useConflictActions(repoPath);
   const [draft, setDraft] = useState<string | null>(null);
+  const { resolvedTheme } = useTheme();
+  const editorTheme = useMemo<"dark" | "light">(
+    () => (resolvedTheme === "dark" ? "dark" : "light"),
+    [resolvedTheme],
+  );
 
   // Reset the editor when the selection changes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on file swap
@@ -94,9 +100,11 @@ export function ConflictViewer({ repoPath, entry }: Props) {
           >
             Use theirs
           </Button>
-          <Button size="sm" disabled={pending || !dirty} onClick={saveResolved}>
-            Save resolved
-          </Button>
+          {dirty && (
+            <Button size="sm" disabled={pending} onClick={saveResolved}>
+              Save edits
+            </Button>
+          )}
           <Button
             size="sm"
             variant="secondary"
@@ -145,7 +153,7 @@ export function ConflictViewer({ repoPath, entry }: Props) {
                   foldGutter: false,
                 }}
                 extensions={[EditorView.lineWrapping]}
-                theme="dark"
+                theme={editorTheme}
                 className="h-full text-[13px]"
               />
             </div>

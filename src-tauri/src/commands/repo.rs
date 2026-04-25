@@ -17,7 +17,7 @@ use crate::git::{
     },
     diff::{commit_changes, file_diff, working_diff, FileChange, FileDiff},
     identity::{read_identity, write_identity, Identity},
-    log::{commit_log, commit_log_for_file, CommitSummary},
+    log::{commit_log, commit_log_for_file, commit_message, CommitSummary},
     rebase::{
         abort_rebase, continue_rebase, preview_todo, skip_rebase, start_interactive_rebase,
         start_rebase, TodoEntry,
@@ -108,6 +108,13 @@ pub async fn cmd_blame(
     })
     .await
     .map_err(|e| AppError::Other(format!("join: {e}")))?
+}
+
+#[tauri::command]
+pub async fn cmd_commit_message(path: String, commit_id: String) -> AppResult<String> {
+    tauri::async_runtime::spawn_blocking(move || commit_message(&PathBuf::from(path), &commit_id))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
@@ -397,6 +404,12 @@ pub fn cmd_create_tag(
 #[tauri::command]
 pub fn cmd_delete_tag(path: String, name: String) -> AppResult<()> {
     delete_tag(&PathBuf::from(path), &name)
+}
+
+#[tauri::command]
+pub fn cmd_abort_bisect(path: String) -> AppResult<()> {
+    run_git(&PathBuf::from(path), &["bisect", "reset"])?;
+    Ok(())
 }
 
 #[tauri::command]

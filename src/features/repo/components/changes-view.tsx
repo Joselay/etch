@@ -1,5 +1,5 @@
-import { AlertTriangle, Undo2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileIcon } from "@/components/file-icon";
 import {
   AlertDialog,
@@ -16,14 +16,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ItemGroup } from "@/components/ui/item";
+import { Label } from "@/components/ui/label";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { buildHunkPatch } from "@/lib/patch";
 import type { ConflictEntry, ConflictKind, FileDiff, StatusEntry } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
+import { useCommitMessage } from "../hooks/use-commit-details";
 import { useConflictActions, useConflicts } from "../hooks/use-conflicts";
+import { useRefs } from "../hooks/use-refs";
 import { useCommit, useStageActions, useStatus, useWorkingDiff } from "../hooks/use-status";
 import { ConflictViewer } from "./conflict-viewer";
 import { DiffViewer, type HunkAction } from "./diff-viewer";
@@ -45,6 +49,31 @@ export function ChangesView({ repoPath }: Props) {
   const [message, setMessage] = useState("");
   const [amend, setAmend] = useState(false);
   const [discardTarget, setDiscardTarget] = useState<string | null>(null);
+  const messageBeforeAmendRef = useRef<string | null>(null);
+  const messageRef = useRef(message);
+  messageRef.current = message;
+  const { data: refs } = useRefs(repoPath);
+  const headCommitId = refs?.headCommitId ?? null;
+  const { data: headMessage } = useCommitMessage(
+    amend ? repoPath : null,
+    amend ? headCommitId : null,
+  );
+
+  // Pre-fill on amend; restore the prior draft when toggled off. We capture
+  // the user's draft once on toggle so they don't lose it.
+  useEffect(() => {
+    if (amend) {
+      if (messageBeforeAmendRef.current === null) {
+        messageBeforeAmendRef.current = messageRef.current;
+      }
+      if (headMessage !== undefined && messageRef.current === messageBeforeAmendRef.current) {
+        setMessage(headMessage ?? "");
+      }
+    } else if (messageBeforeAmendRef.current !== null) {
+      setMessage(messageBeforeAmendRef.current);
+      messageBeforeAmendRef.current = null;
+    }
+  }, [amend, headMessage]);
 
   const staged = status?.staged ?? [];
   const unstaged = status?.unstaged ?? [];
@@ -204,19 +233,24 @@ export function ChangesView({ repoPath }: Props) {
                         actionDisabled={stage.isPending}
                         onAction={() => stage.mutate([f.path])}
                         secondary={
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-1.5 text-muted-foreground hover:text-destructive"
-                            disabled={discard.isPending}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDiscardTarget(f.path);
-                            }}
-                            title="Discard changes"
-                          >
-                            <Undo2 className="h-3 w-3" />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-1.5 text-muted-foreground hover:text-destructive"
+                                disabled={discard.isPending}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDiscardTarget(f.path);
+                                }}
+                                aria-label="Discard changes"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Discard changes</TooltipContent>
+                          </Tooltip>
                         }
                       />
                     )}
@@ -265,7 +299,11 @@ export function ChangesView({ repoPath }: Props) {
           </div>
 
           <div className="flex flex-col gap-3 border-t p-3">
+            <Label htmlFor="commit-message" className="sr-only">
+              Commit message
+            </Label>
             <Textarea
+              id="commit-message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => {

@@ -299,8 +299,12 @@ function DiffBody({ data, hunkActions }: { data: FileDiff; hunkActions?: HunkAct
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 border-b bg-background/60 px-2 py-1">
-        <span className="truncate px-1 text-xs text-muted-foreground">
-          {hunkCount > 1 ? `Hunk ${activeHunk + 1} of ${hunkCount} · j/k to navigate` : null}
+        <span className="min-w-0 truncate px-1 text-xs text-muted-foreground">
+          {hunkCount > 1 ? (
+            `Hunk ${activeHunk + 1} of ${hunkCount} · j/k to navigate`
+          ) : (
+            <span className="font-mono">{data.path}</span>
+          )}
         </span>
         <div className="flex shrink-0 items-center gap-1">
           <Tooltip>

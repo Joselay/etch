@@ -138,6 +138,25 @@ pub fn commit_log(
     Ok(out)
 }
 
+/// Full commit message (subject + body) for a single commit. Used by the UI
+/// to render the commit body and to pre-fill the textarea on amend.
+pub fn commit_message(repo: &Path, commit_id: &str) -> AppResult<String> {
+    if commit_id.is_empty() || commit_id.starts_with('-') {
+        return Err(AppError::Other(format!("invalid commit id: {commit_id}")));
+    }
+    let out = run_git(repo, &["log", "-1", "--format=%B", commit_id])?;
+    let mut s = String::from_utf8_lossy(&out.stdout).to_string();
+    // `git log %B` always emits a trailing newline; strip exactly one so the
+    // textarea doesn't gain a blank line on every render.
+    if s.ends_with('\n') {
+        s.pop();
+        if s.ends_with('\r') {
+            s.pop();
+        }
+    }
+    Ok(s)
+}
+
 /// Commits touching `file`, newest first. Follows renames. Shells out to
 /// `git log` because `gix`'s path-filtered rev-walk is limited.
 pub fn commit_log_for_file(

@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type TodoAction, type TodoEntry } from "@/lib/tauri";
+import { cn } from "@/lib/utils";
 import { useStartInteractiveRebase } from "../hooks/use-branch-mutations";
 
 type Props = {
@@ -47,10 +49,12 @@ type Props = {
   title?: string;
 };
 
-const ENABLED_ACTIONS: { value: TodoAction; label: string }[] = [
-  { value: "pick", label: "pick" },
-  { value: "fixup", label: "fixup" },
-  { value: "drop", label: "drop" },
+const ENABLED_ACTIONS: { value: TodoAction; label: string; hint: string }[] = [
+  { value: "pick", label: "pick", hint: "Use this commit as-is" },
+  { value: "reword", label: "reword", hint: "Use this commit, but edit the message" },
+  { value: "squash", label: "squash", hint: "Combine into the previous commit, keep messages" },
+  { value: "fixup", label: "fixup", hint: "Combine into the previous commit, drop message" },
+  { value: "drop", label: "drop", hint: "Remove this commit" },
 ];
 
 type Row = TodoEntry & { id: string };
@@ -87,6 +91,10 @@ export function RebasePlannerDialog({ repoPath, open, onOpenChange, from, onto, 
 
   const updateAction = (id: string, action: TodoAction) => {
     setRows((items) => items.map((r) => (r.id === id ? { ...r, action } : r)));
+  };
+
+  const updateSummary = (id: string, summary: string) => {
+    setRows((items) => items.map((r) => (r.id === id ? { ...r, summary } : r)));
   };
 
   const onStart = () => {
@@ -137,6 +145,7 @@ export function RebasePlannerDialog({ repoPath, open, onOpenChange, from, onto, 
                       key={row.id}
                       row={row}
                       onActionChange={(a) => updateAction(row.id, a)}
+                      onSummaryChange={(s) => updateSummary(row.id, s)}
                     />
                   ))}
                 </ul>
@@ -164,9 +173,11 @@ export function RebasePlannerDialog({ repoPath, open, onOpenChange, from, onto, 
 function SortableRow({
   row,
   onActionChange,
+  onSummaryChange,
 }: {
   row: Row;
   onActionChange: (a: TodoAction) => void;
+  onSummaryChange: (s: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: row.id,
@@ -177,6 +188,7 @@ function SortableRow({
     opacity: isDragging ? 0.6 : 1,
   };
   const dimmed = row.action === "drop";
+  const isReword = row.action === "reword";
   return (
     <li
       ref={setNodeRef}
@@ -199,18 +211,30 @@ function SortableRow({
         <SelectContent>
           {ENABLED_ACTIONS.map((a) => (
             <SelectItem key={a.value} value={a.value} className="text-xs">
-              {a.label}
+              <span className="flex flex-col">
+                <span>{a.label}</span>
+                <span className="text-[10px] text-muted-foreground">{a.hint}</span>
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
       <code className="text-xs text-muted-foreground">{row.oid.slice(0, 7)}</code>
-      <span
-        className={`flex-1 truncate text-sm ${dimmed ? "line-through text-muted-foreground" : ""}`}
-        title={row.summary}
-      >
-        {row.summary}
-      </span>
+      {isReword ? (
+        <Input
+          value={row.summary}
+          onChange={(e) => onSummaryChange(e.target.value)}
+          className="h-7 flex-1 text-sm"
+          aria-label="New commit message"
+        />
+      ) : (
+        <span
+          className={cn("flex-1 truncate text-sm", dimmed && "text-muted-foreground line-through")}
+          title={row.summary}
+        >
+          {row.summary}
+        </span>
+      )}
     </li>
   );
 }

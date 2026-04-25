@@ -293,6 +293,9 @@ export const api = {
     query: string | null = null,
     allBranches = false,
   ) => invoke<CommitSummary[]>("cmd_commit_log", { path, limit, skip, query, allBranches }),
+  commitMessage: (path: string, commitId: string) =>
+    invoke<string>("cmd_commit_message", { path, commitId }),
+  abortBisect: (path: string) => invoke<void>("cmd_abort_bisect", { path }),
   fileHistory: (path: string, file: string, limit = 500, skip = 0) =>
     invoke<CommitSummary[]>("cmd_file_history", { path, file, limit, skip }),
   blame: (path: string, file: string, rev: string | null = null) =>

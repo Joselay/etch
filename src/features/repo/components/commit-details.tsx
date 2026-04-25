@@ -1,13 +1,17 @@
 import { format, formatDistanceToNow } from "date-fns";
-import { useEffect } from "react";
+import { Check, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { FileIcon } from "@/components/file-icon";
+import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ChangeStatus, CommitSummary } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
-import { useCommitChanges } from "../hooks/use-commit-details";
+import { useCommitChanges, useCommitMessage } from "../hooks/use-commit-details";
 import { AuthorAvatar } from "./author-avatar";
 import { DiffViewer } from "./diff-viewer";
 import { FileRowContextMenu } from "./file-row-context-menu";
@@ -40,7 +44,7 @@ export function CommitDetails({ repoPath }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      {commit && <CommitHeader commit={commit} />}
+      {commit && <CommitHeader commit={commit} repoPath={repoPath} />}
       <ResizablePanelGroup
         id="loom:commit-details-inner:v1"
         orientation="horizontal"
@@ -114,7 +118,7 @@ export function CommitDetails({ repoPath }: Props) {
   );
 }
 
-function CommitHeader({ commit }: { commit: CommitSummary }) {
+function CommitHeader({ commit, repoPath }: { commit: CommitSummary; repoPath: string }) {
   const authored = new Date(commit.timestamp * 1000);
   const committed = new Date(commit.committerTimestamp * 1000);
   const differentCommitter =
@@ -122,30 +126,95 @@ function CommitHeader({ commit }: { commit: CommitSummary }) {
     commit.committerName !== commit.authorName ||
     commit.committerTimestamp !== commit.timestamp;
 
+  const { data: fullMessage } = useCommitMessage(repoPath, commit.id);
+  const body = (() => {
+    if (!fullMessage) return "";
+    const idx = fullMessage.indexOf("\n");
+    if (idx === -1) return "";
+    return fullMessage
+      .slice(idx + 1)
+      .replace(/^\n+/, "")
+      .trimEnd();
+  })();
+  const [bodyOpen, setBodyOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copySha = async () => {
+    try {
+      await navigator.clipboard.writeText(commit.id);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch (err) {
+      toast.error(`Couldn't copy: ${(err as Error).message}`);
+    }
+  };
+
   return (
-    <header className="flex gap-3 border-b bg-muted/30 px-4 py-3">
-      <AuthorAvatar name={commit.authorName} email={commit.authorEmail} size={36} />
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium leading-tight">{commit.summary}</div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground/80">{commit.authorName}</span>{" "}
-          <span>&lt;{commit.authorEmail}&gt;</span>
-          {" · "}
-          <time dateTime={authored.toISOString()} title={format(authored, "PPpp")}>
-            {formatDistanceToNow(authored, { addSuffix: true })}
-          </time>
-        </div>
-        {differentCommitter && (
-          <div className="text-xs text-muted-foreground">
-            committed by{" "}
-            <span className="font-medium text-foreground/80">{commit.committerName}</span>{" "}
-            <time dateTime={committed.toISOString()} title={format(committed, "PPpp")}>
-              {formatDistanceToNow(committed, { addSuffix: true })}
+    <header className="flex flex-col gap-2 border-b bg-muted/30 px-4 py-3">
+      <div className="flex gap-3">
+        <AuthorAvatar name={commit.authorName} email={commit.authorEmail} size={36} />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium leading-tight">{commit.summary}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground/80">{commit.authorName}</span>{" "}
+            <span>&lt;{commit.authorEmail}&gt;</span>
+            {" · "}
+            <time dateTime={authored.toISOString()} title={format(authored, "PPpp")}>
+              {formatDistanceToNow(authored, { addSuffix: true })}
             </time>
           </div>
-        )}
+          {differentCommitter && (
+            <div className="text-xs text-muted-foreground">
+              committed by{" "}
+              <span className="font-medium text-foreground/80">{commit.committerName}</span>{" "}
+              <time dateTime={committed.toISOString()} title={format(committed, "PPpp")}>
+                {formatDistanceToNow(committed, { addSuffix: true })}
+              </time>
+            </div>
+          )}
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={copySha}
+              className="group inline-flex h-6 shrink-0 items-center gap-1.5 self-start rounded border border-transparent bg-transparent px-1.5 font-mono text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground"
+              aria-label="Copy full commit SHA"
+            >
+              <span>{commit.shortId}</span>
+              {copied ? (
+                <Check className="h-3 w-3 text-emerald-500" />
+              ) : (
+                <Copy className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            <span className="font-mono text-[11px]">{commit.id}</span>
+            <span className="ml-2 text-muted-foreground">click to copy</span>
+          </TooltipContent>
+        </Tooltip>
       </div>
-      <code className="self-start font-mono text-xs text-muted-foreground">{commit.shortId}</code>
+      {body && (
+        <div className="ml-[calc(36px+0.75rem)] flex flex-col gap-1">
+          {bodyOpen ? (
+            <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded border bg-background/60 px-3 py-2 font-sans text-xs text-foreground/90">
+              {body}
+            </pre>
+          ) : (
+            <p className="line-clamp-2 text-xs text-muted-foreground">{body}</p>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 w-fit gap-1 px-1.5 text-[11px] text-muted-foreground"
+            onClick={() => setBodyOpen((v) => !v)}
+          >
+            {bodyOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {bodyOpen ? "Hide message body" : "Show full message"}
+          </Button>
+        </div>
+      )}
     </header>
   );
 }

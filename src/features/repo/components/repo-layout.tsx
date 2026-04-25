@@ -1,8 +1,21 @@
 import { AlertTriangle, FolderGit2, GitBranch, History, Pencil, Settings, X } from "lucide-react";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/stores/repo-store";
 import { type RepoView, useSelectionStore } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -19,6 +32,8 @@ import { RefsSidebar } from "./refs-sidebar";
 import { RemoteActions } from "./remote-actions";
 import { RepoStateBanner } from "./repo-state-banner";
 
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
 export function RepoLayout() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
   const clearActive = useRepoStore((s) => s.clearActive);
@@ -30,6 +45,7 @@ export function RepoLayout() {
   const { data: refs } = useRefs(activeRepo?.path ?? null);
   const remoteAuthorsValue = useRemoteAuthorsContextValue(activeRepo?.path ?? null);
   const openSettings = useUiStore((s) => s.openSettings);
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 
   if (!activeRepo) return null;
 
@@ -45,6 +61,11 @@ export function RepoLayout() {
   const dirtyCount =
     (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0);
   const conflictCount = status?.conflicted.length ?? 0;
+  const hasDirty = dirtyCount > 0 || conflictCount > 0;
+  const requestClose = () => {
+    if (hasDirty) setConfirmCloseOpen(true);
+    else clearActive();
+  };
 
   return (
     <RemoteAuthorsContext.Provider value={remoteAuthorsValue}>
@@ -54,9 +75,15 @@ export function RepoLayout() {
         onValueChange={(v) => setView(v as RepoView)}
         className="flex h-screen flex-col gap-0 bg-background text-foreground"
       >
-        <header className="flex items-center justify-between gap-3 border-b px-4 py-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <FolderGit2 className="h-4 w-4 text-muted-foreground" />
+        <header
+          data-tauri-drag-region
+          className={cn(
+            "flex items-center justify-between gap-3 border-b px-4 py-2",
+            isMac && "pl-[78px]",
+          )}
+        >
+          <div data-tauri-drag-region className="flex min-w-0 items-center gap-3">
+            <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="truncate font-semibold">{name}</span>
             <span
               className="flex items-center gap-1.5 text-sm text-muted-foreground"
@@ -92,10 +119,15 @@ export function RepoLayout() {
                 ) : null}
               </TabsTrigger>
             </TabsList>
-            <Button size="icon" variant="ghost" onClick={openSettings} aria-label="Settings">
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="ghost" onClick={clearActive}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" onClick={openSettings} aria-label="Settings">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Settings</TooltipContent>
+            </Tooltip>
+            <Button size="sm" variant="ghost" onClick={requestClose} aria-label="Close repository">
               <X className="h-4 w-4" />
               Close
             </Button>
@@ -153,6 +185,24 @@ export function RepoLayout() {
           </ResizablePanelGroup>
         </TabsContent>
       </Tabs>
+      <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close repository with uncommitted changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {conflictCount > 0
+                ? `${conflictCount} conflicted file${conflictCount === 1 ? "" : "s"} and `
+                : ""}
+              {dirtyCount} working-tree change{dirtyCount === 1 ? "" : "s"} will remain in the
+              repository. Closing only removes it from this window.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep open</AlertDialogCancel>
+            <AlertDialogAction onClick={() => clearActive()}>Close anyway</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </RemoteAuthorsContext.Provider>
   );
 }

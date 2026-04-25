@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import { AlertTriangle, Search, X } from "lucide-react";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, GitCommitVertical, RotateCcw, Search, X } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -18,15 +18,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type GraphRow, laneColor, layoutGraph } from "@/lib/commit-graph";
-import type { BranchRef, CommitSummary, TagRef } from "@/lib/tauri";
+import type { BranchRef, CommitSummary, ResetMode, TagRef } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
-import { useCherryPick, useReset, useRevert } from "../hooks/use-branch-mutations";
+import { useCherryPick, useRevert } from "../hooks/use-branch-mutations";
 import { useCommitLog } from "../hooks/use-commit-log";
 import { useRefs } from "../hooks/use-refs";
 import { AuthorAvatar } from "./author-avatar";
-import { ResetHardConfirmDialog } from "./reset-confirm-dialog";
+import { ResetConfirmDialog } from "./reset-confirm-dialog";
 
 type Props = { repoPath: string };
 
@@ -35,6 +35,7 @@ const LANE_WIDTH = 14;
 const DOT_RADIUS = 4;
 const GRAPH_PAD_LEFT = 8;
 const GRAPH_PAD_RIGHT = 6;
+const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
 
 export function CommitList({ repoPath }: Props) {
   const [rawQuery, setRawQuery] = useState("");
@@ -56,8 +57,12 @@ export function CommitList({ repoPath }: Props) {
   const selectCommit = useSelectionStore((s) => s.selectCommit);
   const revert = useRevert(repoPath);
   const cherryPick = useCherryPick(repoPath);
-  const reset = useReset(repoPath);
-  const [hardResetTarget, setHardResetTarget] = useState<CommitSummary | null>(null);
+  const [resetTarget, setResetTarget] = useState<{ commit: CommitSummary; mode: ResetMode } | null>(
+    null,
+  );
+  const requestReset = useCallback((commit: CommitSummary, mode: ResetMode) => {
+    setResetTarget({ commit, mode });
+  }, []);
 
   // Follow HEAD: when the active branch's commit id changes (checkout, pull,
   // commit), select and scroll to it so the list highlights where you are.
@@ -107,6 +112,7 @@ export function CommitList({ repoPath }: Props) {
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 12,
+    measureElement: (el) => el.getBoundingClientRect().height,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -182,9 +188,21 @@ export function CommitList({ repoPath }: Props) {
     return (
       <div className="flex h-full flex-col">
         {searchBar}
-        <div className="flex flex-1 flex-col gap-2 p-4">
-          {["a", "b", "c", "d", "e", "f"].map((k) => (
-            <Skeleton key={k} className="h-12 w-full" />
+        <div className="flex flex-1 flex-col">
+          {SKELETON_KEYS.map((k) => (
+            <div
+              key={k}
+              className="flex items-center gap-3 border-b border-border/50 px-3 py-2"
+              aria-hidden
+            >
+              <Skeleton className="h-3 w-3 shrink-0 rounded-full" />
+              <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
+              <Skeleton className="h-3 w-14 shrink-0" />
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <Skeleton className="h-3 w-3/5" />
+                <Skeleton className="h-2.5 w-2/5" />
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -225,59 +243,121 @@ export function CommitList({ repoPath }: Props) {
             return (
               <ContextMenu key={c.id}>
                 <ContextMenuTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => selectCommit(c.id, c)}
-                    className={cn(
-                      "flex w-full items-center gap-3 border-b border-border/50 pr-4 text-left",
-                      isSelected ? "bg-primary/10" : "hover:bg-muted/40",
-                    )}
+                  <div
+                    data-index={v.index}
+                    ref={virtualizer.measureElement}
                     style={{
                       position: "absolute",
                       top: 0,
                       left: 0,
-                      height: v.size,
+                      width: "100%",
                       transform: `translateY(${v.start}px)`,
                     }}
                   >
-                    <GraphCell row={g} height={v.size} width={graphWidth} />
-                    <AuthorAvatar name={c.authorName} email={c.authorEmail} size={28} />
-                    <code className="w-[4.5rem] shrink-0 font-mono text-xs text-muted-foreground">
-                      {c.shortId}
-                    </code>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm">{c.summary}</div>
-                      <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                        <RefChips entry={refsByCommit.get(c.id)} laneColor={laneColor(g.color)} />
-                        <span className="truncate">
-                          {c.authorName} ·{" "}
-                          {formatDistanceToNow(new Date(c.timestamp * 1000), { addSuffix: true })}
-                        </span>
+                    <button
+                      type="button"
+                      onClick={() => selectCommit(c.id, c)}
+                      className={cn(
+                        "group/row flex w-full items-center gap-3 border-b border-border/50 pr-2 text-left",
+                        isSelected ? "bg-primary/10" : "hover:bg-muted/40",
+                      )}
+                      style={{ minHeight: ROW_HEIGHT }}
+                    >
+                      <GraphCell row={g} height={ROW_HEIGHT} width={graphWidth} />
+                      <AuthorAvatar name={c.authorName} email={c.authorEmail} size={28} />
+                      <code className="w-[4.5rem] shrink-0 font-mono text-xs text-muted-foreground">
+                        {c.shortId}
+                      </code>
+                      <div className="min-w-0 flex-1 py-1.5">
+                        <div className="truncate text-sm">{c.summary}</div>
+                        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                          <RefChips entry={refsByCommit.get(c.id)} laneColor={laneColor(g.color)} />
+                          <span className="truncate">
+                            {c.authorName} ·{" "}
+                            {formatDistanceToNow(new Date(c.timestamp * 1000), {
+                              addSuffix: true,
+                            })}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                      {/* biome-ignore lint/a11y/noStaticElementInteractions: container only swallows row-button click bubbling */}
+                      <span
+                        role="presentation"
+                        className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              disabled={cherryPick.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                cherryPick.mutate(c.id);
+                              }}
+                              aria-label="Cherry-pick this commit"
+                            >
+                              <GitCommitVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Cherry-pick</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              disabled={revert.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                revert.mutate({ commit: c.id });
+                              }}
+                              aria-label="Revert this commit"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Revert</TooltipContent>
+                        </Tooltip>
+                      </span>
+                    </button>
+                  </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent>
-                  <ContextMenuItem onSelect={() => cherryPick.mutate(c.id)}>
+                  <ContextMenuItem
+                    disabled={cherryPick.isPending}
+                    onSelect={() => cherryPick.mutate(c.id)}
+                  >
+                    <GitCommitVertical />
                     Cherry-pick onto current
                   </ContextMenuItem>
-                  <ContextMenuItem onSelect={() => revert.mutate({ commit: c.id })}>
+                  <ContextMenuItem
+                    disabled={revert.isPending}
+                    onSelect={() => revert.mutate({ commit: c.id })}
+                  >
+                    <RotateCcw />
                     Revert this commit
                   </ContextMenuItem>
                   <ContextMenuSub>
                     <ContextMenuSubTrigger>Reset current branch here</ContextMenuSubTrigger>
                     <ContextMenuSubContent>
-                      <ContextMenuItem
-                        onSelect={() => reset.mutate({ target: c.id, mode: "soft" })}
-                      >
+                      <ContextMenuItem onSelect={() => requestReset(c, "soft")}>
                         Soft (keep index + worktree)
                       </ContextMenuItem>
                       <ContextMenuItem
-                        onSelect={() => reset.mutate({ target: c.id, mode: "mixed" })}
+                        variant="destructive"
+                        onSelect={() => requestReset(c, "mixed")}
                       >
-                        Mixed (keep worktree only)
+                        Mixed (unstage but keep worktree)
                       </ContextMenuItem>
-                      <ContextMenuItem variant="destructive" onSelect={() => setHardResetTarget(c)}>
+                      <ContextMenuItem
+                        variant="destructive"
+                        onSelect={() => requestReset(c, "hard")}
+                      >
                         <AlertTriangle />
                         Hard (discard everything)
                       </ContextMenuItem>
@@ -300,11 +380,12 @@ export function CommitList({ repoPath }: Props) {
           <div className="p-2 text-center text-muted-foreground text-xs">Loading more…</div>
         )}
       </div>
-      <ResetHardConfirmDialog
+      <ResetConfirmDialog
         repoPath={repoPath}
-        commit={hardResetTarget}
-        open={hardResetTarget !== null}
-        onOpenChange={(o) => !o && setHardResetTarget(null)}
+        commit={resetTarget?.commit ?? null}
+        mode={resetTarget?.mode ?? "hard"}
+        open={resetTarget !== null}
+        onOpenChange={(o) => !o && setResetTarget(null)}
       />
     </div>
   );

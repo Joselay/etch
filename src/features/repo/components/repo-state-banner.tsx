@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import type { RepoState } from "@/lib/tauri";
 import {
   type SequencerOp,
+  useAbortBisect,
   useAbortOp,
   useContinueOp,
   useRepoState,
@@ -33,6 +34,7 @@ export function RepoStateBanner({ repoPath }: { repoPath: string }) {
   const abort = useAbortOp(repoPath);
   const cont = useContinueOp(repoPath);
   const skip = useSkipRebase(repoPath);
+  const abortBisect = useAbortBisect(repoPath);
 
   if (!data) return null;
   const op = activeOp(data);
@@ -44,7 +46,17 @@ export function RepoStateBanner({ repoPath }: { repoPath: string }) {
           tone="warning"
           icon={<AlertTriangle className="h-4 w-4" />}
           title="Bisect in progress"
-          description="Resolve the bisect from the terminal (`git bisect good/bad/reset`)."
+          description="Mark commits as good/bad from the terminal, or reset to exit."
+          actions={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => abortBisect.mutate()}
+              disabled={abortBisect.isPending}
+            >
+              Reset bisect
+            </Button>
+          }
         />
       );
     }

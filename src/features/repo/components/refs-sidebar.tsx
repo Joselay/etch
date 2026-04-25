@@ -2,6 +2,7 @@ import {
   Archive,
   Check,
   ChevronRight,
+  Cloud,
   GitBranch,
   Plus,
   Search,
@@ -274,7 +275,7 @@ export function RefsSidebar({ repoPath }: Props) {
 
             <Section
               title="Remotes"
-              icon={<GitBranch className="h-3.5 w-3.5" />}
+              icon={<Cloud className="h-3.5 w-3.5" />}
               action={
                 <Button
                   size="icon"
@@ -537,19 +538,20 @@ function Section({
   );
 }
 
-type RefItemProps = React.HTMLAttributes<HTMLDivElement> & {
+type RefItemProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
   icon?: React.ReactNode;
   label: string;
   emphasized?: boolean;
-  ref?: React.Ref<HTMLDivElement>;
+  ref?: React.Ref<HTMLButtonElement>;
 };
 
 function RefItem({ icon, label, emphasized, ref, className, ...rest }: RefItemProps) {
   return (
-    <div
+    <button
       ref={ref}
+      type="button"
       className={cn(
-        "group flex h-7 cursor-default select-none items-center gap-2 rounded-sm px-2.5 text-sm",
+        "group flex h-7 select-none items-center gap-2 rounded-sm px-2.5 text-left text-sm",
         "hover:bg-accent hover:text-accent-foreground",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         emphasized && "font-medium text-foreground",
@@ -564,6 +566,6 @@ function RefItem({ icon, label, emphasized, ref, className, ...rest }: RefItemPr
       <span className="truncate" title={label}>
         {label}
       </span>
-    </div>
+    </button>
   );
 }

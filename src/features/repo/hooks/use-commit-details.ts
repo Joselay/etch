@@ -9,6 +9,15 @@ export function useCommitChanges(path: string | null, commitId: string | null) {
   });
 }
 
+export function useCommitMessage(path: string | null, commitId: string | null) {
+  return useQuery({
+    queryKey: ["commit-message", path, commitId],
+    enabled: !!path && !!commitId,
+    queryFn: () => api.commitMessage(path as string, commitId as string),
+    staleTime: 1000 * 60 * 60,
+  });
+}
+
 export function useFileDiff(path: string | null, commitId: string | null, filePath: string | null) {
   return useQuery({
     queryKey: ["file-diff", path, commitId, filePath],
