@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { errorMessage } from "@/lib/tauri";
 import { useDeleteBranch } from "../hooks/use-branch-mutations";
 
 type Props = {
@@ -40,7 +41,7 @@ export function DeleteBranchDialog({
       await del.mutateAsync({ name: branchName, force, target: branchTarget });
       onOpenChange(false);
     } catch (err) {
-      const msg = (err as Error).message || "";
+      const msg = errorMessage(err);
       if (!force && /not fully merged/i.test(msg)) {
         setUnmerged(true);
         return;
