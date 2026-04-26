@@ -112,8 +112,8 @@ export function RepoLayout() {
         onValueChange={(v) => setView(v as RepoView)}
         className="flex h-screen flex-col gap-0 bg-background text-foreground"
       >
-        <ResizablePanelGroup id="loom:repo-outer:v4" orientation="horizontal" className="flex-1">
-          <ResizablePanel id="loom:refs-sidebar:v2" defaultSize="16%" minSize="14%" maxSize="22%">
+        <ResizablePanelGroup id="etch:repo-outer:v4" orientation="horizontal" className="flex-1">
+          <ResizablePanel id="etch:refs-sidebar:v2" defaultSize="16%" minSize="14%" maxSize="22%">
             <aside className="flex h-full flex-col border-r border-border/60">
               <div
                 data-tauri-drag-region
@@ -126,7 +126,7 @@ export function RepoLayout() {
             </aside>
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel id="loom:main:v2" defaultSize="84%" minSize="40%">
+          <ResizablePanel id="etch:main:v2" defaultSize="84%" minSize="40%">
             <div className="flex h-full flex-col">
               <header
                 data-tauri-drag-region
@@ -237,15 +237,15 @@ export function RepoLayout() {
 
               <TabsContent value="history" className="m-0 min-h-0 flex-1 overflow-hidden">
                 <ResizablePanelGroup
-                  id="loom:repo-history:v7"
+                  id="etch:repo-history:v7"
                   orientation="vertical"
                   className="h-full"
                 >
-                  <ResizablePanel id="loom:commit-list" defaultSize="45%" minSize="25%">
+                  <ResizablePanel id="etch:commit-list" defaultSize="45%" minSize="25%">
                     <CommitList repoPath={activeRepo.path} />
                   </ResizablePanel>
                   <ResizableHandle withHandle />
-                  <ResizablePanel id="loom:commit-details" defaultSize="55%" minSize="30%">
+                  <ResizablePanel id="etch:commit-details" defaultSize="55%" minSize="30%">
                     <CommitDetails repoPath={activeRepo.path} />
                   </ResizablePanel>
                 </ResizablePanelGroup>

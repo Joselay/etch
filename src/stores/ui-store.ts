@@ -63,7 +63,7 @@ export const useUiStore = create<UiState>()(
         set((s) => ({ commitLogAllBranches: !s.commitLogAllBranches })),
     }),
     {
-      name: "loom-ui",
+      name: "etch-ui",
       partialize: (s) => ({
         diffWordWrap: s.diffWordWrap,
         diffLineNumbers: s.diffLineNumbers,

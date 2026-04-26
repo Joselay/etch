@@ -4,7 +4,7 @@ use tauri::{
 };
 
 pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let app_menu = SubmenuBuilder::new(handle, "Loom")
+    let app_menu = SubmenuBuilder::new(handle, "Etch")
         .about(None)
         .separator()
         .item(

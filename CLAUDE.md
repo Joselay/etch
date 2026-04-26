@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Loom is a cross-platform Git GUI client (macOS/Windows) built with Tauri 2 (Rust core) + Vite + React 19 + TypeScript.
+Etch is a cross-platform Git GUI client (macOS/Windows/Linux) built with Tauri 2 (Rust core) + Vite + React 19 + TypeScript.
 
 ## Commands
 

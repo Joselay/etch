@@ -86,14 +86,14 @@ fn serialize_todo(todo: &[TodoEntry]) -> String {
     s
 }
 
-/// Write a shell script that copies `$LOOM_TODO_FILE` over its first argument,
+/// Write a shell script that copies `$ETCH_TODO_FILE` over its first argument,
 /// then mark it executable (Unix) so git can invoke it as GIT_SEQUENCE_EDITOR.
 fn write_sequence_editor_script(dir: &Path) -> AppResult<PathBuf> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let script = dir.join("seq-editor.sh");
-        let body = "#!/bin/sh\ncat \"$LOOM_TODO_FILE\" > \"$1\"\n";
+        let body = "#!/bin/sh\ncat \"$ETCH_TODO_FILE\" > \"$1\"\n";
         std::fs::write(&script, body)?;
         let mut perms = std::fs::metadata(&script)?.permissions();
         perms.set_mode(0o755);
@@ -103,7 +103,7 @@ fn write_sequence_editor_script(dir: &Path) -> AppResult<PathBuf> {
     #[cfg(windows)]
     {
         let script = dir.join("seq-editor.cmd");
-        let body = "@echo off\r\ncopy /Y \"%LOOM_TODO_FILE%\" \"%1\" >NUL\r\n";
+        let body = "@echo off\r\ncopy /Y \"%ETCH_TODO_FILE%\" \"%1\" >NUL\r\n";
         std::fs::write(&script, body)?;
         Ok(script)
     }
@@ -115,7 +115,7 @@ fn temp_work_dir() -> AppResult<PathBuf> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    base.push(format!("loom-rebase-{}-{}", std::process::id(), nanos));
+    base.push(format!("etch-rebase-{}-{}", std::process::id(), nanos));
     std::fs::create_dir_all(&base)?;
     Ok(base)
 }
@@ -147,7 +147,7 @@ pub fn start_interactive_rebase(
     let mut cmd = std::process::Command::new("git");
     cmd.env("GIT_EDITOR", ":")
         .env("GIT_SEQUENCE_EDITOR", &script)
-        .env("LOOM_TODO_FILE", &todo_path)
+        .env("ETCH_TODO_FILE", &todo_path)
         .arg("-C")
         .arg(repo);
     if onto == upstream {

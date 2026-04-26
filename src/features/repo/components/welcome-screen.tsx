@@ -158,7 +158,7 @@ export function WelcomeScreen() {
             <Sparkles className="h-3 w-3" />v{pkg.version} · early access
           </Badge>
           <h1 className="text-5xl font-semibold tracking-tight">
-            Welcome to <span className="font-bold">Loom</span>
+            Welcome to <span className="font-bold">Etch</span>
           </h1>
           <p className="max-w-xl text-balance text-muted-foreground">
             A fast, native git client for macOS, Windows &amp; Linux — built to make branching,

@@ -123,7 +123,7 @@ function ProvidersSection() {
       <div className="rounded-md border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
         <p className="font-medium text-foreground">What tokens are used for</p>
         <p className="mt-1">
-          Loom uses provider tokens to resolve commit author avatars and display names from public
+          Etch uses provider tokens to resolve commit author avatars and display names from public
           profiles. They are not used to push, pull, or sign commits — those still go through your
           system Git credentials and SSH keys. PR and issue features are not yet built.
         </p>

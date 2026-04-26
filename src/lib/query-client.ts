@@ -12,7 +12,7 @@ export const queryClient = new QueryClient({
 
 export const persister = createSyncStoragePersister({
   storage: window.localStorage,
-  key: "loom-query-cache",
+  key: "etch-query-cache",
 });
 
 // Only persist queries that are expensive to refetch and safe across restarts.

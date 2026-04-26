@@ -14,7 +14,7 @@ type RepoState = {
   removeRecent: (path: string) => Promise<void>;
 };
 
-const STORE_FILE = "loom.store.json";
+const STORE_FILE = "etch.store.json";
 const RECENTS_KEY = "recentRepos";
 const MAX_RECENTS = 10;
 

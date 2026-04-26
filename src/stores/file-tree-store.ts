@@ -19,7 +19,7 @@ export const useFileTreeStore = create<State>()(
         }),
     }),
     {
-      name: "loom-file-tree",
+      name: "etch-file-tree",
       partialize: (s) => ({ collapsed: s.collapsed }),
     },
   ),

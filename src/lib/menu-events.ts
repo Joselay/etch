@@ -35,7 +35,7 @@ export const MENU_EVENTS: readonly MenuEventName[] = [
   "create-stash",
 ] as const;
 
-const PREFIX = "loom:menu:";
+const PREFIX = "etch:menu:";
 
 export function dispatchMenuEvent(name: MenuEventName): void {
   window.dispatchEvent(new CustomEvent(`${PREFIX}${name}`));

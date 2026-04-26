@@ -47,11 +47,11 @@ export function CommitDetails({ repoPath }: Props) {
     <div className="flex h-full flex-col">
       {commit && <CommitHeader commit={commit} repoPath={repoPath} />}
       <ResizablePanelGroup
-        id="loom:commit-details-inner:v1"
+        id="etch:commit-details-inner:v1"
         orientation="horizontal"
         className="min-h-0 flex-1"
       >
-        <ResizablePanel id="loom:commit-files" defaultSize="28%" minSize="15%" maxSize="60%">
+        <ResizablePanel id="etch:commit-files" defaultSize="28%" minSize="15%" maxSize="60%">
           <aside className="h-full overflow-hidden border-r">
             <div className="h-full overflow-y-auto">
               {isLoading ? (
@@ -108,7 +108,7 @@ export function CommitDetails({ repoPath }: Props) {
           </aside>
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel id="loom:commit-diff" defaultSize="72%" minSize="30%">
+        <ResizablePanel id="etch:commit-diff" defaultSize="72%" minSize="30%">
           <section className="h-full min-w-0">
             {selectedFilePath && selectedCommitId && (
               <DiffViewer

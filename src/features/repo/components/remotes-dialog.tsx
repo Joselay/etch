@@ -35,7 +35,7 @@ export function RemotesDialog({ repoPath, open, onOpenChange }: Props) {
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Remotes</DialogTitle>
-          <DialogDescription>Manage where Loom fetches from and pushes to.</DialogDescription>
+          <DialogDescription>Manage where Etch fetches from and pushes to.</DialogDescription>
         </DialogHeader>
 
         <section className="flex flex-col gap-3">

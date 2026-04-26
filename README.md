@@ -1,6 +1,6 @@
-# Loom
+# Etch
 
-A fast, cross-platform Git GUI client for macOS and Windows, built with [Tauri](https://tauri.app/).
+A fast, cross-platform Git GUI client for macOS, Windows and Linux, built with [Tauri](https://tauri.app/).
 
 ## Tech Stack
 

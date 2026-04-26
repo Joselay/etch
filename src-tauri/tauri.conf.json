@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Loom",
-  "mainBinaryName": "Loom",
+  "productName": "Etch",
+  "mainBinaryName": "Etch",
   "version": "0.1.0",
-  "identifier": "com.menglay.loom",
+  "identifier": "com.menglay.etch",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "Loom",
+        "title": "Etch",
         "width": 1100,
         "height": 720,
         "minWidth": 880,

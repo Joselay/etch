@@ -115,8 +115,8 @@ export function ChangesView({ repoPath }: Props) {
   };
 
   return (
-    <ResizablePanelGroup id="loom:changes-inner:v1" orientation="horizontal" className="h-full">
-      <ResizablePanel id="loom:changes-files" defaultSize="28%" minSize="18%" maxSize="60%">
+    <ResizablePanelGroup id="etch:changes-inner:v1" orientation="horizontal" className="h-full">
+      <ResizablePanel id="etch:changes-files" defaultSize="28%" minSize="18%" maxSize="60%">
         <aside className="flex h-full flex-col overflow-hidden border-r">
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
@@ -329,7 +329,7 @@ export function ChangesView({ repoPath }: Props) {
         </aside>
       </ResizablePanel>
       <ResizableHandle withHandle />
-      <ResizablePanel id="loom:changes-diff" defaultSize="72%" minSize="30%">
+      <ResizablePanel id="etch:changes-diff" defaultSize="72%" minSize="30%">
         <section className="h-full min-w-0">
           {workingFilePath ? (
             (() => {

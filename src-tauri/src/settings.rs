@@ -8,7 +8,7 @@ use tauri::Manager;
 
 use crate::error::{AppError, AppResult};
 
-const SERVICE: &str = "com.menglay.loom";
+const SERVICE: &str = "com.menglay.etch";
 const SETTINGS_FILE: &str = "settings.json";
 
 /// Non-secret settings persisted to disk. The keychain only stores actual
@@ -146,7 +146,7 @@ pub fn known_hosts() -> &'static [ProviderHost] {
     &[ProviderHost {
         host: "github.com",
         label: "GitHub",
-        token_help_url: "https://github.com/settings/tokens/new?scopes=repo&description=Loom",
+        token_help_url: "https://github.com/settings/tokens/new?scopes=repo&description=Etch",
     }]
 }
 

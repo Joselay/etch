@@ -120,11 +120,11 @@ export function ConflictViewer({ repoPath, entry }: Props) {
       </div>
 
       <ResizablePanelGroup
-        id="loom:conflict-viewer:v1"
+        id="etch:conflict-viewer:v1"
         orientation="vertical"
         className="min-h-0 flex-1"
       >
-        <ResizablePanel id="loom:conflict-sides" defaultSize="40%" minSize="15%">
+        <ResizablePanel id="etch:conflict-sides" defaultSize="40%" minSize="15%">
           <div
             className={cn(
               "grid h-full min-h-0 gap-0 overflow-hidden",
@@ -137,7 +137,7 @@ export function ConflictViewer({ repoPath, entry }: Props) {
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel id="loom:conflict-merged" defaultSize="60%" minSize="25%">
+        <ResizablePanel id="etch:conflict-merged" defaultSize="60%" minSize="25%">
           <div className="flex h-full min-h-0 flex-col">
             <div className="border-b bg-muted/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Merged (editable)

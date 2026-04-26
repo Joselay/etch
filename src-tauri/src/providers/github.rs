@@ -136,7 +136,7 @@ fn collect(
 /// underlying HTTP client stays local to this helper.
 fn github_request(url: &str) -> AppResult<reqwest::blocking::RequestBuilder> {
     let client = reqwest::blocking::Client::builder()
-        .user_agent("loom-git-client")
+        .user_agent("etch-git-client")
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| AppError::Other(format!("http: {e}")))?;

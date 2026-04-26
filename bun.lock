@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "loom",
+      "name": "etch",
       "dependencies": {
         "@base-ui/react": "^1.4.1",
         "@codemirror/state": "^6.6.0",
