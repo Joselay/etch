@@ -1,0 +1,19 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- macOS Big Sur+ app icon spec: 1024x1024 canvas with the visible tile
+       confined to 824x824 (100px safe-area margin per side) so the apparent
+       icon size in the Dock matches other apps. rx is ~22.37% of tile. -->
+  <rect x="100" y="100" width="824" height="824" rx="184" fill="#0a0a0a"/>
+
+  <!-- lucide-react v1.9.0 git-branch (verified against
+       node_modules/lucide-react/dist/esm/icons/git-branch.mjs).
+       Source 24x24 → scale 23.333 → 560x560 live area inside the tile
+       (132px inner padding, glyph ≈ 68% of tile to match Fork/Discord
+       breathing room). stroke-width 3 → ~70px effective at 1024px. -->
+  <g transform="translate(232, 232) scale(23.333)"
+     fill="none" stroke="#fafafa" stroke-width="3"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 6a9 9 0 0 0-9 9V3"/>
+    <circle cx="18" cy="6" r="3"/>
+    <circle cx="6" cy="18" r="3"/>
+  </g>
+</svg>
