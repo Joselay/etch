@@ -7,7 +7,6 @@ use serde::Serialize;
 use similar::{ChangeTag, TextDiff};
 
 use crate::error::{AppError, AppResult};
-use crate::git::cli::run_git;
 use crate::git::lfs::{is_lfs_pointer, parse_lfs_pointer, LfsPointer};
 
 #[derive(Debug, Serialize)]
@@ -384,28 +383,60 @@ pub fn file_diff(path: &Path, commit_id: &str, file_path: &str) -> AppResult<Fil
 }
 
 pub fn working_diff(path: &Path, file_path: &str, staged: bool) -> AppResult<FileDiff> {
-    let (old_spec, new_spec) = if staged {
+    let repo = gix::open(path).map_err(|e| AppError::Git(e.to_string()))?;
+
+    let (old_bytes, new_bytes) = if staged {
         // staged: HEAD vs index
-        ("HEAD", ":0")
+        (
+            read_head_blob(&repo, file_path).unwrap_or_default(),
+            read_index_blob(&repo, file_path).unwrap_or_default(),
+        )
     } else {
         // unstaged: index vs worktree
-        (":0", "")
-    };
-
-    let old_bytes = read_spec(path, old_spec, file_path).unwrap_or_default();
-    let new_bytes = if new_spec.is_empty() {
-        std::fs::read(path.join(file_path)).unwrap_or_default()
-    } else {
-        read_spec(path, new_spec, file_path).unwrap_or_default()
+        (
+            read_index_blob(&repo, file_path).unwrap_or_default(),
+            std::fs::read(path.join(file_path)).unwrap_or_default(),
+        )
     };
 
     Ok(build_file_diff(file_path, &old_bytes, &new_bytes))
 }
 
-fn read_spec(repo: &Path, spec: &str, file_path: &str) -> AppResult<Vec<u8>> {
-    let target = format!("{spec}:{file_path}");
-    let out = run_git(repo, &["show", &target])?;
-    Ok(out.stdout)
+// Read a blob from the HEAD commit's tree by path. Returns Ok(empty) when
+// HEAD is unborn or the path doesn't exist (matching the previous
+// `git show HEAD:<path>` behaviour, which `unwrap_or_default`s on error).
+fn read_head_blob(repo: &gix::Repository, file_path: &str) -> AppResult<Vec<u8>> {
+    let head = match repo.head().map_err(|e| AppError::Git(e.to_string()))?.kind {
+        gix::head::Kind::Unborn(_) => return Ok(Vec::new()),
+        gix::head::Kind::Detached { target, .. } => target,
+        gix::head::Kind::Symbolic(r) => match r.target.try_id() {
+            Some(id) => id.to_owned(),
+            None => return Ok(Vec::new()),
+        },
+    };
+    let commit = repo
+        .find_commit(head)
+        .map_err(|e| AppError::Git(e.to_string()))?;
+    let tree = commit.tree().map_err(|e| AppError::Git(e.to_string()))?;
+    let mut buf = Vec::new();
+    let entry = tree
+        .lookup_entry_by_path(file_path, &mut buf)
+        .map_err(|e| AppError::Git(e.to_string()))?;
+    let entry = match entry {
+        Some(e) if matches!(e.mode().kind(), EntryKind::Blob | EntryKind::BlobExecutable) => e,
+        _ => return Ok(Vec::new()),
+    };
+    blob_bytes(repo, entry.object_id())
+}
+
+// Read a blob from the index by path (stage 0).
+fn read_index_blob(repo: &gix::Repository, file_path: &str) -> AppResult<Vec<u8>> {
+    let index = repo.index().map_err(|e| AppError::Git(e.to_string()))?;
+    let entry = match index.entry_by_path(file_path.into()) {
+        Some(e) => e,
+        None => return Ok(Vec::new()),
+    };
+    blob_bytes(repo, entry.id)
 }
 
 #[cfg(test)]

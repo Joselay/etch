@@ -3,6 +3,7 @@ import { Columns2, Copy, Hash, Rows2, WrapText } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Highlighter, ThemedToken } from "shiki";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
@@ -329,13 +330,25 @@ function DiffBody({
 }) {
   const { hl, lang } = useHighlighter(data.path);
   const isDark = useIsDark();
-  const wordWrap = useUiStore((s) => s.diffWordWrap);
-  const toggleWrap = useUiStore((s) => s.toggleDiffWordWrap);
-  const showLineNumbers = useUiStore((s) => s.diffLineNumbers);
-  const toggleLineNumbers = useUiStore((s) => s.toggleDiffLineNumbers);
-  const layout = useUiStore((s) => s.diffLayout);
-  const toggleLayout = useUiStore((s) => s.toggleDiffLayout);
-  const wordHighlight = useUiStore((s) => s.diffWordHighlight);
+  const {
+    wordWrap,
+    toggleWrap,
+    showLineNumbers,
+    toggleLineNumbers,
+    layout,
+    toggleLayout,
+    wordHighlight,
+  } = useUiStore(
+    useShallow((s) => ({
+      wordWrap: s.diffWordWrap,
+      toggleWrap: s.toggleDiffWordWrap,
+      showLineNumbers: s.diffLineNumbers,
+      toggleLineNumbers: s.toggleDiffLineNumbers,
+      layout: s.diffLayout,
+      toggleLayout: s.toggleDiffLayout,
+      wordHighlight: s.diffWordHighlight,
+    })),
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeHunk, setActiveHunk] = useState(0);

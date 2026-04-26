@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { githubNoreplyAvatar, gravatarHash, gravatarUrl, initialsFromName } from "@/lib/avatar";
@@ -12,7 +12,12 @@ type Props = {
   className?: string;
 };
 
-export function AuthorAvatar({ name, email, size = 24, className }: Props) {
+export const AuthorAvatar = memo(function AuthorAvatar({
+  name,
+  email,
+  size = 24,
+  className,
+}: Props) {
   const pixels = size * 2;
   const { map, isSettled } = useRemoteAuthorsContext();
   const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
@@ -65,4 +70,4 @@ export function AuthorAvatar({ name, email, size = 24, className }: Props) {
       </AvatarFallback>
     </Avatar>
   );
-}
+});

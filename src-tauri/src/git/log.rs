@@ -27,6 +27,31 @@ pub struct CommitSummary {
 //        | committerName | committerEmail | committerTime | parents
 const LOG_FORMAT: &str = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
 
+// Lowercase `haystack` (UTF-8, lossy) into the reused `scratch` buffer and
+// check for `needle`. `needle` must already be lowercase. Reusing the buffer
+// across calls avoids per-commit String allocation in the search hot path.
+fn contains_lower(scratch: &mut String, haystack: &[u8], needle: &str) -> bool {
+    scratch.clear();
+    for ch in std::str::from_utf8(haystack)
+        .unwrap_or_else(|_| {
+            // Rare path for non-UTF-8 author fields; fall back to lossy and
+            // accept the allocation.
+            ""
+        })
+        .chars()
+    {
+        for lc in ch.to_lowercase() {
+            scratch.push(lc);
+        }
+    }
+    if scratch.is_empty() && !haystack.is_empty() {
+        // UTF-8 decode failed above; do the lossy path.
+        let lossy = String::from_utf8_lossy(haystack);
+        return lossy.to_lowercase().contains(needle);
+    }
+    scratch.contains(needle)
+}
+
 fn parse_commit_log_output(text: &str) -> Vec<CommitSummary> {
     let mut result = Vec::new();
     for record in text.split('\0') {
@@ -135,34 +160,51 @@ pub fn commit_log(
     // When filtering, `skip` counts matching commits rather than raw walk
     // position — otherwise pagination would be meaningless for searches.
     let mut matched = 0usize;
+    // Reused lowercase scratch buffer for needle search to avoid one
+    // allocation per commit per field.
+    let mut lower_scratch = String::new();
     for info in walk {
         if out.len() >= limit {
             break;
         }
         let info = info.map_err(|e| AppError::Git(e.to_string()))?;
+
+        // Fast path when no search filter: avoid decoding the commit object
+        // entirely while we're still skipping past earlier pages.
+        if needle.is_none() && matched < skip {
+            matched += 1;
+            continue;
+        }
+
+        // From here we need the commit object — either to filter by needle
+        // or to emit a CommitSummary.
         let commit = repo
             .find_commit(info.id)
             .map_err(|e| AppError::Git(e.to_string()))?;
         let msg = commit.message().map_err(|e| AppError::Git(e.to_string()))?;
         let author = commit.author().map_err(|e| AppError::Git(e.to_string()))?;
-        let committer = commit
-            .committer()
-            .map_err(|e| AppError::Git(e.to_string()))?;
 
         if let Some(needle) = needle.as_deref() {
-            let hit = msg.summary().to_string().to_lowercase().contains(needle)
-                || author.name.to_string().to_lowercase().contains(needle)
-                || author.email.to_string().to_lowercase().contains(needle);
+            let summary = msg.summary();
+            let hit = contains_lower(&mut lower_scratch, summary.as_ref(), needle)
+                || contains_lower(&mut lower_scratch, author.name.as_ref(), needle)
+                || contains_lower(&mut lower_scratch, author.email.as_ref(), needle);
             if !hit {
                 continue;
             }
+            if matched < skip {
+                matched += 1;
+                continue;
+            }
+            matched += 1;
+        } else {
+            // Past the skip guard above; this commit will be emitted.
+            matched += 1;
         }
 
-        if matched < skip {
-            matched += 1;
-            continue;
-        }
-        matched += 1;
+        let committer = commit
+            .committer()
+            .map_err(|e| AppError::Git(e.to_string()))?;
 
         out.push(CommitSummary {
             id: info.id.to_string(),
