@@ -50,6 +50,7 @@ import { ChangesView } from "./changes-view";
 import { CommandPalette } from "./command-palette";
 import { CommitDetails } from "./commit-details";
 import { CommitList } from "./commit-list";
+import { ReflogView } from "./reflog-view";
 import { RefsSidebar } from "./refs-sidebar";
 import { RemoteActions } from "./remote-actions";
 import { RepoStateBanner } from "./repo-state-banner";
@@ -253,6 +254,10 @@ export function RepoLayout() {
 
               <TabsContent value="changes" className="m-0 min-h-0 flex-1 overflow-hidden">
                 <ChangesView repoPath={activeRepo.path} />
+              </TabsContent>
+
+              <TabsContent value="reflog" className="m-0 min-h-0 flex-1 overflow-hidden">
+                <ReflogView repoPath={activeRepo.path} />
               </TabsContent>
             </div>
           </ResizablePanel>

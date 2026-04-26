@@ -22,6 +22,7 @@ use crate::git::{
         abort_rebase, continue_rebase, preview_todo, skip_rebase, start_interactive_rebase,
         start_rebase, TodoEntry,
     },
+    reflog::{list_reflog, ReflogEntry},
     refs::{list_refs, RefListing},
     remote::{
         add_remote, fetch, list_remotes, pull, push, remove_remote, rename_remote,
@@ -95,6 +96,17 @@ pub async fn cmd_file_history(
     })
     .await
     .map_err(|e| AppError::Other(format!("join: {e}")))?
+}
+
+#[tauri::command]
+pub async fn cmd_reflog(
+    path: String,
+    limit: Option<usize>,
+    skip: Option<usize>,
+) -> AppResult<Vec<ReflogEntry>> {
+    tauri::async_runtime::spawn_blocking(move || list_reflog(&PathBuf::from(path), limit, skip))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
@@ -330,12 +342,15 @@ pub fn cmd_create_stash(
     message: Option<String>,
     include_untracked: bool,
     keep_index: bool,
+    paths: Option<Vec<String>>,
 ) -> AppResult<()> {
+    let selected = paths.unwrap_or_default();
     create_stash(
         &PathBuf::from(path),
         message.as_deref(),
         include_untracked,
         keep_index,
+        &selected,
     )
 }
 

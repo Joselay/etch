@@ -134,6 +134,16 @@ export type StashEntry = {
   branch: string | null;
 };
 
+export type ReflogEntry = {
+  oid: string;
+  refSelector: string;
+  action: string;
+  authorName: string;
+  authorEmail: string;
+  timestamp: number;
+  subject: string;
+};
+
 export type BlameLine = {
   commitId: string;
   shortId: string;
@@ -235,12 +245,14 @@ export const api = {
     message: string | null,
     includeUntracked: boolean,
     keepIndex: boolean,
+    paths: string[] | null,
   ) =>
     invoke<void>("cmd_create_stash", {
       path,
       message,
       includeUntracked,
       keepIndex,
+      paths,
     }),
   applyStash: (path: string, refName: string) => invoke<void>("cmd_apply_stash", { path, refName }),
   popStash: (path: string, refName: string) => invoke<void>("cmd_pop_stash", { path, refName }),
@@ -295,6 +307,8 @@ export const api = {
   ) => invoke<CommitSummary[]>("cmd_commit_log", { path, limit, skip, query, allBranches }),
   commitMessage: (path: string, commitId: string) =>
     invoke<string>("cmd_commit_message", { path, commitId }),
+  reflog: (path: string, limit = 300, skip = 0) =>
+    invoke<ReflogEntry[]>("cmd_reflog", { path, limit, skip }),
   abortBisect: (path: string) => invoke<void>("cmd_abort_bisect", { path }),
   fileHistory: (path: string, file: string, limit = 500, skip = 0) =>
     invoke<CommitSummary[]>("cmd_file_history", { path, file, limit, skip }),

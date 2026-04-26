@@ -27,6 +27,7 @@ export function useRepoWatcher(repoPath: string | null) {
         qc.invalidateQueries({ queryKey: ["commit-log", repoPath] });
         qc.invalidateQueries({ queryKey: ["refs", repoPath] });
         qc.invalidateQueries({ queryKey: ["upstream-status", repoPath] });
+        qc.invalidateQueries({ queryKey: ["reflog", repoPath] });
       }
       if (c.state) {
         qc.invalidateQueries({ queryKey: ["repo-state", repoPath] });

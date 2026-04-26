@@ -67,6 +67,7 @@ pub fn create_stash(
     message: Option<&str>,
     include_untracked: bool,
     keep_index: bool,
+    paths: &[String],
 ) -> AppResult<()> {
     let mut args: Vec<&str> = vec!["stash", "push"];
     if include_untracked {
@@ -80,6 +81,19 @@ pub fn create_stash(
         if !trimmed.is_empty() {
             args.push("-m");
             args.push(trimmed);
+        }
+    }
+    if !paths.is_empty() {
+        // Reject pathspecs that look like flags so they can't be smuggled past
+        // git's argument parser, mirroring `validate_stash_ref`.
+        for p in paths {
+            if p.starts_with('-') {
+                return Err(AppError::Other(format!("invalid stash path: {p}")));
+            }
+        }
+        args.push("--");
+        for p in paths {
+            args.push(p);
         }
     }
     run_git(repo, &args)?;
@@ -138,7 +152,7 @@ mod tests {
         let tmp = init_tmp_repo();
         let p = tmp.path();
         fs::write(p.join("a.txt"), "changed\n").unwrap();
-        create_stash(p, Some("my work"), false, false).unwrap();
+        create_stash(p, Some("my work"), false, false, &[]).unwrap();
 
         let list = list_stashes(p).unwrap();
         assert_eq!(list.len(), 1);
@@ -155,11 +169,41 @@ mod tests {
         let tmp = init_tmp_repo();
         let p = tmp.path();
         fs::write(p.join("a.txt"), "changed\n").unwrap();
-        create_stash(p, None, false, false).unwrap();
+        create_stash(p, None, false, false, &[]).unwrap();
         // Reset working copy so pop doesn't conflict.
         run_git(p, &["checkout", "--", "a.txt"]).unwrap();
         pop_stash(p, "stash@{0}").unwrap();
         assert_eq!(list_stashes(p).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn partial_stash_only_stashes_selected_paths() {
+        let tmp = init_tmp_repo();
+        let p = tmp.path();
+        fs::write(p.join("a.txt"), "a-changed\n").unwrap();
+        fs::write(p.join("b.txt"), "b-new\n").unwrap();
+        run_git(p, &["add", "b.txt"]).unwrap();
+        run_git(p, &["commit", "-q", "-m", "add b"]).unwrap();
+        fs::write(p.join("b.txt"), "b-changed\n").unwrap();
+
+        create_stash(p, Some("just a"), false, false, &["a.txt".to_string()]).unwrap();
+
+        // a.txt was stashed (back to "hello\n"); b.txt still dirty.
+        assert_eq!(fs::read_to_string(p.join("a.txt")).unwrap(), "hello\n");
+        assert_eq!(fs::read_to_string(p.join("b.txt")).unwrap(), "b-changed\n");
+    }
+
+    #[test]
+    fn rejects_path_starting_with_dash() {
+        let tmp = init_tmp_repo();
+        let res = create_stash(
+            tmp.path(),
+            None,
+            false,
+            false,
+            &["--upload-pack=evil".to_string()],
+        );
+        assert!(res.is_err());
     }
 
     #[test]

@@ -22,7 +22,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { buildHunkPatch, buildPartialHunkPatch } from "@/lib/patch";
+import { buildHunkPatch, buildPartialDiscardPatch, buildPartialHunkPatch } from "@/lib/patch";
 import type { ConflictEntry, ConflictKind, FileDiff, StatusEntry } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
@@ -645,6 +645,10 @@ function WorkingDiffPane({
 }) {
   const { data, isLoading, error, refetch } = useWorkingDiff(_repoPath, filePath, staged);
   const [pendingDiscardHunk, setPendingDiscardHunk] = useState<number | null>(null);
+  const [pendingDiscardLines, setPendingDiscardLines] = useState<ReadonlyArray<{
+    hunkIdx: number;
+    lineIdx: number;
+  }> | null>(null);
 
   if (isLoading) return <LoadingState label="Loading diff…" />;
   if (error) return <ErrorState error={error as Error} onRetry={() => void refetch()} />;
@@ -653,7 +657,11 @@ function WorkingDiffPane({
   const hunkActions = buildHunkActions(data, staged, onApplyPatch, applyPatchPending, (hi) =>
     setPendingDiscardHunk(hi),
   );
-  const lineActions = buildLineActions(data, staged, onApplyPatch, applyPatchPending);
+  const lineActions = buildLineActions(data, staged, onApplyPatch, applyPatchPending, (lines) =>
+    setPendingDiscardLines(lines),
+  );
+
+  const discardLinesHunkIdx = pendingDiscardLines?.[0]?.hunkIdx ?? null;
 
   return (
     <>
@@ -691,6 +699,55 @@ function WorkingDiffPane({
                   });
                 } finally {
                   setPendingDiscardHunk(null);
+                }
+              }}
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={pendingDiscardLines !== null}
+        onOpenChange={(o) => !o && setPendingDiscardLines(null)}
+      >
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard selected lines?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The selected line changes in{" "}
+              <span className="font-mono text-foreground">{filePath}</span> will be lost and cannot
+              be recovered.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {discardLinesHunkIdx !== null && data.hunks[discardLinesHunkIdx] && (
+            <div className="max-h-[50vh] overflow-auto rounded-md border">
+              <DiffViewer data={{ ...data, hunks: [data.hunks[discardLinesHunkIdx]] }} />
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={applyPatchPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={applyPatchPending}
+              onClick={() => {
+                if (!pendingDiscardLines || pendingDiscardLines.length === 0) return;
+                const hunkIdx = pendingDiscardLines[0].hunkIdx;
+                const selected = new Set(pendingDiscardLines.map((l) => l.lineIdx));
+                try {
+                  const patch = buildPartialDiscardPatch(data, hunkIdx, selected);
+                  if (patch) {
+                    // Reverse semantics are baked into the patch (pre-image
+                    // = current WT, post-image = WT with selected reverted),
+                    // so apply forward, not reverse.
+                    onApplyPatch({
+                      patch,
+                      cached: false,
+                      reverse: false,
+                      toast: "Discarded lines",
+                    });
+                  }
+                } finally {
+                  setPendingDiscardLines(null);
                 }
               }}
             >
@@ -765,6 +822,7 @@ function buildLineActions(
   staged: boolean,
   onApplyPatch: (vars: { patch: string; cached: boolean; reverse: boolean; toast: string }) => void,
   pending: boolean,
+  requestDiscardLines: (lines: ReadonlyArray<{ hunkIdx: number; lineIdx: number }>) => void,
 ): LineAction[] | undefined {
   if (diff.isBinary || diff.hunks.length === 0) return undefined;
 
@@ -799,6 +857,17 @@ function buildLineActions(
       label: "Stage lines",
       disabled: pending,
       onClick: (lines) => apply(lines, false, "Staged lines"),
+    },
+    {
+      label: "Discard lines",
+      destructive: true,
+      disabled: pending,
+      onClick: (lines) => {
+        if (lines.length === 0) return;
+        const hunkIdx = lines[0].hunkIdx;
+        if (lines.some((l) => l.hunkIdx !== hunkIdx)) return;
+        requestDiscardLines(lines);
+      },
     },
   ];
 }

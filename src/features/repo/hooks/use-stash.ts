@@ -23,8 +23,19 @@ function invalidateAll(qc: ReturnType<typeof useQueryClient>, path: string) {
 export function useCreateStash(path: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { message: string | null; includeUntracked: boolean; keepIndex: boolean }) =>
-      api.createStash(path as string, vars.message, vars.includeUntracked, vars.keepIndex),
+    mutationFn: (vars: {
+      message: string | null;
+      includeUntracked: boolean;
+      keepIndex: boolean;
+      paths?: string[];
+    }) =>
+      api.createStash(
+        path as string,
+        vars.message,
+        vars.includeUntracked,
+        vars.keepIndex,
+        vars.paths && vars.paths.length > 0 ? vars.paths : null,
+      ),
     onSuccess: () => {
       if (path) invalidateAll(qc, path);
       toast.success("Stashed changes");

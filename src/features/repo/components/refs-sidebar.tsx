@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Cloud,
   GitBranch,
+  History,
   Plus,
   Search,
   Settings2,
@@ -58,6 +59,8 @@ export function RefsSidebar({ repoPath }: Props) {
   const checkout = useCheckout(repoPath);
   const checkoutTracking = useCheckoutTracking(repoPath);
   const selectCommit = useSelectionStore((s) => s.selectCommit);
+  const setView = useSelectionStore((s) => s.setView);
+  const currentView = useSelectionStore((s) => s.view);
 
   const [createState, setCreateState] = useState<CreateState>({ open: false, startPoint: null });
   const [renameState, setRenameState] = useState<BranchDialogState>({ open: false, name: "" });
@@ -211,7 +214,7 @@ export function RefsSidebar({ repoPath }: Props) {
               }
             >
               {localBranches.length === 0 ? (
-                <div className="px-2 py-1 text-xs text-muted-foreground">
+                <div className="py-1 pl-8 pr-2.5 text-xs text-muted-foreground">
                   {needle ? "No matches" : "No local branches"}
                 </div>
               ) : (
@@ -305,13 +308,13 @@ export function RefsSidebar({ repoPath }: Props) {
               }
             >
               {remoteGroups.size === 0 ? (
-                <div className="px-2 py-1 text-muted-foreground text-xs">
+                <div className="py-1 pl-8 pr-2.5 text-xs text-muted-foreground">
                   {needle ? "No matches" : "No remotes"}
                 </div>
               ) : (
                 [...remoteGroups.entries()].map(([remote, branches]) => (
                   <div key={remote} className="flex flex-col">
-                    <div className="px-3 pt-1.5 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                    <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
                       {remote}
                     </div>
                     <div className="flex flex-col">
@@ -386,7 +389,7 @@ export function RefsSidebar({ repoPath }: Props) {
               }
             >
               {filteredTags.length === 0 ? (
-                <div className="px-2 py-1 text-xs text-muted-foreground">
+                <div className="py-1 pl-8 pr-2.5 text-xs text-muted-foreground">
                   {needle ? "No matches" : "No tags"}
                 </div>
               ) : (
@@ -443,7 +446,7 @@ export function RefsSidebar({ repoPath }: Props) {
               }
             >
               {filteredStashes.length === 0 ? (
-                <div className="px-2 py-1 text-xs text-muted-foreground">
+                <div className="py-1 pl-8 pr-2.5 text-xs text-muted-foreground">
                   {needle ? "No matches" : "No stashes"}
                 </div>
               ) : (
@@ -475,6 +478,18 @@ export function RefsSidebar({ repoPath }: Props) {
                   ))}
                 </div>
               )}
+            </Section>
+
+            <Section title="Reflog" icon={<History className="h-3.5 w-3.5" />}>
+              <RefItem
+                label="HEAD"
+                onClick={() => setView("reflog")}
+                aria-current={currentView === "reflog" ? "page" : undefined}
+                className={cn(
+                  currentView === "reflog" &&
+                    "bg-accent/40 font-medium text-foreground hover:bg-accent/40",
+                )}
+              />
             </Section>
           </div>
         </ScrollArea>
@@ -538,7 +553,7 @@ function Section({
         </CollapsibleTrigger>
         {action}
       </div>
-      <CollapsibleContent className="flex flex-col">{children}</CollapsibleContent>
+      <CollapsibleContent className="flex flex-col pl-2 pr-1">{children}</CollapsibleContent>
     </Collapsible>
   );
 }

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { CommitSummary } from "@/lib/tauri";
 
-export type RepoView = "history" | "changes";
+export type RepoView = "history" | "changes" | "reflog";
 
 export type WorkingSide = "staged" | "unstaged";
 
