@@ -2,28 +2,7 @@ use std::path::Path;
 
 use crate::error::{AppError, AppResult};
 use crate::git::cli::run_git;
-
-fn validate_ref_like(s: &str, kind: &str) -> AppResult<()> {
-    if s.is_empty() {
-        return Err(AppError::Other(format!("{kind} must not be empty")));
-    }
-    if s.starts_with('-') {
-        return Err(AppError::Other(format!("invalid {kind}: {s}")));
-    }
-    let ok = s
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/'));
-    if !ok {
-        return Err(AppError::Other(format!("invalid {kind}: {s}")));
-    }
-    Ok(())
-}
-
-fn validate_commit_ish(s: &str) -> AppResult<()> {
-    // Allow short & full hex SHAs, branch names, tag names — same character set
-    // as ref names, which covers all of the above.
-    validate_ref_like(s, "commit-ish")
-}
+use crate::git::validate::validate_commit_ish;
 
 pub fn create_branch(repo: &Path, name: &str, start_point: Option<&str>) -> AppResult<()> {
     let mut args: Vec<&str> = vec!["branch", "--", name];

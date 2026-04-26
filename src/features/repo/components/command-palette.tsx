@@ -11,12 +11,12 @@ import {
 } from "@/components/ui/command";
 import { useCommands } from "@/lib/command-registry";
 import { shortcutToString } from "@/lib/shortcut-format";
+import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
-import { useUiStore } from "@/stores/ui-store";
 
 export function CommandPalette() {
-  const open = useUiStore((s) => s.paletteOpen);
-  const setOpen = useUiStore((s) => s.setPaletteOpen);
+  const open = useModalStore((s) => s.paletteOpen);
+  const setOpen = useModalStore((s) => s.setPaletteOpen);
   const activeRepo = useRepoStore((s) => s.activeRepo);
   const commands = useCommands();
 

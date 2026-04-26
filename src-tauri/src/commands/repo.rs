@@ -34,8 +34,9 @@ use crate::git::{
     refs::{list_refs, RefListing},
     sign::{read_commit_template, read_signing_config, SigningConfig},
     remote::{
-        add_remote, fetch_cancellable, list_remotes, pull, push, remove_remote, rename_remote,
-        set_remote_url, set_upstream, unset_upstream, upstream_status, RemoteInfo, UpstreamStatus,
+        add_remote, fetch_cancellable, list_remotes, origin_remote_url, pull, push, remove_remote,
+        rename_remote, set_remote_url, set_upstream, unset_upstream, upstream_status, RemoteInfo,
+        UpstreamStatus,
     },
     repo::{clone_repo_cancellable, init_repo, open_repo, RepoInfo},
     stage::{apply_patch, commit, discard_paths, stage_paths, unstage_paths, CommitResult},
@@ -819,11 +820,9 @@ pub fn cmd_unmark_conflict(path: String, files: Vec<String>) -> AppResult<()> {
 #[tauri::command]
 pub async fn cmd_list_prs(path: String, branch: String) -> AppResult<Vec<PullRequest>> {
     tauri::async_runtime::spawn_blocking(move || {
-        let out = run_git(&PathBuf::from(&path), &["config", "--get", "remote.origin.url"])?;
-        let remote = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if remote.is_empty() {
+        let Some(remote) = origin_remote_url(&PathBuf::from(&path))? else {
             return Ok(Vec::new());
-        }
+        };
         list_prs_for_branch(&remote, &branch)
     })
     .await
@@ -833,11 +832,9 @@ pub async fn cmd_list_prs(path: String, branch: String) -> AppResult<Vec<PullReq
 #[tauri::command]
 pub async fn cmd_ci_status(path: String, ref_: String) -> AppResult<Option<CombinedStatus>> {
     tauri::async_runtime::spawn_blocking(move || {
-        let out = run_git(&PathBuf::from(&path), &["config", "--get", "remote.origin.url"])?;
-        let remote = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if remote.is_empty() {
+        let Some(remote) = origin_remote_url(&PathBuf::from(&path))? else {
             return Ok(None);
-        }
+        };
         combined_status_for_ref(&remote, &ref_)
     })
     .await
@@ -847,11 +844,9 @@ pub async fn cmd_ci_status(path: String, ref_: String) -> AppResult<Option<Combi
 #[tauri::command]
 pub async fn cmd_remote_authors(path: String) -> AppResult<Vec<Author>> {
     tauri::async_runtime::spawn_blocking(move || {
-        let out = run_git(&PathBuf::from(&path), &["config", "--get", "remote.origin.url"])?;
-        let remote = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if remote.is_empty() {
+        let Some(remote) = origin_remote_url(&PathBuf::from(&path))? else {
             return Ok(Vec::new());
-        }
+        };
         fetch_authors_for_remote(&remote)
     })
     .await

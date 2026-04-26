@@ -9,11 +9,11 @@ import {
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useCommands } from "@/lib/command-registry";
 import { formatShortcutKey } from "@/lib/shortcut-format";
-import { useUiStore } from "@/stores/ui-store";
+import { useModalStore } from "@/stores/modal-store";
 
 export function ShortcutsDialog() {
-  const open = useUiStore((s) => s.shortcutsOpen);
-  const setOpen = useUiStore((s) => s.setShortcutsOpen);
+  const open = useModalStore((s) => s.shortcutsOpen);
+  const setOpen = useModalStore((s) => s.setShortcutsOpen);
   const commands = useCommands();
 
   // Build sections from the same registry the palette uses. Anything without

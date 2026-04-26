@@ -37,9 +37,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { dispatchMenuEvent, onMenuEvent } from "@/lib/menu-events";
 import { cn } from "@/lib/utils";
+import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
 import { type RepoView, useSelectionStore, useTabSelection } from "@/stores/selection-store";
-import { useUiStore } from "@/stores/ui-store";
 import { useOpenRepo } from "../hooks/use-open-repo";
 import { useRefs } from "../hooks/use-refs";
 import { useRemoteAuthorsContextValue } from "../hooks/use-remote-authors";
@@ -79,7 +79,7 @@ export function RepoLayout() {
   const { data: status } = useStatus(activeRepo?.path ?? null);
   const { data: refs } = useRefs(activeRepo?.path ?? null);
   const remoteAuthorsValue = useRemoteAuthorsContextValue(activeRepo?.path ?? null);
-  const openSettings = useUiStore((s) => s.openSettings);
+  const openSettings = useModalStore((s) => s.openSettings);
   const { openAt } = useOpenRepo();
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 

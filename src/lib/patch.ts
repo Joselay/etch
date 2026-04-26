@@ -71,6 +71,59 @@ export function buildHunkPatch(diff: FileDiff, hunkIndex: number): string {
   return headerLines.join("\n") + serializeHunk(hunk);
 }
 
+// Walk a hunk's lines and emit a filtered body where only the user-selected
+// changes are kept. The "preserve" kind (whose unselected lines are demoted
+// to context) flips between modes:
+//
+// - `"stage"`:    preserve = deletion → unselected `-` → context, unselected `+` → dropped
+// - `"discard"`:  preserve = addition → unselected `+` → context, unselected `-` → dropped
+//
+// In both modes a selected preserve-kind line is emitted as `-` (removes from
+// the apply target) and a selected non-preserve line is emitted as `+` (adds
+// to the apply target). Returns null when filtering leaves no real changes.
+function buildFilteredHunkBody(
+  hunk: DiffHunk,
+  selectedLineIndices: ReadonlySet<number>,
+  mode: "stage" | "discard",
+): { body: string; oldCount: number; newCount: number } | null {
+  const preserveKind = mode === "stage" ? "deletion" : "addition";
+  const body: string[] = [];
+  let oldCount = 0;
+  let newCount = 0;
+  let hasRealChange = false;
+
+  for (let li = 0; li < hunk.lines.length; li++) {
+    const line = hunk.lines[li];
+    if (line.kind === "context") {
+      body.push(` ${line.content}\n`);
+      oldCount++;
+      newCount++;
+    } else if (line.kind === preserveKind) {
+      if (selectedLineIndices.has(li)) {
+        body.push(`-${line.content}\n`);
+        oldCount++;
+        hasRealChange = true;
+      } else {
+        // Unselected preserve-kind line stays in both old and new.
+        body.push(` ${line.content}\n`);
+        oldCount++;
+        newCount++;
+      }
+    } else {
+      // The non-preserve change kind: selected lines become `+`, unselected
+      // are dropped entirely.
+      if (selectedLineIndices.has(li)) {
+        body.push(`+${line.content}\n`);
+        newCount++;
+        hasRealChange = true;
+      }
+    }
+  }
+
+  if (!hasRealChange) return null;
+  return { body: body.join(""), oldCount, newCount };
+}
+
 // Build a patch for a single hunk where only the user-selected addition /
 // deletion lines are kept. Unselected `+` lines are dropped (they remain in
 // the working tree only); unselected `-` lines are demoted to context (they
@@ -91,52 +144,21 @@ export function buildPartialHunkPatch(
   const newRange = hunkRange(hunk.header, "+");
   if (!oldRange || !newRange) return null;
 
+  const filtered = buildFilteredHunkBody(hunk, selectedLineIndices, "stage");
+  if (!filtered) return null;
+
   const oldPath = diff.oldPath ?? diff.path;
   const newPath = diff.path;
-  const headerLines = [`diff --git a/${oldPath} b/${newPath}`];
   // Partial-line staging never makes sense for full add/delete — caller
   // should stage the whole hunk in those cases. Treat the file as a normal
   // modification.
-  headerLines.push(`--- a/${oldPath}`);
-  headerLines.push(`+++ b/${newPath}`);
-
-  const body: string[] = [];
-  let oldCount = 0;
-  let newCount = 0;
-  let hasRealChange = false;
-
-  for (let li = 0; li < hunk.lines.length; li++) {
-    const line = hunk.lines[li];
-    if (line.kind === "context") {
-      body.push(` ${line.content}\n`);
-      oldCount++;
-      newCount++;
-    } else if (line.kind === "deletion") {
-      if (selectedLineIndices.has(li)) {
-        body.push(`-${line.content}\n`);
-        oldCount++;
-        hasRealChange = true;
-      } else {
-        // Unselected deletion: act as if the line stays in both versions.
-        body.push(` ${line.content}\n`);
-        oldCount++;
-        newCount++;
-      }
-    } else {
-      // addition
-      if (selectedLineIndices.has(li)) {
-        body.push(`+${line.content}\n`);
-        newCount++;
-        hasRealChange = true;
-      }
-      // Unselected addition: drop entirely.
-    }
-  }
-
-  if (!hasRealChange) return null;
-
-  const newHeader = `@@ -${oldRange.start},${oldCount} +${newRange.start},${newCount} @@`;
-  return `${headerLines.join("\n")}\n${newHeader}\n${body.join("")}`;
+  const headerLines = [
+    `diff --git a/${oldPath} b/${newPath}`,
+    `--- a/${oldPath}`,
+    `+++ b/${newPath}`,
+  ];
+  const newHeader = `@@ -${oldRange.start},${filtered.oldCount} +${newRange.start},${filtered.newCount} @@`;
+  return `${headerLines.join("\n")}\n${newHeader}\n${filtered.body}`;
 }
 
 // Build a patch that discards user-selected addition/deletion lines from the
@@ -159,6 +181,9 @@ export function buildPartialDiscardPatch(
   const newRange = hunkRange(hunk.header, "+");
   if (!newRange) return null;
 
+  const filtered = buildFilteredHunkBody(hunk, selectedLineIndices, "discard");
+  if (!filtered) return null;
+
   const oldPath = diff.oldPath ?? diff.path;
   const newPath = diff.path;
   const headerLines = [
@@ -166,39 +191,6 @@ export function buildPartialDiscardPatch(
     `--- a/${oldPath}`,
     `+++ b/${newPath}`,
   ];
-
-  const body: string[] = [];
-  let oldCount = 0;
-  let newCount = 0;
-  let hasRealChange = false;
-
-  for (let li = 0; li < hunk.lines.length; li++) {
-    const line = hunk.lines[li];
-    if (line.kind === "context") {
-      body.push(` ${line.content}\n`);
-      oldCount++;
-      newCount++;
-    } else if (line.kind === "addition") {
-      if (selectedLineIndices.has(li)) {
-        body.push(`-${line.content}\n`);
-        oldCount++;
-        hasRealChange = true;
-      } else {
-        body.push(` ${line.content}\n`);
-        oldCount++;
-        newCount++;
-      }
-    } else {
-      if (selectedLineIndices.has(li)) {
-        body.push(`+${line.content}\n`);
-        newCount++;
-        hasRealChange = true;
-      }
-    }
-  }
-
-  if (!hasRealChange) return null;
-
-  const newHeader = `@@ -${newRange.start},${oldCount} +${newRange.start},${newCount} @@`;
-  return `${headerLines.join("\n")}\n${newHeader}\n${body.join("")}`;
+  const newHeader = `@@ -${newRange.start},${filtered.oldCount} +${newRange.start},${filtered.newCount} @@`;
+  return `${headerLines.join("\n")}\n${newHeader}\n${filtered.body}`;
 }

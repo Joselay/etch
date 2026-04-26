@@ -22,3 +22,4 @@ pub mod status;
 pub mod submodule;
 pub mod worktree;
 pub mod tags;
+pub mod validate;

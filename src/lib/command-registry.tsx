@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { dispatchMenuEvent } from "@/lib/menu-events";
+import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
 import { useSelectionStore } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -67,9 +68,9 @@ export type Command = {
 export function useCommands(): Command[] {
   const allBranches = useUiStore((s) => s.commitLogAllBranches);
   const toggleAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
-  const openSettings = useUiStore((s) => s.openSettings);
-  const openShortcuts = useUiStore((s) => s.openShortcuts);
-  const togglePalette = useUiStore((s) => s.togglePalette);
+  const openSettings = useModalStore((s) => s.openSettings);
+  const openShortcuts = useModalStore((s) => s.openShortcuts);
+  const togglePalette = useModalStore((s) => s.togglePalette);
   const wordWrap = useUiStore((s) => s.diffWordWrap);
   const toggleWrap = useUiStore((s) => s.toggleDiffWordWrap);
   const lineNumbers = useUiStore((s) => s.diffLineNumbers);

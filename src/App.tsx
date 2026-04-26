@@ -17,8 +17,8 @@ import { useMenuEvents } from "@/hooks/use-menu-events";
 import { useThemeShortcut } from "@/hooks/use-theme-shortcut";
 import { onMenuEvent } from "@/lib/menu-events";
 import { persister, queryClient, shouldPersistQuery } from "@/lib/query-client";
+import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
-import { useUiStore } from "@/stores/ui-store";
 import "./App.css";
 
 // Bump when the persisted query shape changes to discard stale caches.
@@ -26,8 +26,8 @@ const CACHE_BUSTER = "v1";
 
 function AppInner() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
-  const cloneOpen = useUiStore((s) => s.cloneOpen);
-  const setCloneOpen = useUiStore((s) => s.setCloneOpen);
+  const cloneOpen = useModalStore((s) => s.cloneOpen);
+  const setCloneOpen = useModalStore((s) => s.setCloneOpen);
 
   useGlobalRefresh();
   useMenuEvents();

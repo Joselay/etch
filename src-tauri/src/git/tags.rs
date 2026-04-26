@@ -1,23 +1,8 @@
 use std::path::Path;
 
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 use crate::git::cli::run_git;
-
-fn validate_ref_like(s: &str, kind: &str) -> AppResult<()> {
-    if s.is_empty() {
-        return Err(AppError::Other(format!("{kind} must not be empty")));
-    }
-    if s.starts_with('-') {
-        return Err(AppError::Other(format!("invalid {kind}: {s}")));
-    }
-    let ok = s
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/'));
-    if !ok {
-        return Err(AppError::Other(format!("invalid {kind}: {s}")));
-    }
-    Ok(())
-}
+use crate::git::validate::validate_ref_arg as validate_ref_like;
 
 /// Create a lightweight (message=None) or annotated tag. When `target` is
 /// None, tags the current HEAD.

@@ -38,6 +38,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProviderToken } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
+import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useGitIdentity, useWriteGitIdentity } from "../hooks/use-git-identity";
@@ -52,8 +53,8 @@ import { SigningSection } from "./signing-section";
 type Tab = "appearance" | "review" | "identity" | "signing" | "providers" | "repository";
 
 export function SettingsDialog() {
-  const open = useUiStore((s) => s.settingsOpen);
-  const setOpen = useUiStore((s) => s.setSettingsOpen);
+  const open = useModalStore((s) => s.settingsOpen);
+  const setOpen = useModalStore((s) => s.setSettingsOpen);
   const [tab, setTab] = useState<Tab>("appearance");
 
   return (

@@ -20,6 +20,40 @@ pub struct CommitSummary {
     pub parent_ids: Vec<String>,
 }
 
+// Format string used by every shell-out path: the columns are NUL-separated
+// records (`-z`) and Unit-Separator (\x1f) columns within each record.
+//
+// Columns: id | short | subject | authorName | authorEmail | authorTime
+//        | committerName | committerEmail | committerTime | parents
+const LOG_FORMAT: &str =
+    "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
+
+fn parse_commit_log_output(text: &str) -> Vec<CommitSummary> {
+    let mut result = Vec::new();
+    for record in text.split('\0') {
+        if record.is_empty() {
+            continue;
+        }
+        let cols: Vec<&str> = record.split('\x1f').collect();
+        if cols.len() < 10 {
+            continue;
+        }
+        result.push(CommitSummary {
+            id: cols[0].to_string(),
+            short_id: cols[1].to_string(),
+            summary: cols[2].to_string(),
+            author_name: cols[3].to_string(),
+            author_email: cols[4].to_string(),
+            timestamp: cols[5].parse().unwrap_or(0),
+            committer_name: cols[6].to_string(),
+            committer_email: cols[7].to_string(),
+            committer_timestamp: cols[8].parse().unwrap_or(0),
+            parent_ids: cols[9].split_whitespace().map(|s| s.to_string()).collect(),
+        });
+    }
+    result
+}
+
 pub fn commit_log(
     path: &Path,
     limit: usize,
@@ -169,10 +203,9 @@ fn commit_log_shellout(
         }
     }
 
-    let format = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
     let skip_s = skip.to_string();
     let limit_s = limit.to_string();
-    let mut args: Vec<&str> = vec!["log", "-z", format, "--skip", &skip_s, "-n", &limit_s];
+    let mut args: Vec<&str> = vec!["log", "-z", LOG_FORMAT, "--skip", &skip_s, "-n", &limit_s];
     if all_branches {
         args.push("--all");
     }
@@ -196,30 +229,7 @@ fn commit_log_shellout(
     }
 
     let out = run_git(path, &args)?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut result = Vec::new();
-    for record in text.split('\0') {
-        if record.is_empty() {
-            continue;
-        }
-        let cols: Vec<&str> = record.split('\x1f').collect();
-        if cols.len() < 10 {
-            continue;
-        }
-        result.push(CommitSummary {
-            id: cols[0].to_string(),
-            short_id: cols[1].to_string(),
-            summary: cols[2].to_string(),
-            author_name: cols[3].to_string(),
-            author_email: cols[4].to_string(),
-            timestamp: cols[5].parse().unwrap_or(0),
-            committer_name: cols[6].to_string(),
-            committer_email: cols[7].to_string(),
-            committer_timestamp: cols[8].parse().unwrap_or(0),
-            parent_ids: cols[9].split_whitespace().map(|s| s.to_string()).collect(),
-        });
-    }
-    Ok(result)
+    Ok(parse_commit_log_output(&String::from_utf8_lossy(&out.stdout)))
 }
 
 /// Commits in `head..base` (i.e. on `head` but not on `base`). Useful for
@@ -236,34 +246,10 @@ pub fn range_diff(
     if head.is_empty() || head.starts_with('-') {
         return Err(AppError::Other(format!("invalid head: {head}")));
     }
-    let format = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
     let limit_s = limit.to_string();
     let range = format!("{base}..{head}");
-    let out = run_git(repo, &["log", "-z", format, "-n", &limit_s, &range])?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut result = Vec::new();
-    for record in text.split('\0') {
-        if record.is_empty() {
-            continue;
-        }
-        let cols: Vec<&str> = record.split('\x1f').collect();
-        if cols.len() < 10 {
-            continue;
-        }
-        result.push(CommitSummary {
-            id: cols[0].to_string(),
-            short_id: cols[1].to_string(),
-            summary: cols[2].to_string(),
-            author_name: cols[3].to_string(),
-            author_email: cols[4].to_string(),
-            timestamp: cols[5].parse().unwrap_or(0),
-            committer_name: cols[6].to_string(),
-            committer_email: cols[7].to_string(),
-            committer_timestamp: cols[8].parse().unwrap_or(0),
-            parent_ids: cols[9].split_whitespace().map(|s| s.to_string()).collect(),
-        });
-    }
-    Ok(result)
+    let out = run_git(repo, &["log", "-z", LOG_FORMAT, "-n", &limit_s, &range])?;
+    Ok(parse_commit_log_output(&String::from_utf8_lossy(&out.stdout)))
 }
 
 /// Full commit message (subject + body) for a single commit. Used by the UI
@@ -300,13 +286,6 @@ pub fn commit_log_for_file(
         return Err(AppError::Other(format!("invalid file path: {file}")));
     }
 
-    // %x00 is NUL; %x1f is Unit Separator — neither appears in normal git
-    // metadata, so we can split reliably. Parent IDs are space-separated
-    // within the last column.
-    //
-    // Columns: id | short | subject | authorName | authorEmail | authorTime
-    //        | committerName | committerEmail | committerTime | parents
-    let format = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
     let skip_s = skip.to_string();
     let limit_s = limit.to_string();
     let out = run_git(
@@ -315,7 +294,7 @@ pub fn commit_log_for_file(
             "log",
             "--follow",
             "-z",
-            format,
+            LOG_FORMAT,
             "--skip",
             &skip_s,
             "-n",
@@ -324,35 +303,7 @@ pub fn commit_log_for_file(
             file,
         ],
     )?;
-
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut result = Vec::new();
-    // `-z` separates records with NUL instead of LF.
-    for record in text.split('\0') {
-        if record.is_empty() {
-            continue;
-        }
-        let cols: Vec<&str> = record.split('\x1f').collect();
-        if cols.len() < 10 {
-            continue;
-        }
-        result.push(CommitSummary {
-            id: cols[0].to_string(),
-            short_id: cols[1].to_string(),
-            summary: cols[2].to_string(),
-            author_name: cols[3].to_string(),
-            author_email: cols[4].to_string(),
-            timestamp: cols[5].parse().unwrap_or(0),
-            committer_name: cols[6].to_string(),
-            committer_email: cols[7].to_string(),
-            committer_timestamp: cols[8].parse().unwrap_or(0),
-            parent_ids: cols[9]
-                .split_whitespace()
-                .map(|s| s.to_string())
-                .collect(),
-        });
-    }
-    Ok(result)
+    Ok(parse_commit_log_output(&String::from_utf8_lossy(&out.stdout)))
 }
 
 #[cfg(test)]

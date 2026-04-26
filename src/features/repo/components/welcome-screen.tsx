@@ -36,8 +36,8 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
-import { useUiStore } from "@/stores/ui-store";
 import pkg from "../../../../package.json";
 import { useCloneRepo, useInitRepo } from "../hooks/use-clone-repo";
 import { useOpenRepo } from "../hooks/use-open-repo";
@@ -52,8 +52,8 @@ export function WelcomeScreen() {
   const recents = useRepoStore((s) => s.recentRepos);
   const removeRecent = useRepoStore((s) => s.removeRecent);
   const hydrate = useRepoStore((s) => s.hydrate);
-  const openSettings = useUiStore((s) => s.openSettings);
-  const setCloneOpen = useUiStore((s) => s.setCloneOpen);
+  const openSettings = useModalStore((s) => s.openSettings);
+  const setCloneOpen = useModalStore((s) => s.setCloneOpen);
 
   const pickAndInit = useCallback(async () => {
     const selected = await openDialog({ directory: true, multiple: false });

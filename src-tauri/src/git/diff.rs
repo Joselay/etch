@@ -303,6 +303,51 @@ fn build_hunks(old: &str, new: &str) -> Vec<DiffHunk> {
     hunks
 }
 
+// Build a FileDiff from raw old/new blob bytes. Detects binary/LFS, builds
+// text hunks where applicable, and decodes image previews when the path looks
+// like an image. Shared by both commit-relative and worktree-relative diffs.
+fn build_file_diff(file_path: &str, old_bytes: &[u8], new_bytes: &[u8]) -> FileDiff {
+    let new_lfs = parse_lfs_pointer(new_bytes);
+    let old_lfs = parse_lfs_pointer(old_bytes);
+    let is_lfs = is_lfs_pointer(new_bytes) || is_lfs_pointer(old_bytes);
+
+    let is_bin = !is_lfs && (is_binary(new_bytes) || is_binary(old_bytes));
+    let hunks = if is_bin || is_lfs {
+        Vec::new()
+    } else {
+        let old_str = String::from_utf8_lossy(old_bytes);
+        let new_str = String::from_utf8_lossy(new_bytes);
+        build_hunks(&old_str, &new_str)
+    };
+
+    let mime = if is_bin { image_mime_for(file_path) } else { None };
+    let (old_image, new_image) = match mime {
+        Some(_) => (encode_image(old_bytes), encode_image(new_bytes)),
+        None => (None, None),
+    };
+    let (old_dimensions, new_dimensions) = match mime {
+        Some(_) => (image_dimensions(old_bytes), image_dimensions(new_bytes)),
+        None => (None, None),
+    };
+
+    FileDiff {
+        path: file_path.to_string(),
+        old_path: None,
+        is_binary: is_bin,
+        hunks,
+        image_mime_type: mime.map(|s| s.to_string()),
+        old_image,
+        new_image,
+        old_size: maybe_size(old_bytes),
+        new_size: maybe_size(new_bytes),
+        old_dimensions,
+        new_dimensions,
+        is_lfs,
+        old_lfs_pointer: old_lfs,
+        new_lfs_pointer: new_lfs,
+    }
+}
+
 pub fn file_diff(path: &Path, commit_id: &str, file_path: &str) -> AppResult<FileDiff> {
     let repo = gix::open(path).map_err(|e| AppError::Git(e.to_string()))?;
     let (new_tree, parent_tree) = resolve_trees(&repo, commit_id)?;
@@ -332,46 +377,7 @@ pub fn file_diff(path: &Path, commit_id: &str, file_path: &str) -> AppResult<Fil
         _ => Vec::new(),
     };
 
-    let new_lfs = parse_lfs_pointer(&new_bytes);
-    let old_lfs = parse_lfs_pointer(&old_bytes);
-    let is_lfs = is_lfs_pointer(&new_bytes) || is_lfs_pointer(&old_bytes);
-
-    let is_bin = !is_lfs && (is_binary(&new_bytes) || is_binary(&old_bytes));
-    let hunks = if is_bin || is_lfs {
-        Vec::new()
-    } else {
-        let old_str = String::from_utf8_lossy(&old_bytes);
-        let new_str = String::from_utf8_lossy(&new_bytes);
-        build_hunks(&old_str, &new_str)
-    };
-
-    let mime = if is_bin { image_mime_for(file_path) } else { None };
-    let (old_image, new_image) = match mime {
-        Some(_) => (encode_image(&old_bytes), encode_image(&new_bytes)),
-        None => (None, None),
-    };
-
-    let (old_dimensions, new_dimensions) = match mime {
-        Some(_) => (image_dimensions(&old_bytes), image_dimensions(&new_bytes)),
-        None => (None, None),
-    };
-
-    Ok(FileDiff {
-        path: file_path.to_string(),
-        old_path: None,
-        is_binary: is_bin,
-        hunks,
-        image_mime_type: mime.map(|s| s.to_string()),
-        old_image,
-        new_image,
-        old_size: maybe_size(&old_bytes),
-        new_size: maybe_size(&new_bytes),
-        old_dimensions,
-        new_dimensions,
-        is_lfs,
-        old_lfs_pointer: old_lfs,
-        new_lfs_pointer: new_lfs,
-    })
+    Ok(build_file_diff(file_path, &old_bytes, &new_bytes))
 }
 
 pub fn working_diff(path: &Path, file_path: &str, staged: bool) -> AppResult<FileDiff> {
@@ -390,46 +396,7 @@ pub fn working_diff(path: &Path, file_path: &str, staged: bool) -> AppResult<Fil
         read_spec(path, new_spec, file_path).unwrap_or_default()
     };
 
-    let new_lfs = parse_lfs_pointer(&new_bytes);
-    let old_lfs = parse_lfs_pointer(&old_bytes);
-    let is_lfs = is_lfs_pointer(&new_bytes) || is_lfs_pointer(&old_bytes);
-
-    let is_bin = !is_lfs && (is_binary(&old_bytes) || is_binary(&new_bytes));
-    let hunks = if is_bin || is_lfs {
-        Vec::new()
-    } else {
-        let old_str = String::from_utf8_lossy(&old_bytes);
-        let new_str = String::from_utf8_lossy(&new_bytes);
-        build_hunks(&old_str, &new_str)
-    };
-
-    let mime = if is_bin { image_mime_for(file_path) } else { None };
-    let (old_image, new_image) = match mime {
-        Some(_) => (encode_image(&old_bytes), encode_image(&new_bytes)),
-        None => (None, None),
-    };
-
-    let (old_dimensions, new_dimensions) = match mime {
-        Some(_) => (image_dimensions(&old_bytes), image_dimensions(&new_bytes)),
-        None => (None, None),
-    };
-
-    Ok(FileDiff {
-        path: file_path.to_string(),
-        old_path: None,
-        is_binary: is_bin,
-        hunks,
-        image_mime_type: mime.map(|s| s.to_string()),
-        old_image,
-        new_image,
-        old_size: maybe_size(&old_bytes),
-        new_size: maybe_size(&new_bytes),
-        old_dimensions,
-        new_dimensions,
-        is_lfs,
-        old_lfs_pointer: old_lfs,
-        new_lfs_pointer: new_lfs,
-    })
+    Ok(build_file_diff(file_path, &old_bytes, &new_bytes))
 }
 
 fn read_spec(repo: &Path, spec: &str, file_path: &str) -> AppResult<Vec<u8>> {

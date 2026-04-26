@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { api, errorMessage, isAuthError } from "@/lib/tauri";
-import { useUiStore } from "@/stores/ui-store";
+import { useModalStore } from "@/stores/modal-store";
 import type { RemoteAuthorsContextValue } from "../remote-authors-context";
 
 export function remoteAuthorsQueryOptions(path: string) {
@@ -16,7 +16,7 @@ export function remoteAuthorsQueryOptions(path: string) {
 }
 
 export function useRemoteAuthors(path: string | null) {
-  const openSettings = useUiStore((s) => s.openSettings);
+  const openSettings = useModalStore((s) => s.openSettings);
   const query = useQuery({
     ...remoteAuthorsQueryOptions(path ?? ""),
     queryKey: ["remote-authors", path],
