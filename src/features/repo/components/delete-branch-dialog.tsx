@@ -18,9 +18,16 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   branchName: string;
+  branchTarget: string | null;
 };
 
-export function DeleteBranchDialog({ repoPath, open, onOpenChange, branchName }: Props) {
+export function DeleteBranchDialog({
+  repoPath,
+  open,
+  onOpenChange,
+  branchName,
+  branchTarget,
+}: Props) {
   const del = useDeleteBranch(repoPath);
   const [unmerged, setUnmerged] = useState(false);
 
@@ -30,7 +37,7 @@ export function DeleteBranchDialog({ repoPath, open, onOpenChange, branchName }:
 
   const run = async (force: boolean) => {
     try {
-      await del.mutateAsync({ name: branchName, force });
+      await del.mutateAsync({ name: branchName, force, target: branchTarget });
       onOpenChange(false);
     } catch (err) {
       const msg = (err as Error).message || "";

@@ -55,6 +55,7 @@ type Props = { repoPath: string };
 
 type CreateState = { open: boolean; startPoint: string | null };
 type BranchDialogState = { open: boolean; name: string };
+type DeleteBranchState = { open: boolean; name: string; target: string | null };
 
 export function RefsSidebar({ repoPath }: Props) {
   const { data, isLoading, error, refetch } = useRefs(repoPath);
@@ -69,7 +70,11 @@ export function RefsSidebar({ repoPath }: Props) {
 
   const [createState, setCreateState] = useState<CreateState>({ open: false, startPoint: null });
   const [renameState, setRenameState] = useState<BranchDialogState>({ open: false, name: "" });
-  const [deleteState, setDeleteState] = useState<BranchDialogState>({ open: false, name: "" });
+  const [deleteState, setDeleteState] = useState<DeleteBranchState>({
+    open: false,
+    name: "",
+    target: null,
+  });
   const [plannerState, setPlannerState] = useState<{ open: boolean; onto: string }>({
     open: false,
     onto: "",
@@ -298,7 +303,9 @@ export function RefsSidebar({ repoPath }: Props) {
                         <ContextMenuItem
                           variant="destructive"
                           disabled={b.isHead}
-                          onSelect={() => setDeleteState({ open: true, name: b.name })}
+                          onSelect={() =>
+                            setDeleteState({ open: true, name: b.name, target: b.target })
+                          }
                         >
                           Delete
                         </ContextMenuItem>
@@ -436,7 +443,7 @@ export function RefsSidebar({ repoPath }: Props) {
                         <ContextMenuSeparator />
                         <ContextMenuItem
                           variant="destructive"
-                          onSelect={() => deleteTag.mutate(t.name)}
+                          onSelect={() => deleteTag.mutate({ name: t.name, target: t.target })}
                         >
                           Delete locally
                         </ContextMenuItem>
@@ -532,6 +539,7 @@ export function RefsSidebar({ repoPath }: Props) {
         open={deleteState.open}
         onOpenChange={(o) => setDeleteState((s) => ({ ...s, open: o }))}
         branchName={deleteState.name}
+        branchTarget={deleteState.target}
       />
       <StashCreateDialog repoPath={repoPath} open={stashOpen} onOpenChange={setStashOpen} />
       <TagCreateDialog

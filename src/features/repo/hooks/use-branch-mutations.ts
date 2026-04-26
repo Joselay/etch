@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, type ResetMode, type TodoEntry, toastGitError } from "@/lib/tauri";
+import { toastUndoable } from "@/lib/undo-toast";
 
 function invalidateRepo(qc: ReturnType<typeof useQueryClient>, path: string) {
   qc.invalidateQueries({ queryKey: ["refs", path] });
@@ -55,11 +56,36 @@ export function useCheckoutTracking(path: string) {
 export function useDeleteBranch(path: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string; force?: boolean }) =>
-      api.deleteBranch(path, vars.name, vars.force ?? false),
-    onSuccess: (_d, vars) => {
+    mutationFn: async (vars: { name: string; force?: boolean; target?: string | null }) => {
+      const [upstreamRemote, upstreamMerge] = await Promise.all([
+        api.readGitConfig(path, `branch.${vars.name}.remote`, false).catch(() => null),
+        api.readGitConfig(path, `branch.${vars.name}.merge`, false).catch(() => null),
+      ]);
+      await api.deleteBranch(path, vars.name, vars.force ?? false);
+      return { upstreamRemote, upstreamMerge, target: vars.target ?? null };
+    },
+    onSuccess: (snap, vars) => {
       invalidateRepo(qc, path);
-      toast.success(`Deleted ${vars.name}`);
+      if (!snap.target) {
+        toast.success(`Deleted ${vars.name}`);
+        return;
+      }
+      const target = snap.target;
+      toastUndoable(`Deleted ${vars.name}`, async () => {
+        try {
+          await api.createBranch(path, vars.name, target);
+          if (snap.upstreamRemote && snap.upstreamMerge) {
+            const remoteBranch = snap.upstreamMerge.replace(/^refs\/heads\//, "");
+            await api
+              .setUpstream(path, vars.name, snap.upstreamRemote, remoteBranch)
+              .catch(() => {});
+          }
+          invalidateRepo(qc, path);
+          toast.success(`Restored ${vars.name}`);
+        } catch (err) {
+          toastGitError(err);
+        }
+      });
     },
     // do not toast on error — caller may want to offer force fallback
   });
@@ -132,12 +158,33 @@ export function useCherryPick(path: string) {
 export function useReset(path: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { target: string; mode: ResetMode }) =>
-      api.reset(path, vars.target, vars.mode),
-    onSuccess: (_d, vars) => {
+    mutationFn: async (vars: { target: string; mode: ResetMode }) => {
+      const refs = await api.listRefs(path);
+      const prevHead = refs.headCommitId;
+      await api.reset(path, vars.target, vars.mode);
+      return { prevHead };
+    },
+    onSuccess: (snap, vars) => {
       invalidateRepo(qc, path);
       qc.invalidateQueries({ queryKey: ["working-diff", path] });
-      toast.success(`Reset (${vars.mode}) to ${vars.target.slice(0, 7)}`);
+      const message = `Reset (${vars.mode}) to ${vars.target.slice(0, 7)}`;
+      // Only soft/mixed are losslessly reversible — hard reset may have already
+      // discarded uncommitted work that we cannot bring back.
+      if (!snap.prevHead || vars.mode === "hard") {
+        toast.success(message);
+        return;
+      }
+      const prev = snap.prevHead;
+      toastUndoable(message, async () => {
+        try {
+          await api.reset(path, prev, vars.mode);
+          invalidateRepo(qc, path);
+          qc.invalidateQueries({ queryKey: ["working-diff", path] });
+          toast.success(`Reset back to ${prev.slice(0, 7)}`);
+        } catch (err) {
+          toastGitError(err);
+        }
+      });
     },
     onError: toastGitError,
   });
@@ -150,7 +197,15 @@ export function useRenameBranch(path: string) {
       api.renameBranch(path, vars.oldName, vars.newName, vars.force ?? false),
     onSuccess: (_d, vars) => {
       invalidateRepo(qc, path);
-      toast.success(`Renamed to ${vars.newName}`);
+      toastUndoable(`Renamed to ${vars.newName}`, async () => {
+        try {
+          await api.renameBranch(path, vars.newName, vars.oldName, false);
+          invalidateRepo(qc, path);
+          toast.success(`Renamed back to ${vars.oldName}`);
+        } catch (err) {
+          toastGitError(err);
+        }
+      });
     },
     onError: toastGitError,
   });

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, toastGitError } from "@/lib/tauri";
+import { toastUndoable } from "@/lib/undo-toast";
 
 function invalidateTags(qc: ReturnType<typeof useQueryClient>, path: string) {
   qc.invalidateQueries({ queryKey: ["refs", path] });
@@ -26,10 +27,24 @@ export function useCreateTag(path: string) {
 export function useDeleteTag(path: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => api.deleteTag(path, name),
-    onSuccess: (_d, name) => {
+    mutationFn: (vars: { name: string; target: string | null }) =>
+      api.deleteTag(path, vars.name).then(() => vars),
+    onSuccess: (_d, vars) => {
       invalidateTags(qc, path);
-      toast.success(`Deleted tag ${name}`);
+      if (!vars.target) {
+        toast.success(`Deleted tag ${vars.name}`);
+        return;
+      }
+      const target = vars.target;
+      toastUndoable(`Deleted tag ${vars.name}`, async () => {
+        try {
+          await api.createTag(path, vars.name, null, target, false);
+          invalidateTags(qc, path);
+          toast.success(`Restored tag ${vars.name}`);
+        } catch (err) {
+          toastGitError(err);
+        }
+      });
     },
     onError: toastGitError,
   });
