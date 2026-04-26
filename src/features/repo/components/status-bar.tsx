@@ -4,7 +4,7 @@
 
 import { Kbd } from "@/components/ui/kbd";
 import { formatShortcutKey } from "@/lib/shortcut-format";
-import { useSelectionStore } from "@/stores/selection-store";
+import { useActiveTab } from "@/stores/selection-store";
 
 type Hint = { keys: string[]; label: string };
 
@@ -24,7 +24,7 @@ const CHANGES_HINTS: Hint[] = [
 ];
 
 export function StatusBar() {
-  const view = useSelectionStore((s) => s.view);
+  const { view } = useActiveTab();
   const viewHints = view === "changes" ? CHANGES_HINTS : HISTORY_HINTS;
 
   return (

@@ -1,6 +1,6 @@
 import { join } from "@tauri-apps/api/path";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { Copy, FolderOpen, History, User } from "lucide-react";
+import { Ban, Copy, EyeOff, FolderOpen, History, User } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -11,6 +11,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { errorMessage } from "@/lib/tauri";
+import { useAppendGitignore, useUntrackFile } from "../hooks/use-gitignore";
 import { BlameDialog } from "./blame-dialog";
 import { FileHistoryDialog } from "./file-history-dialog";
 
@@ -38,6 +39,13 @@ export function FileRowContextMenu({
   const resolveAbs = () => join(repoPath, relPath);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [blameOpen, setBlameOpen] = useState(false);
+  const appendIgnore = useAppendGitignore(repoPath);
+  const untrack = useUntrackFile(repoPath);
+
+  const ignoreExtension = (() => {
+    const ext = relPath.match(/\.([^./\\]+)$/)?.[1];
+    return ext ? `*.${ext}` : null;
+  })();
 
   return (
     <>
@@ -73,6 +81,31 @@ export function FileRowContextMenu({
           <ContextMenuItem onSelect={() => copyText(relPath, "Relative path")}>
             <Copy />
             Copy relative path
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            disabled={appendIgnore.isPending}
+            onSelect={() => appendIgnore.mutate(relPath)}
+          >
+            <EyeOff />
+            Add to .gitignore
+          </ContextMenuItem>
+          {ignoreExtension && (
+            <ContextMenuItem
+              disabled={appendIgnore.isPending}
+              onSelect={() => appendIgnore.mutate(ignoreExtension)}
+            >
+              <EyeOff />
+              Ignore all {ignoreExtension}
+            </ContextMenuItem>
+          )}
+          <ContextMenuItem
+            variant="destructive"
+            disabled={untrack.isPending}
+            onSelect={() => untrack.mutate(relPath)}
+          >
+            <Ban />
+            Stop tracking (keep on disk)
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>

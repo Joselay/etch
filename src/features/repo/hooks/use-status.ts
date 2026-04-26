@@ -69,8 +69,17 @@ export function useStageActions(path: string | null) {
 export function useCommit(path: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ message, amend }: { message: string; amend: boolean }) =>
-      api.commit(path as string, message, amend),
+    mutationFn: ({
+      message,
+      amend,
+      signOff,
+      sign,
+    }: {
+      message: string;
+      amend: boolean;
+      signOff?: boolean;
+      sign?: boolean | null;
+    }) => api.commit(path as string, message, amend, { signOff, sign }),
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["status", path] });
       qc.invalidateQueries({ queryKey: ["commit-log", path] });
@@ -79,5 +88,22 @@ export function useCommit(path: string | null) {
       toast.success(vars.amend ? "Amended last commit" : "Commit created");
     },
     onError: toastGitError,
+  });
+}
+
+export function useSigningConfig(path: string | null) {
+  return useQuery({
+    queryKey: ["signing-config", path],
+    enabled: !!path,
+    queryFn: () => api.readSigningConfig(path as string),
+  });
+}
+
+export function useCommitTemplate(path: string | null) {
+  return useQuery({
+    queryKey: ["commit-template", path],
+    enabled: !!path,
+    queryFn: () => api.readCommitTemplate(path as string),
+    staleTime: 60_000,
   });
 }

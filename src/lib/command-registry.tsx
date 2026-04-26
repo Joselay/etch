@@ -23,7 +23,7 @@ import {
   Tag,
   WrapText,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { dispatchMenuEvent } from "@/lib/menu-events";
 import { useRepoStore } from "@/stores/repo-store";
 import { useSelectionStore } from "@/stores/selection-store";
@@ -79,9 +79,15 @@ export function useCommands(): Command[] {
   const toggleWordHighlight = useUiStore((s) => s.toggleDiffWordHighlight);
 
   const activeRepo = useRepoStore((s) => s.activeRepo);
-  const setView = useSelectionStore((s) => s.setView);
+  const setViewFn = useSelectionStore((s) => s.setView);
 
   const path = activeRepo?.path ?? null;
+  const setView = useCallback(
+    (v: "history" | "changes" | "reflog") => {
+      if (path) setViewFn(path, v);
+    },
+    [path, setViewFn],
+  );
   const { data: refs } = useRefs(path);
   const { data: upstream } = useUpstreamStatus(path);
 

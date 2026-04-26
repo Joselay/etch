@@ -61,11 +61,19 @@ pub fn rename_branch(repo: &Path, old: &str, new: &str, force: bool) -> AppResul
     Ok(())
 }
 
-pub fn merge(repo: &Path, target: &str, no_ff: bool) -> AppResult<()> {
+pub fn merge(repo: &Path, target: &str, no_ff: bool, squash: bool) -> AppResult<()> {
     validate_commit_ish(target)?;
+    if no_ff && squash {
+        return Err(AppError::Other(
+            "--no-ff and --squash are mutually exclusive".into(),
+        ));
+    }
     let mut args: Vec<&str> = vec!["merge"];
     if no_ff {
         args.push("--no-ff");
+    }
+    if squash {
+        args.push("--squash");
     }
     args.push("--");
     args.push(target);

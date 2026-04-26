@@ -1,5 +1,5 @@
-import { AlertTriangle, RotateCcw } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Lock, RotateCcw, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileIcon } from "@/components/file-icon";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
@@ -25,11 +25,19 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { buildHunkPatch, buildPartialDiscardPatch, buildPartialHunkPatch } from "@/lib/patch";
 import type { ConflictEntry, ConflictKind, FileDiff, StatusEntry } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
-import { useSelectionStore } from "@/stores/selection-store";
+import { useSelectionStore, useTabSelection } from "@/stores/selection-store";
 import { useCommitMessage } from "../hooks/use-commit-details";
 import { useConflictActions, useConflicts } from "../hooks/use-conflicts";
+import { useCrlfConfig } from "../hooks/use-git-config";
 import { useRefs } from "../hooks/use-refs";
-import { useCommit, useStageActions, useStatus, useWorkingDiff } from "../hooks/use-status";
+import {
+  useCommit,
+  useCommitTemplate,
+  useSigningConfig,
+  useStageActions,
+  useStatus,
+  useWorkingDiff,
+} from "../hooks/use-status";
 import { ConflictViewer } from "./conflict-viewer";
 import { DiffViewer, type HunkAction, type LineAction } from "./diff-viewer";
 import { FileRowContextMenu } from "./file-row-context-menu";
@@ -43,13 +51,21 @@ export function ChangesView({ repoPath }: Props) {
   const { stage, unstage, discard, applyPatch } = useStageActions(repoPath);
   const conflictActions = useConflictActions(repoPath);
   const commit = useCommit(repoPath);
-  const workingSide = useSelectionStore((s) => s.workingSide);
-  const workingFilePath = useSelectionStore((s) => s.workingFilePath);
-  const selectWorkingFile = useSelectionStore((s) => s.selectWorkingFile);
+  const { data: signing } = useSigningConfig(repoPath);
+  const { data: template } = useCommitTemplate(repoPath);
+  const { data: crlf } = useCrlfConfig(repoPath);
+  const { workingSide, workingFilePath } = useTabSelection(repoPath);
+  const selectWorkingFileFn = useSelectionStore((s) => s.selectWorkingFile);
+  const selectWorkingFile = useCallback(
+    (side: "staged" | "unstaged", file: string | null) => selectWorkingFileFn(repoPath, side, file),
+    [selectWorkingFileFn, repoPath],
+  );
 
   const [message, setMessage] = useState("");
   const [amend, setAmend] = useState(false);
+  const [signOff, setSignOff] = useState(false);
   const [discardTarget, setDiscardTarget] = useState<string | null>(null);
+  const templateAppliedRef = useRef(false);
   const messageBeforeAmendRef = useRef<string | null>(null);
   const messageRef = useRef(message);
   messageRef.current = message;
@@ -59,6 +75,18 @@ export function ChangesView({ repoPath }: Props) {
     amend ? repoPath : null,
     amend ? headCommitId : null,
   );
+
+  // Pre-fill from commit.template once per empty-message session, until the
+  // user types something. Cleared on commit so it can re-apply later.
+  useEffect(() => {
+    if (templateAppliedRef.current) return;
+    if (amend) return;
+    if (messageRef.current.trim().length > 0) return;
+    if (template) {
+      setMessage(template);
+      templateAppliedRef.current = true;
+    }
+  }, [template, amend]);
 
   // Pre-fill on amend; restore the prior draft when toggled off. We capture
   // the user's draft once on toggle so they don't lose it.
@@ -104,14 +132,29 @@ export function ChangesView({ repoPath }: Props) {
   const runCommit = () => {
     if (!canCommit) return;
     commit.mutate(
-      { message: message.trim(), amend },
+      { message: message.trim(), amend, signOff },
       {
         onSuccess: () => {
           setMessage("");
           setAmend(false);
+          templateAppliedRef.current = false;
         },
       },
     );
+  };
+
+  const addCoAuthor = () => {
+    const name = window.prompt("Co-author name");
+    if (!name) return;
+    const email = window.prompt("Co-author email");
+    if (!email) return;
+    const trailer = `Co-authored-by: ${name.trim()} <${email.trim()}>`;
+    setMessage((prev) => {
+      const trimmed = prev.replace(/\s+$/, "");
+      if (!trimmed) return trailer;
+      const sep = trimmed.endsWith("\n") ? "" : "\n\n";
+      return `${trimmed}${sep}${trailer}`;
+    });
   };
 
   return (
@@ -299,6 +342,17 @@ export function ChangesView({ repoPath }: Props) {
             )}
           </div>
 
+          {crlf && !crlf.autocrlf && !crlf.eol && staged.length > 0 && (
+            <div className="flex items-start gap-2 border-t bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>
+                Line endings are not normalized (<code>core.autocrlf</code> and{" "}
+                <code>core.eol</code> are unset). Mixed CRLF/LF can cause noisy diffs across
+                platforms.
+              </span>
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 border-t p-3">
             <Label htmlFor="commit-message" className="sr-only">
               Commit message
@@ -316,12 +370,52 @@ export function ChangesView({ repoPath }: Props) {
               placeholder={amend ? "Amend commit message… (⌘⏎)" : "Commit message (⌘⏎ to commit)"}
               className="min-h-[80px] resize-none text-sm"
             />
-            <Field orientation="horizontal">
-              <Checkbox id="amend" checked={amend} onCheckedChange={(v) => setAmend(v === true)} />
-              <FieldLabel htmlFor="amend" className="text-xs text-muted-foreground">
-                Amend last commit
-              </FieldLabel>
-            </Field>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="amend"
+                  checked={amend}
+                  onCheckedChange={(v) => setAmend(v === true)}
+                />
+                <FieldLabel htmlFor="amend" className="text-xs text-muted-foreground">
+                  Amend last commit
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="signoff"
+                  checked={signOff}
+                  onCheckedChange={(v) => setSignOff(v === true)}
+                />
+                <FieldLabel htmlFor="signoff" className="text-xs text-muted-foreground">
+                  Sign-off
+                </FieldLabel>
+              </Field>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
+                onClick={addCoAuthor}
+              >
+                <Users className="h-3 w-3" />
+                Add co-author
+              </Button>
+              {signing?.enabled && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Lock className="h-3 w-3" />
+                      {signing.format === "ssh" ? "SSH" : "GPG"} signing
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Commits will be signed
+                    {signing.key ? ` with ${signing.key.slice(0, 16)}…` : ""}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             <Button size="sm" disabled={!canCommit} onClick={runCommit}>
               {commit.isPending ? "Committing…" : amend ? "Amend" : "Commit"}
             </Button>

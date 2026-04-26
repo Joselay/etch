@@ -1,6 +1,14 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import { AlertTriangle, GitCommitVertical, Pencil, RotateCcw, Search, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Filter,
+  GitCommitVertical,
+  Pencil,
+  RotateCcw,
+  Search,
+  X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
@@ -23,13 +31,14 @@ import { useIsDark } from "@/hooks/use-is-dark";
 import { type GraphRow, laneColor, layoutGraph } from "@/lib/commit-graph";
 import type { BranchRef, CommitSummary, ResetMode, TagRef } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
-import { useSelectionStore } from "@/stores/selection-store";
+import { useSelectionStore, useTabSelection } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useCherryPick, useRevert } from "../hooks/use-branch-mutations";
 import { useCommitLog } from "../hooks/use-commit-log";
 import { useRefs } from "../hooks/use-refs";
 import { useStatus } from "../hooks/use-status";
 import { AuthorAvatar } from "./author-avatar";
+import { BisectStartDialog } from "./bisect-start-dialog";
 import { ResetConfirmDialog } from "./reset-confirm-dialog";
 
 type Props = { repoPath: string };
@@ -45,10 +54,23 @@ const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
 export function CommitList({ repoPath }: Props) {
   const [rawQuery, setRawQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [pathFilter, setPathFilter] = useState("");
+  const [debouncedPath, setDebouncedPath] = useState("");
+  const [pickaxe, setPickaxe] = useState("");
+  const [debouncedPickaxe, setDebouncedPickaxe] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQuery(rawQuery), 200);
     return () => window.clearTimeout(t);
   }, [rawQuery]);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedPath(pathFilter), 300);
+    return () => window.clearTimeout(t);
+  }, [pathFilter]);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedPickaxe(pickaxe), 300);
+    return () => window.clearTimeout(t);
+  }, [pickaxe]);
 
   const allBranches = useUiStore((s) => s.commitLogAllBranches);
   const setAllBranches = useUiStore((s) => s.setCommitLogAllBranches);
@@ -56,6 +78,7 @@ export function CommitList({ repoPath }: Props) {
   const { data: status } = useStatus(repoPath);
   const refsByCommit = useMemo(() => buildRefsByCommit(refs), [refs]);
   const setView = useSelectionStore((s) => s.setView);
+  const { selectedCommitId } = useTabSelection(repoPath);
 
   const dirtyCount =
     (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0);
@@ -70,15 +93,19 @@ export function CommitList({ repoPath }: Props) {
     isFetchingNextPage,
     fetchNextPage,
     refetch,
-  } = useCommitLog(repoPath, debouncedQuery, allBranches);
+  } = useCommitLog(repoPath, debouncedQuery, allBranches, debouncedPath, debouncedPickaxe);
   const parentRef = useRef<HTMLDivElement>(null);
-  const selectedCommitId = useSelectionStore((s) => s.selectedCommitId);
-  const selectCommit = useSelectionStore((s) => s.selectCommit);
+  const selectCommitFn = useSelectionStore((s) => s.selectCommit);
+  const selectCommit = useCallback(
+    (id: string | null, summary?: CommitSummary | null) => selectCommitFn(repoPath, id, summary),
+    [selectCommitFn, repoPath],
+  );
   const revert = useRevert(repoPath);
   const cherryPick = useCherryPick(repoPath);
   const [resetTarget, setResetTarget] = useState<{ commit: CommitSummary; mode: ResetMode } | null>(
     null,
   );
+  const [bisectFrom, setBisectFrom] = useState<string | null>(null);
   const requestReset = useCallback((commit: CommitSummary, mode: ResetMode) => {
     setResetTarget({ commit, mode });
   }, []);
@@ -139,7 +166,7 @@ export function CommitList({ repoPath }: Props) {
       color={headLaneColor}
       dirtyCount={dirtyCount}
       conflictCount={conflictCount}
-      onClick={() => setView("changes")}
+      onClick={() => setView(repoPath, "changes")}
     />
   ) : null;
 
@@ -195,56 +222,120 @@ export function CommitList({ repoPath }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [rows, selectedCommitId, selectCommit]);
 
+  const filterCount = (debouncedPath ? 1 : 0) + (debouncedPickaxe ? 1 : 0);
   const searchBar = (
-    <div className="flex items-center gap-2 border-b bg-background/95 p-2">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <ToggleGroup
-            type="single"
-            size="sm"
-            variant="outline"
-            value={allBranches ? "all" : "current"}
-            onValueChange={(v) => {
-              if (v === "all" || v === "current") setAllBranches(v === "all");
-            }}
-            className="h-7"
-          >
-            <ToggleGroupItem value="current" className="h-7 px-2.5 text-xs">
-              Current
-            </ToggleGroupItem>
-            <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
-              All
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </TooltipTrigger>
-        <TooltipContent>Toggle branch scope · ⌘⇧B</TooltipContent>
-      </Tooltip>
-      <div className="relative flex-1">
-        <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={rawQuery}
-          onChange={(e) => setRawQuery(e.target.value)}
-          placeholder="Search message, author, or email"
-          className="h-7 pl-7 pr-7 text-xs"
-        />
-        {rawQuery && (
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setRawQuery("")}
-            aria-label="Clear search"
-            className="-translate-y-1/2 absolute top-1/2 right-1 h-5 w-5"
-          >
-            <X className="h-3 w-3" />
-          </Button>
+    <div className="flex flex-col gap-2 border-b bg-background/95 p-2">
+      <div className="flex items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <ToggleGroup
+              type="single"
+              size="sm"
+              variant="outline"
+              value={allBranches ? "all" : "current"}
+              onValueChange={(v) => {
+                if (v === "all" || v === "current") setAllBranches(v === "all");
+              }}
+              className="h-7"
+            >
+              <ToggleGroupItem value="current" className="h-7 px-2.5 text-xs">
+                Current
+              </ToggleGroupItem>
+              <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
+                All
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </TooltipTrigger>
+          <TooltipContent>Toggle branch scope · ⌘⇧B</TooltipContent>
+        </Tooltip>
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={rawQuery}
+            onChange={(e) => setRawQuery(e.target.value)}
+            placeholder="Search message, author, or email"
+            className="h-7 pl-7 pr-7 text-xs"
+          />
+          {rawQuery && (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setRawQuery("")}
+              aria-label="Clear search"
+              className="-translate-y-1/2 absolute top-1/2 right-1 h-5 w-5"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+        {(debouncedQuery || debouncedPath || debouncedPickaxe) && (
+          <span className="text-xs text-muted-foreground">
+            {isFetching && !isFetchingNextPage
+              ? "Searching…"
+              : `${rows.length}${hasNextPage ? "+" : ""} match${rows.length === 1 ? "" : "es"}`}
+          </span>
         )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              data-active={filterCount > 0 || advancedOpen || undefined}
+              onClick={() => setAdvancedOpen((v) => !v)}
+              aria-label="Toggle advanced filters"
+            >
+              <Filter className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {filterCount > 0
+              ? `Filters active (${filterCount}). Click to ${advancedOpen ? "hide" : "show"}.`
+              : "Filter by path or content"}
+          </TooltipContent>
+        </Tooltip>
       </div>
-      {debouncedQuery && (
-        <span className="text-xs text-muted-foreground">
-          {isFetching && !isFetchingNextPage
-            ? "Searching…"
-            : `${rows.length}${hasNextPage ? "+" : ""} match${rows.length === 1 ? "" : "es"}`}
-        </span>
+      {advancedOpen && (
+        <div className="flex items-center gap-2 px-1">
+          <div className="relative flex-1">
+            <Input
+              value={pathFilter}
+              onChange={(e) => setPathFilter(e.target.value)}
+              placeholder="Path filter (e.g. src/feature.ts)"
+              className="h-7 pr-7 text-xs"
+            />
+            {pathFilter && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setPathFilter("")}
+                aria-label="Clear path filter"
+                className="-translate-y-1/2 absolute top-1/2 right-1 h-5 w-5"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+          <div className="relative flex-1">
+            <Input
+              value={pickaxe}
+              onChange={(e) => setPickaxe(e.target.value)}
+              placeholder="Pickaxe -S (find string in changes)"
+              className="h-7 pr-7 text-xs"
+            />
+            {pickaxe && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setPickaxe("")}
+                aria-label="Clear pickaxe"
+                className="-translate-y-1/2 absolute top-1/2 right-1 h-5 w-5"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -438,6 +529,10 @@ export function CommitList({ repoPath }: Props) {
                     </ContextMenuSubContent>
                   </ContextMenuSub>
                   <ContextMenuSeparator />
+                  <ContextMenuItem onSelect={() => setBisectFrom(c.id)}>
+                    Start bisect from here…
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
                   <ContextMenuItem
                     onSelect={() => {
                       void navigator.clipboard.writeText(c.id);
@@ -460,6 +555,12 @@ export function CommitList({ repoPath }: Props) {
         mode={resetTarget?.mode ?? "hard"}
         open={resetTarget !== null}
         onOpenChange={(o) => !o && setResetTarget(null)}
+      />
+      <BisectStartDialog
+        repoPath={repoPath}
+        open={bisectFrom !== null}
+        onOpenChange={(o) => !o && setBisectFrom(null)}
+        badDefault={bisectFrom ?? undefined}
       />
     </div>
   );

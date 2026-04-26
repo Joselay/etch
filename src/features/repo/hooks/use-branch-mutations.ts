@@ -68,11 +68,11 @@ export function useDeleteBranch(path: string) {
 export function useMerge(path: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { target: string; noFf?: boolean }) =>
-      api.merge(path, vars.target, vars.noFf ?? false),
+    mutationFn: (vars: { target: string; noFf?: boolean; squash?: boolean }) =>
+      api.merge(path, vars.target, { noFf: vars.noFf, squash: vars.squash }),
     onSuccess: (_d, vars) => {
       invalidateRepo(qc, path);
-      toast.success(`Merged ${vars.target}`);
+      toast.success(vars.squash ? `Squash-merged ${vars.target}` : `Merged ${vars.target}`);
     },
     onError: toastGitError,
   });

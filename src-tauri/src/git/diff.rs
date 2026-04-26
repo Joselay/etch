@@ -8,6 +8,7 @@ use similar::{ChangeTag, TextDiff};
 
 use crate::error::{AppError, AppResult};
 use crate::git::cli::run_git;
+use crate::git::lfs::{is_lfs_pointer, parse_lfs_pointer, LfsPointer};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,6 +73,12 @@ pub struct FileDiff {
     pub old_dimensions: Option<ImageDimensions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub new_dimensions: Option<ImageDimensions>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_lfs: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_lfs_pointer: Option<LfsPointer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_lfs_pointer: Option<LfsPointer>,
 }
 
 #[derive(Debug, Serialize)]
@@ -325,8 +332,12 @@ pub fn file_diff(path: &Path, commit_id: &str, file_path: &str) -> AppResult<Fil
         _ => Vec::new(),
     };
 
-    let is_bin = is_binary(&new_bytes) || is_binary(&old_bytes);
-    let hunks = if is_bin {
+    let new_lfs = parse_lfs_pointer(&new_bytes);
+    let old_lfs = parse_lfs_pointer(&old_bytes);
+    let is_lfs = is_lfs_pointer(&new_bytes) || is_lfs_pointer(&old_bytes);
+
+    let is_bin = !is_lfs && (is_binary(&new_bytes) || is_binary(&old_bytes));
+    let hunks = if is_bin || is_lfs {
         Vec::new()
     } else {
         let old_str = String::from_utf8_lossy(&old_bytes);
@@ -357,6 +368,9 @@ pub fn file_diff(path: &Path, commit_id: &str, file_path: &str) -> AppResult<Fil
         new_size: maybe_size(&new_bytes),
         old_dimensions,
         new_dimensions,
+        is_lfs,
+        old_lfs_pointer: old_lfs,
+        new_lfs_pointer: new_lfs,
     })
 }
 
@@ -376,8 +390,12 @@ pub fn working_diff(path: &Path, file_path: &str, staged: bool) -> AppResult<Fil
         read_spec(path, new_spec, file_path).unwrap_or_default()
     };
 
-    let is_bin = is_binary(&old_bytes) || is_binary(&new_bytes);
-    let hunks = if is_bin {
+    let new_lfs = parse_lfs_pointer(&new_bytes);
+    let old_lfs = parse_lfs_pointer(&old_bytes);
+    let is_lfs = is_lfs_pointer(&new_bytes) || is_lfs_pointer(&old_bytes);
+
+    let is_bin = !is_lfs && (is_binary(&old_bytes) || is_binary(&new_bytes));
+    let hunks = if is_bin || is_lfs {
         Vec::new()
     } else {
         let old_str = String::from_utf8_lossy(&old_bytes);
@@ -408,6 +426,9 @@ pub fn working_diff(path: &Path, file_path: &str, staged: bool) -> AppResult<Fil
         new_size: maybe_size(&new_bytes),
         old_dimensions,
         new_dimensions,
+        is_lfs,
+        old_lfs_pointer: old_lfs,
+        new_lfs_pointer: new_lfs,
     })
 }
 

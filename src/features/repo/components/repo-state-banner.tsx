@@ -1,6 +1,8 @@
-import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, XCircle } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { RepoState } from "@/lib/tauri";
+import { useBisectLog, useBisectMark } from "../hooks/use-bisect";
 import {
   type SequencerOp,
   useAbortBisect,
@@ -34,31 +36,13 @@ export function RepoStateBanner({ repoPath }: { repoPath: string }) {
   const abort = useAbortOp(repoPath);
   const cont = useContinueOp(repoPath);
   const skip = useSkipRebase(repoPath);
-  const abortBisect = useAbortBisect(repoPath);
 
   if (!data) return null;
   const op = activeOp(data);
 
   if (!op) {
     if (data.bisecting) {
-      return (
-        <InfoBar
-          tone="warning"
-          icon={<AlertTriangle className="h-4 w-4" />}
-          title="Bisect in progress"
-          description="Mark commits as good/bad from the terminal, or reset to exit."
-          actions={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => abortBisect.mutate()}
-              disabled={abortBisect.isPending}
-            >
-              Reset bisect
-            </Button>
-          }
-        />
-      );
+      return <BisectBanner repoPath={repoPath} />;
     }
     return null;
   }
@@ -101,6 +85,76 @@ export function RepoStateBanner({ repoPath }: { repoPath: string }) {
         </>
       }
     />
+  );
+}
+
+function BisectBanner({ repoPath }: { repoPath: string }) {
+  const mark = useBisectMark(repoPath);
+  const abort = useAbortBisect(repoPath);
+  const { data: log } = useBisectLog(repoPath);
+  const [logOpen, setLogOpen] = useState(false);
+  const pending = mark.isPending || abort.isPending;
+  return (
+    <div
+      className="flex flex-col gap-2 border-b border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm"
+      role="status"
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">Bisect in progress</div>
+          <div className="text-muted-foreground text-xs">
+            Test the currently checked-out commit, then mark it good or bad. Skip if untestable.
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" onClick={() => mark.mutate("good")} disabled={pending}>
+            Good
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => mark.mutate("bad")}
+            disabled={pending}
+          >
+            Bad
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => mark.mutate("skip")}
+            disabled={pending}
+          >
+            Skip
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => abort.mutate()} disabled={pending}>
+            Reset
+          </Button>
+        </div>
+      </div>
+      {log && log.length > 0 && (
+        <div className="flex flex-col gap-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setLogOpen((v) => !v)}
+            className="inline-flex w-fit items-center gap-1 text-muted-foreground hover:text-foreground"
+          >
+            {logOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {log.length} marked
+          </button>
+          {logOpen && (
+            <ul className="ml-4 flex flex-col gap-0.5 font-mono text-[11px]">
+              {log.map((e) => (
+                <li key={`${e.verdict}-${e.oid}`}>
+                  <span className="text-muted-foreground">{e.verdict}</span>{" "}
+                  <span>{e.oid.slice(0, 7)}</span> <span className="opacity-70">{e.subject}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

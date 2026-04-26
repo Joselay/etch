@@ -38,12 +38,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { dispatchMenuEvent, onMenuEvent } from "@/lib/menu-events";
 import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/stores/repo-store";
-import { type RepoView, useSelectionStore } from "@/stores/selection-store";
+import { type RepoView, useSelectionStore, useTabSelection } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useOpenRepo } from "../hooks/use-open-repo";
 import { useRefs } from "../hooks/use-refs";
 import { useRemoteAuthorsContextValue } from "../hooks/use-remote-authors";
-import { useRepoWatcher } from "../hooks/use-repo-watcher";
+import { RepoWatcher } from "../hooks/use-repo-watcher";
 import { useStatus } from "../hooks/use-status";
 import { RemoteAuthorsContext } from "../remote-authors-context";
 import { ChangesView } from "./changes-view";
@@ -60,12 +60,22 @@ const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(na
 
 export function RepoLayout() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
+  const openRepos = useRepoStore((s) => s.openRepos);
+  const setActivePath = useRepoStore((s) => s.setActivePath);
+  const closeRepo = useRepoStore((s) => s.closeRepo);
   const clearActive = useRepoStore((s) => s.clearActive);
   const recentRepos = useRepoStore((s) => s.recentRepos);
-  const view = useSelectionStore((s) => s.view);
-  const setView = useSelectionStore((s) => s.setView);
+  const removeTab = useSelectionStore((s) => s.removeTab);
+  const ensureTab = useSelectionStore((s) => s.ensureTab);
+  const setViewFn = useSelectionStore((s) => s.setView);
+  const { view } = useTabSelection(activeRepo?.path ?? null);
+  const setView = (v: RepoView) => {
+    if (activeRepo) setViewFn(activeRepo.path, v);
+  };
 
-  useRepoWatcher(activeRepo?.path ?? null);
+  useEffect(() => {
+    if (activeRepo) ensureTab(activeRepo.path);
+  }, [activeRepo, ensureTab]);
   const { data: status } = useStatus(activeRepo?.path ?? null);
   const { data: refs } = useRefs(activeRepo?.path ?? null);
   const remoteAuthorsValue = useRemoteAuthorsContextValue(activeRepo?.path ?? null);
@@ -100,26 +110,83 @@ export function RepoLayout() {
 
   const requestClose = () => {
     if (hasDirtyRef.current) setConfirmCloseOpen(true);
-    else clearActive();
+    else void clearActive();
   };
 
-  const otherRecents = recentRepos.filter((r) => r.path !== activeRepo.path);
+  const closeTab = async (path: string) => {
+    removeTab(path);
+    await closeRepo(path);
+  };
+
+  const openOrSwitch = (path: string) => {
+    if (openRepos.some((r) => r.path === path)) setActivePath(path);
+    else void openAt(path);
+  };
+
+  const otherRecents = recentRepos.filter(
+    (r) => r.path !== activeRepo.path && !openRepos.some((o) => o.path === r.path),
+  );
 
   return (
     <RemoteAuthorsContext.Provider value={remoteAuthorsValue}>
+      {openRepos.map((r) => (
+        <RepoWatcher key={r.path} path={r.path} />
+      ))}
       <CommandPalette />
       <Tabs
         value={view}
         onValueChange={(v) => setView(v as RepoView)}
         className="flex h-screen flex-col gap-0 bg-background text-foreground"
       >
+        {openRepos.length > 1 && (
+          <div
+            data-tauri-drag-region
+            className={cn(
+              "flex h-9 shrink-0 items-stretch gap-px overflow-x-auto border-b bg-muted/30",
+              isMac && "pl-[78px]",
+            )}
+          >
+            {openRepos.map((r) => {
+              const folder = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
+              const isActive = r.path === activeRepo.path;
+              return (
+                <div
+                  key={r.path}
+                  className={cn(
+                    "group/tab relative flex min-w-0 max-w-[220px] items-center gap-1.5 border-r px-2 text-xs",
+                    isActive ? "bg-background" : "hover:bg-background/60",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActivePath(r.path)}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5"
+                    title={r.path}
+                  >
+                    <FolderGit2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{folder}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Close ${folder}`}
+                    onClick={() => void closeTab(r.path)}
+                    className="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/tab:opacity-100 data-[active=true]:opacity-100"
+                    data-active={isActive}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
         <ResizablePanelGroup id="etch:repo-outer:v4" orientation="horizontal" className="flex-1">
           <ResizablePanel id="etch:refs-sidebar:v2" defaultSize="16%" minSize="14%" maxSize="22%">
             <aside className="flex h-full flex-col border-r border-border/60">
               <div
                 data-tauri-drag-region
                 aria-hidden
-                className={cn("h-12 shrink-0", isMac && "pl-[78px]")}
+                className={cn("h-12 shrink-0", isMac && openRepos.length <= 1 && "pl-[78px]")}
               />
               <div className="min-h-0 flex-1 overflow-hidden">
                 <RefsSidebar repoPath={activeRepo.path} />
@@ -153,15 +220,13 @@ export function RepoLayout() {
                     <DropdownMenuContent align="start" className="w-64">
                       {otherRecents.length > 0 ? (
                         <>
-                          <DropdownMenuLabel>Switch to</DropdownMenuLabel>
+                          <DropdownMenuLabel>Recent repositories</DropdownMenuLabel>
                           {otherRecents.map((r) => {
                             const folder = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
                             return (
                               <DropdownMenuItem
                                 key={r.path}
-                                onSelect={() => {
-                                  void openAt(r.path);
-                                }}
+                                onSelect={() => openOrSwitch(r.path)}
                                 title={r.path}
                               >
                                 <FolderGit2 className="text-muted-foreground" />
@@ -278,7 +343,7 @@ export function RepoLayout() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep open</AlertDialogCancel>
-            <AlertDialogAction onClick={() => clearActive()}>Close anyway</AlertDialogAction>
+            <AlertDialogAction onClick={() => void clearActive()}>Close anyway</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -4,8 +4,10 @@ import {
   Columns2,
   ExternalLink,
   Eye,
+  FolderGit2,
   Hash,
   KeyRound,
+  Lock,
   Monitor,
   Moon,
   Palette,
@@ -44,8 +46,10 @@ import {
   useProviderTokens,
   useSetProviderToken,
 } from "../hooks/use-provider-tokens";
+import { GitignoreEditor } from "./gitignore-editor";
+import { SigningSection } from "./signing-section";
 
-type Tab = "appearance" | "review" | "identity" | "providers";
+type Tab = "appearance" | "review" | "identity" | "signing" | "providers" | "repository";
 
 export function SettingsDialog() {
   const open = useUiStore((s) => s.settingsOpen);
@@ -66,7 +70,7 @@ export function SettingsDialog() {
           onValueChange={(v) => setTab(v as Tab)}
           className="flex max-h-[70vh] flex-col"
         >
-          <TabsList className="mx-6 grid w-auto grid-cols-4">
+          <TabsList className="mx-6 grid w-auto grid-cols-6">
             <TabsTrigger value="appearance">
               <Palette className="h-3.5 w-3.5" />
               Appearance
@@ -78,6 +82,14 @@ export function SettingsDialog() {
             <TabsTrigger value="identity">
               <UserRound className="h-3.5 w-3.5" />
               Identity
+            </TabsTrigger>
+            <TabsTrigger value="signing">
+              <Lock className="h-3.5 w-3.5" />
+              Signing
+            </TabsTrigger>
+            <TabsTrigger value="repository">
+              <FolderGit2 className="h-3.5 w-3.5" />
+              Repository
             </TabsTrigger>
             <TabsTrigger value="providers">
               <KeyRound className="h-3.5 w-3.5" />
@@ -95,6 +107,13 @@ export function SettingsDialog() {
               <IdentitySection title="Global identity" repoPath={null} />
               <ActiveRepoIdentity />
             </TabsContent>
+            <TabsContent value="signing" className="m-0 flex flex-col gap-6">
+              <SigningSection repoPath={null} />
+              <ActiveRepoSigning />
+            </TabsContent>
+            <TabsContent value="repository" className="m-0 flex flex-col gap-6">
+              <RepositorySection />
+            </TabsContent>
             <TabsContent value="providers" className="m-0 flex flex-col gap-4">
               <ProvidersSection />
             </TabsContent>
@@ -103,6 +122,29 @@ export function SettingsDialog() {
       </DialogContent>
     </Dialog>
   );
+}
+
+function ActiveRepoSigning() {
+  const activeRepo = useRepoStore((s) => s.activeRepo);
+  if (!activeRepo) return null;
+  return (
+    <div className="flex flex-col gap-6">
+      <Separator />
+      <SigningSection repoPath={activeRepo.path} />
+    </div>
+  );
+}
+
+function RepositorySection() {
+  const activeRepo = useRepoStore((s) => s.activeRepo);
+  if (!activeRepo) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Open a repository to manage its repository-scoped settings.
+      </p>
+    );
+  }
+  return <GitignoreEditor repoPath={activeRepo.path} />;
 }
 
 function ActiveRepoIdentity() {

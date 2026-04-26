@@ -18,10 +18,10 @@ function handle(name: MenuEventName): void {
       if (repo.activeRepo) ui.togglePalette();
       return;
     case "view-history":
-      if (repo.activeRepo) selection.setView("history");
+      if (repo.activeRepo) selection.setView(repo.activeRepo.path, "history");
       return;
     case "view-changes":
-      if (repo.activeRepo) selection.setView("changes");
+      if (repo.activeRepo) selection.setView(repo.activeRepo.path, "changes");
       return;
     case "toggle-word-wrap":
       ui.toggleDiffWordWrap();

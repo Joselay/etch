@@ -67,10 +67,24 @@ pub fn apply_patch(repo: &Path, patch: &str, cached: bool, reverse: bool) -> App
     Ok(())
 }
 
-pub fn commit(repo: &Path, message: &str, amend: bool) -> AppResult<CommitResult> {
+pub fn commit(
+    repo: &Path,
+    message: &str,
+    amend: bool,
+    sign_off: bool,
+    sign: Option<bool>,
+) -> AppResult<CommitResult> {
     let mut args: Vec<&str> = vec!["commit"];
     if amend {
         args.push("--amend");
+    }
+    if sign_off {
+        args.push("--signoff");
+    }
+    match sign {
+        Some(true) => args.push("--gpg-sign"),
+        Some(false) => args.push("--no-gpg-sign"),
+        None => {}
     }
     args.push("-m");
     args.push(message);
@@ -99,7 +113,7 @@ mod tests {
         let tmp = init_tmp_repo();
         fs::write(tmp.path().join("a.txt"), "1\n2\n3\n").unwrap();
         stage_paths(tmp.path(), &["a.txt".to_string()]).unwrap();
-        commit(tmp.path(), "init", false).unwrap();
+        commit(tmp.path(), "init", false, false, Some(false)).unwrap();
 
         fs::write(tmp.path().join("a.txt"), "1\n2\n3\n4\n").unwrap();
 
@@ -127,7 +141,7 @@ mod tests {
         let tmp = init_tmp_repo();
         fs::write(tmp.path().join("a.txt"), "hello\n").unwrap();
         stage_paths(tmp.path(), &["a.txt".to_string()]).unwrap();
-        let res = commit(tmp.path(), "init", false).unwrap();
+        let res = commit(tmp.path(), "init", false, false, Some(false)).unwrap();
         assert_eq!(res.id.len(), 40);
 
         fs::write(tmp.path().join("a.txt"), "hello\nworld\n").unwrap();

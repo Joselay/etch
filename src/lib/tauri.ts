@@ -66,6 +66,8 @@ export type DiffHunk = {
   lines: DiffLine[];
 };
 
+export type LfsPointer = { oid: string; size: number };
+
 export type FileDiff = {
   path: string;
   oldPath: string | null;
@@ -78,6 +80,9 @@ export type FileDiff = {
   newSize?: number;
   oldDimensions?: ImageDimensions;
   newDimensions?: ImageDimensions;
+  isLfs?: boolean;
+  oldLfsPointer?: LfsPointer | null;
+  newLfsPointer?: LfsPointer | null;
 };
 
 export type ImageDimensions = {
@@ -125,6 +130,20 @@ export type ProviderToken = {
 export type GitIdentity = {
   name: string | null;
   email: string | null;
+};
+
+export type SigningConfig = {
+  enabled: boolean;
+  format: string | null;
+  key: string | null;
+};
+
+export type ConfigEntry = { key: string; value: string };
+
+export type CrlfConfig = {
+  autocrlf: string | null;
+  eol: string | null;
+  safecrlf: string | null;
 };
 
 export type StashEntry = {
@@ -216,6 +235,64 @@ export type RepoState = {
   rebase: RebaseDetail | null;
 };
 
+export type BisectStatus = {
+  currentOid: string | null;
+  remainingSteps: number | null;
+  foundCommit: string | null;
+  message: string;
+};
+
+export type BisectVerdict = "good" | "bad" | "skip";
+
+export type BisectLogEntry = {
+  oid: string;
+  verdict: string;
+  subject: string;
+};
+
+export type SubmoduleStatus = "uptodate" | "modified" | "uninitialized" | "conflict";
+
+export type SubmoduleInfo = {
+  path: string;
+  currentOid: string | null;
+  describe: string | null;
+  status: SubmoduleStatus;
+};
+
+export type PullRequest = {
+  number: number;
+  title: string;
+  state: string;
+  draft: boolean;
+  url: string;
+  headBranch: string;
+  baseBranch: string;
+  authorLogin: string | null;
+  authorAvatarUrl: string | null;
+  updatedAt: string | null;
+};
+
+export type CheckRun = {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  url: string | null;
+};
+
+export type CombinedStatus = {
+  state: string;
+  runs: CheckRun[];
+};
+
+export type WorktreeInfo = {
+  path: string;
+  headOid: string | null;
+  branch: string | null;
+  isMain: boolean;
+  isLocked: boolean;
+  isDetached: boolean;
+};
+
 // Matches the "auth error:" prefix produced by AppError::Auth's Display impl
 // (src-tauri/src/error.rs). Keep in sync if that variant is renamed.
 export function isAuthError(err: unknown): boolean {
@@ -234,11 +311,21 @@ export function toastGitError(err: unknown) {
 
 export const api = {
   openRepo: (path: string) => invoke<RepoInfo>("cmd_open_repo", { path }),
-  cloneRepo: (url: string, dest: string) => invoke<RepoInfo>("cmd_clone_repo", { url, dest }),
+  closeRepo: (path: string) => invoke<void>("cmd_close_repo", { path }),
+  cloneRepo: (url: string, dest: string, tokenId: number | null = null) =>
+    invoke<RepoInfo>("cmd_clone_repo", { url, dest, tokenId }),
+  newCancelToken: () => invoke<number>("cmd_new_cancel_token"),
+  cancelOperation: (tokenId: number) => invoke<void>("cmd_cancel_operation", { tokenId }),
   initRepo: (path: string) => invoke<RepoInfo>("cmd_init_repo", { path }),
   readIdentity: (path: string | null = null) => invoke<GitIdentity>("cmd_read_identity", { path }),
   writeIdentity: (path: string | null, name: string | null, email: string | null) =>
     invoke<void>("cmd_write_identity", { path, name, email }),
+  readGitignore: (path: string) => invoke<string>("cmd_read_gitignore", { path }),
+  writeGitignore: (path: string, content: string) =>
+    invoke<void>("cmd_write_gitignore", { path, content }),
+  appendGitignore: (path: string, pattern: string) =>
+    invoke<void>("cmd_append_gitignore", { path, pattern }),
+  untrackFile: (path: string, file: string) => invoke<void>("cmd_untrack_file", { path, file }),
   listStashes: (path: string) => invoke<StashEntry[]>("cmd_list_stashes", { path }),
   createStash: (
     path: string,
@@ -257,8 +344,13 @@ export const api = {
   applyStash: (path: string, refName: string) => invoke<void>("cmd_apply_stash", { path, refName }),
   popStash: (path: string, refName: string) => invoke<void>("cmd_pop_stash", { path, refName }),
   dropStash: (path: string, refName: string) => invoke<void>("cmd_drop_stash", { path, refName }),
-  merge: (path: string, target: string, noFf: boolean) =>
-    invoke<void>("cmd_merge", { path, target, noFf }),
+  merge: (path: string, target: string, opts: { noFf?: boolean; squash?: boolean } = {}) =>
+    invoke<void>("cmd_merge", {
+      path,
+      target,
+      noFf: opts.noFf ?? false,
+      squash: opts.squash ?? false,
+    }),
   revert: (path: string, commit: string, noEdit = true) =>
     invoke<void>("cmd_revert", { path, commit, noEdit }),
   cherryPick: (path: string, commit: string) => invoke<void>("cmd_cherry_pick", { path, commit }),
@@ -304,12 +396,49 @@ export const api = {
     skip = 0,
     query: string | null = null,
     allBranches = false,
-  ) => invoke<CommitSummary[]>("cmd_commit_log", { path, limit, skip, query, allBranches }),
+    pathFilter: string | null = null,
+    pickaxe: string | null = null,
+  ) =>
+    invoke<CommitSummary[]>("cmd_commit_log", {
+      path,
+      limit,
+      skip,
+      query,
+      allBranches,
+      pathFilter,
+      pickaxe,
+    }),
   commitMessage: (path: string, commitId: string) =>
     invoke<string>("cmd_commit_message", { path, commitId }),
   reflog: (path: string, limit = 300, skip = 0) =>
     invoke<ReflogEntry[]>("cmd_reflog", { path, limit, skip }),
   abortBisect: (path: string) => invoke<void>("cmd_abort_bisect", { path }),
+  bisectStart: (path: string, bad: string, good: string) =>
+    invoke<BisectStatus>("cmd_bisect_start", { path, bad, good }),
+  bisectMark: (path: string, verdict: BisectVerdict) =>
+    invoke<BisectStatus>("cmd_bisect_mark", { path, verdict }),
+  bisectLog: (path: string) => invoke<BisectLogEntry[]>("cmd_bisect_log", { path }),
+  listSubmodules: (path: string) => invoke<SubmoduleInfo[]>("cmd_list_submodules", { path }),
+  initSubmodule: (path: string, sub: string) => invoke<void>("cmd_init_submodule", { path, sub }),
+  updateSubmodule: (path: string, sub: string, init: boolean) =>
+    invoke<void>("cmd_update_submodule", { path, sub, init }),
+  syncSubmodules: (path: string) => invoke<void>("cmd_sync_submodules", { path }),
+  listPrs: (path: string, branch: string) =>
+    invoke<PullRequest[]>("cmd_list_prs", { path, branch }),
+  ciStatus: (path: string, ref: string) =>
+    invoke<CombinedStatus | null>("cmd_ci_status", { path, ref_: ref }),
+  setUpstream: (path: string, branch: string, remote: string, remoteBranch: string) =>
+    invoke<void>("cmd_set_upstream", { path, branch, remote, remoteBranch }),
+  unsetUpstream: (path: string, branch: string) =>
+    invoke<void>("cmd_unset_upstream", { path, branch }),
+  rangeDiff: (path: string, base: string, head: string, limit = 500) =>
+    invoke<CommitSummary[]>("cmd_range_diff", { path, base, head, limit }),
+  listWorktrees: (path: string) => invoke<WorktreeInfo[]>("cmd_list_worktrees", { path }),
+  addWorktree: (path: string, target: string, branch: string | null, create: boolean) =>
+    invoke<void>("cmd_add_worktree", { path, target, branch, create }),
+  removeWorktree: (path: string, target: string, force: boolean) =>
+    invoke<void>("cmd_remove_worktree", { path, target, force }),
+  pruneWorktrees: (path: string) => invoke<void>("cmd_prune_worktrees", { path }),
   fileHistory: (path: string, file: string, limit = 500, skip = 0) =>
     invoke<CommitSummary[]>("cmd_file_history", { path, file, limit, skip }),
   blame: (path: string, file: string, rev: string | null = null) =>
@@ -329,8 +458,30 @@ export const api = {
     invoke<void>("cmd_discard_paths", { path, paths }),
   applyPatch: (path: string, patch: string, cached: boolean, reverse: boolean) =>
     invoke<void>("cmd_apply_patch", { path, patch, cached, reverse }),
-  commit: (path: string, message: string, amend: boolean) =>
-    invoke<CommitResult>("cmd_commit", { path, message, amend }),
+  commit: (
+    path: string,
+    message: string,
+    amend: boolean,
+    opts: { signOff?: boolean; sign?: boolean | null } = {},
+  ) =>
+    invoke<CommitResult>("cmd_commit", {
+      path,
+      message,
+      amend,
+      signOff: opts.signOff ?? false,
+      sign: opts.sign ?? null,
+    }),
+  readSigningConfig: (path: string) => invoke<SigningConfig>("cmd_read_signing_config", { path }),
+  readCommitTemplate: (path: string) => invoke<string | null>("cmd_read_commit_template", { path }),
+  readGitConfig: (path: string | null, key: string, global: boolean) =>
+    invoke<string | null>("cmd_read_git_config", { path, key, global }),
+  writeGitConfig: (path: string | null, key: string, value: string, global: boolean) =>
+    invoke<void>("cmd_write_git_config", { path, key, value, global }),
+  unsetGitConfig: (path: string | null, key: string, global: boolean) =>
+    invoke<void>("cmd_unset_git_config", { path, key, global }),
+  listGitConfig: (path: string | null, global: boolean) =>
+    invoke<ConfigEntry[]>("cmd_list_git_config", { path, global }),
+  readCrlfConfig: (path: string) => invoke<CrlfConfig>("cmd_read_crlf_config", { path }),
   createBranch: (path: string, name: string, startPoint: string | null) =>
     invoke<void>("cmd_create_branch", { path, name, startPoint }),
   checkout: (path: string, target: string, create: boolean) =>
@@ -342,8 +493,12 @@ export const api = {
   renameBranch: (path: string, oldName: string, newName: string, force: boolean) =>
     invoke<void>("cmd_rename_branch", { path, oldName, newName, force }),
   upstreamStatus: (path: string) => invoke<UpstreamStatus>("cmd_upstream_status", { path }),
-  fetch: (path: string, remote: string | null = null, prune = true) =>
-    invoke<void>("cmd_fetch", { path, remote, prune }),
+  fetch: (
+    path: string,
+    remote: string | null = null,
+    prune = true,
+    tokenId: number | null = null,
+  ) => invoke<void>("cmd_fetch", { path, remote, prune, tokenId }),
   pull: (path: string, ffOnly = true) => invoke<void>("cmd_pull", { path, ffOnly }),
   push: (
     path: string,

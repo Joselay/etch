@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ChangeStatus, CommitSummary } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
-import { useSelectionStore } from "@/stores/selection-store";
+import { useSelectionStore, useTabSelection } from "@/stores/selection-store";
 import { useCommitChanges, useCommitMessage } from "../hooks/use-commit-details";
 import { AuthorAvatar } from "./author-avatar";
 import { DiffViewer } from "./diff-viewer";
@@ -21,17 +21,15 @@ import { FileTree, TreeIndentGuides, TreeLeafSpacer } from "./file-tree";
 type Props = { repoPath: string };
 
 export function CommitDetails({ repoPath }: Props) {
-  const selectedCommitId = useSelectionStore((s) => s.selectedCommitId);
-  const commit = useSelectionStore((s) => s.selectedCommit);
-  const selectedFilePath = useSelectionStore((s) => s.selectedFilePath);
+  const { selectedCommitId, selectedCommit: commit, selectedFilePath } = useTabSelection(repoPath);
   const selectFile = useSelectionStore((s) => s.selectFile);
   const { data, isLoading, error, refetch } = useCommitChanges(repoPath, selectedCommitId);
 
   useEffect(() => {
     if (data && data.length > 0 && !selectedFilePath) {
-      selectFile(data[0].path);
+      selectFile(repoPath, data[0].path);
     }
-  }, [data, selectedFilePath, selectFile]);
+  }, [data, selectedFilePath, selectFile, repoPath]);
 
   if (!selectedCommitId) {
     return (
@@ -78,7 +76,7 @@ export function CommitDetails({ repoPath }: Props) {
                         <button
                           type="button"
                           data-selected={selected || undefined}
-                          onClick={() => selectFile(f.path)}
+                          onClick={() => selectFile(repoPath, f.path)}
                           className={cn(
                             "group flex w-full min-w-0 cursor-pointer items-stretch text-left text-[13px]",
                             "hover:bg-muted/60",

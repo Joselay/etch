@@ -17,7 +17,6 @@ import { useThemeShortcut } from "@/hooks/use-theme-shortcut";
 import { onMenuEvent } from "@/lib/menu-events";
 import { persister, queryClient, shouldPersistQuery } from "@/lib/query-client";
 import { useRepoStore } from "@/stores/repo-store";
-import { useSelectionStore } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
 import "./App.css";
 
@@ -26,7 +25,6 @@ const CACHE_BUSTER = "v1";
 
 function AppInner() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
-  const selectCommit = useSelectionStore((s) => s.selectCommit);
   const cloneOpen = useUiStore((s) => s.cloneOpen);
   const setCloneOpen = useUiStore((s) => s.setCloneOpen);
 
@@ -57,12 +55,6 @@ function AppInner() {
       for (const off of offs) off();
     };
   }, [pickAndOpen, pickAndInit, setCloneOpen]);
-
-  const activePath = activeRepo?.path ?? null;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: activePath is only a trigger — we reset selection whenever the active repo changes.
-  useEffect(() => {
-    selectCommit(null);
-  }, [activePath, selectCommit]);
 
   return (
     <>

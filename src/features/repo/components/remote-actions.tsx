@@ -1,11 +1,29 @@
-import { ArrowDown, ArrowUp, RefreshCw } from "lucide-react";
-import { useEffect } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, RefreshCw, Send } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { onMenuEvent } from "@/lib/menu-events";
 import { cn } from "@/lib/utils";
 import { useFetch, usePull, usePush, useUpstreamStatus } from "../hooks/use-remote-ops";
+import { PushPickerDialog } from "./push-picker-dialog";
 
 type Props = { repoPath: string };
 
@@ -14,6 +32,8 @@ export function RemoteActions({ repoPath }: Props) {
   const fetchOp = useFetch(repoPath);
   const pullOp = usePull(repoPath);
   const pushOp = usePush(repoPath);
+  const [forceConfirm, setForceConfirm] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const hasUpstream = !!upstream?.upstream;
   const ahead = upstream?.ahead ?? 0;
@@ -115,6 +135,85 @@ export function RemoteActions({ repoPath }: Props) {
         </TooltipTrigger>
         <TooltipContent>{pushTooltip}</TooltipContent>
       </Tooltip>
+
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-1.5"
+                disabled={anyPending}
+                aria-label="Push options"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Push options</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuItem
+            disabled={anyPending}
+            onSelect={() => pushOp.mutate(hasUpstream ? {} : { setUpstream: true })}
+          >
+            <ArrowUp />
+            {hasUpstream ? "Push" : "Publish branch (set upstream)"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={anyPending || hasUpstream}
+            onSelect={() => pushOp.mutate({ setUpstream: true })}
+          >
+            <Send />
+            Push and set upstream
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={anyPending} onSelect={() => setPickerOpen(true)}>
+            Push to…
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={anyPending || !hasUpstream}
+            onSelect={() => setForceConfirm(true)}
+          >
+            <AlertTriangle />
+            Force push (with lease)
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={forceConfirm} onOpenChange={setForceConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Force push with lease?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will overwrite the remote branch with your local history.{" "}
+              <code>--force-with-lease</code> prevents overwriting commits you haven&apos;t fetched,
+              but anyone else who pushed since your last fetch will lose their work.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setForceConfirm(false);
+                pushOp.mutate({ forceWithLease: true });
+              }}
+            >
+              Force push
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <PushPickerDialog
+        repoPath={repoPath}
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        currentBranch={upstream?.branch ?? null}
+      />
     </ButtonGroup>
   );
 }

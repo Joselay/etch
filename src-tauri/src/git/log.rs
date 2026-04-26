@@ -26,7 +26,18 @@ pub fn commit_log(
     skip: usize,
     query: Option<&str>,
     all_branches: bool,
+    path_filter: Option<&str>,
+    pickaxe: Option<&str>,
 ) -> AppResult<Vec<CommitSummary>> {
+    // Path filter and pickaxe require shelling out to git — gix doesn't yet
+    // support content-search rev-walks. Free-text query and HEAD/all-branches
+    // still go through the gix fast path.
+    let path_filter = path_filter.filter(|p| !p.is_empty());
+    let pickaxe = pickaxe.filter(|s| !s.is_empty());
+    if path_filter.is_some() || pickaxe.is_some() {
+        return commit_log_shellout(path, limit, skip, query, all_branches, path_filter, pickaxe);
+    }
+
     let needle = query
         .map(|q| q.trim().to_lowercase())
         .filter(|q| !q.is_empty());
@@ -138,6 +149,123 @@ pub fn commit_log(
     Ok(out)
 }
 
+fn commit_log_shellout(
+    path: &Path,
+    limit: usize,
+    skip: usize,
+    query: Option<&str>,
+    all_branches: bool,
+    path_filter: Option<&str>,
+    pickaxe: Option<&str>,
+) -> AppResult<Vec<CommitSummary>> {
+    if let Some(p) = path_filter {
+        if p.starts_with('-') {
+            return Err(AppError::Other(format!("invalid path filter: {p}")));
+        }
+    }
+    if let Some(s) = pickaxe {
+        if s.starts_with('-') {
+            return Err(AppError::Other(format!("invalid pickaxe: {s}")));
+        }
+    }
+
+    let format = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
+    let skip_s = skip.to_string();
+    let limit_s = limit.to_string();
+    let mut args: Vec<&str> = vec!["log", "-z", format, "--skip", &skip_s, "-n", &limit_s];
+    if all_branches {
+        args.push("--all");
+    }
+    let mut owned: Vec<String> = Vec::new();
+    if let Some(q) = query.map(|q| q.trim()).filter(|q| !q.is_empty()) {
+        owned.push(format!("--grep={q}"));
+        args.push("-i");
+    }
+    if let Some(s) = pickaxe {
+        owned.push(format!("-S{s}"));
+    }
+    for o in &owned {
+        args.push(o.as_str());
+    }
+    if path_filter.is_some() {
+        args.push("--follow");
+    }
+    args.push("--");
+    if let Some(p) = path_filter {
+        args.push(p);
+    }
+
+    let out = run_git(path, &args)?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut result = Vec::new();
+    for record in text.split('\0') {
+        if record.is_empty() {
+            continue;
+        }
+        let cols: Vec<&str> = record.split('\x1f').collect();
+        if cols.len() < 10 {
+            continue;
+        }
+        result.push(CommitSummary {
+            id: cols[0].to_string(),
+            short_id: cols[1].to_string(),
+            summary: cols[2].to_string(),
+            author_name: cols[3].to_string(),
+            author_email: cols[4].to_string(),
+            timestamp: cols[5].parse().unwrap_or(0),
+            committer_name: cols[6].to_string(),
+            committer_email: cols[7].to_string(),
+            committer_timestamp: cols[8].parse().unwrap_or(0),
+            parent_ids: cols[9].split_whitespace().map(|s| s.to_string()).collect(),
+        });
+    }
+    Ok(result)
+}
+
+/// Commits in `head..base` (i.e. on `head` but not on `base`). Useful for
+/// branch comparisons. Newest first.
+pub fn range_diff(
+    repo: &Path,
+    base: &str,
+    head: &str,
+    limit: usize,
+) -> AppResult<Vec<CommitSummary>> {
+    if base.is_empty() || base.starts_with('-') {
+        return Err(AppError::Other(format!("invalid base: {base}")));
+    }
+    if head.is_empty() || head.starts_with('-') {
+        return Err(AppError::Other(format!("invalid head: {head}")));
+    }
+    let format = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
+    let limit_s = limit.to_string();
+    let range = format!("{base}..{head}");
+    let out = run_git(repo, &["log", "-z", format, "-n", &limit_s, &range])?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut result = Vec::new();
+    for record in text.split('\0') {
+        if record.is_empty() {
+            continue;
+        }
+        let cols: Vec<&str> = record.split('\x1f').collect();
+        if cols.len() < 10 {
+            continue;
+        }
+        result.push(CommitSummary {
+            id: cols[0].to_string(),
+            short_id: cols[1].to_string(),
+            summary: cols[2].to_string(),
+            author_name: cols[3].to_string(),
+            author_email: cols[4].to_string(),
+            timestamp: cols[5].parse().unwrap_or(0),
+            committer_name: cols[6].to_string(),
+            committer_email: cols[7].to_string(),
+            committer_timestamp: cols[8].parse().unwrap_or(0),
+            parent_ids: cols[9].split_whitespace().map(|s| s.to_string()).collect(),
+        });
+    }
+    Ok(result)
+}
+
 /// Full commit message (subject + body) for a single commit. Used by the UI
 /// to render the commit body and to pre-fill the textarea on amend.
 pub fn commit_message(repo: &Path, commit_id: &str) -> AppResult<String> {
@@ -236,7 +364,7 @@ mod tests {
         let here = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .expect("workspace dir");
-        let commits = commit_log(here, 5, 0, None, false).expect("log");
+        let commits = commit_log(here, 5, 0, None, false, None, None).expect("log");
         assert!(!commits.is_empty());
         assert_eq!(commits[0].short_id.len(), 7);
     }
@@ -280,8 +408,8 @@ mod tests {
         // Query the word "Initial" — real repos may or may not have such a
         // commit, so the assertion is just that filtering never panics and
         // respects the limit.
-        let filtered = commit_log(here, 50, 0, Some("initial"), false).expect("log");
-        let all = commit_log(here, 50, 0, None, false).expect("log");
+        let filtered = commit_log(here, 50, 0, Some("initial"), false, None, None).expect("log");
+        let all = commit_log(here, 50, 0, None, false, None, None).expect("log");
         assert!(filtered.len() <= all.len());
     }
 
@@ -305,10 +433,10 @@ mod tests {
 
         run_git(tmp.path(), &["checkout", "-q", "main"]).unwrap();
 
-        let head_only = commit_log(tmp.path(), 50, 0, None, false).unwrap();
+        let head_only = commit_log(tmp.path(), 50, 0, None, false, None, None).unwrap();
         assert!(head_only.iter().all(|c| c.summary != "only-on-feature"));
 
-        let all = commit_log(tmp.path(), 50, 0, None, true).unwrap();
+        let all = commit_log(tmp.path(), 50, 0, None, true, None, None).unwrap();
         assert!(all.iter().any(|c| c.summary == "only-on-feature"));
     }
 }

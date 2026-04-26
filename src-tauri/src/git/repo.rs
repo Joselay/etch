@@ -1,9 +1,11 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
-use crate::git::cli::run_git_bare;
+use crate::git::cli::{run_git_bare, run_git_bare_cancellable};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -74,7 +76,11 @@ pub fn init_repo(path: &Path) -> AppResult<PathBuf> {
 
 /// Clone `url` into `dest` (which must not already exist as a non-empty dir).
 /// Returns the resulting working directory path.
-pub fn clone_repo(url: &str, dest: &Path) -> AppResult<PathBuf> {
+pub fn clone_repo_cancellable(
+    url: &str,
+    dest: &Path,
+    cancel: Option<Arc<AtomicBool>>,
+) -> AppResult<PathBuf> {
     if url.trim().is_empty() {
         return Err(AppError::Other("clone URL must not be empty".into()));
     }
@@ -89,7 +95,12 @@ pub fn clone_repo(url: &str, dest: &Path) -> AppResult<PathBuf> {
     let dest_str = dest
         .to_str()
         .ok_or_else(|| AppError::Other("destination path is not valid UTF-8".into()))?;
-    run_git_bare(&["clone", "--progress", "--", url, dest_str])?;
+    let args = ["clone", "--progress", "--", url, dest_str];
+    if let Some(flag) = cancel {
+        run_git_bare_cancellable(&args, flag)?;
+    } else {
+        run_git_bare(&args)?;
+    }
     Ok(dest.to_path_buf())
 }
 
@@ -125,7 +136,8 @@ mod tests {
     #[test]
     fn clone_rejects_flag_like_url() {
         let tmp = tempfile::tempdir().unwrap();
-        let err = clone_repo("--upload-pack=evil", &tmp.path().join("x")).unwrap_err();
+        let err = clone_repo_cancellable("--upload-pack=evil", &tmp.path().join("x"), None)
+            .unwrap_err();
         assert!(matches!(err, AppError::Other(_)));
     }
 
@@ -143,7 +155,7 @@ mod tests {
 
         let dst_parent = tempfile::tempdir().unwrap();
         let dst = dst_parent.path().join("cloned");
-        clone_repo(src.path().to_str().unwrap(), &dst).unwrap();
+        clone_repo_cancellable(src.path().to_str().unwrap(), &dst, None).unwrap();
         assert!(dst.join(".git").exists());
     }
 }

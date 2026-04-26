@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { useRepoStore } from "@/stores/repo-store";
 import { useSelectionStore } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -16,9 +17,13 @@ export function useGlobalRefresh() {
   const togglePalette = useUiStore((s) => s.togglePalette);
   const toggleShortcuts = useUiStore((s) => s.toggleShortcuts);
   const toggleCommitLogAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
-  const setView = useSelectionStore((s) => s.setView);
+  const setViewFn = useSelectionStore((s) => s.setView);
 
   useEffect(() => {
+    const setView = (v: "history" | "changes" | "reflog") => {
+      const path = useRepoStore.getState().activeRepo?.path;
+      if (path) setViewFn(path, v);
+    };
     const onKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
@@ -74,5 +79,5 @@ export function useGlobalRefresh() {
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [qc, togglePalette, toggleShortcuts, toggleCommitLogAllBranches, setView]);
+  }, [qc, togglePalette, toggleShortcuts, toggleCommitLogAllBranches, setViewFn]);
 }

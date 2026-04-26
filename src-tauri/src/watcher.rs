@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -12,17 +13,17 @@ pub type AppDebouncer =
 
 #[derive(Default)]
 pub struct WatcherState {
-    pub inner: Mutex<Option<ActiveWatcher>>,
+    pub inner: Mutex<HashMap<PathBuf, ActiveWatcher>>,
 }
 
 pub struct ActiveWatcher {
-    pub path: PathBuf,
     _debouncer: AppDebouncer,
 }
 
-#[derive(Default, Serialize, Clone, Copy)]
+#[derive(Default, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct RepoChange {
+    path: String,
     head: bool,
     refs: bool,
     index: bool,
@@ -30,6 +31,8 @@ struct RepoChange {
     state: bool,
     stash: bool,
     config: bool,
+    bisect: bool,
+    submodules: bool,
 }
 
 impl RepoChange {
@@ -41,8 +44,10 @@ impl RepoChange {
             || self.state
             || self.stash
             || self.config
+            || self.bisect
+            || self.submodules
     }
-    fn merge(&mut self, o: RepoChange) {
+    fn merge(&mut self, o: &RepoChange) {
         self.head |= o.head;
         self.refs |= o.refs;
         self.index |= o.index;
@@ -50,6 +55,8 @@ impl RepoChange {
         self.state |= o.state;
         self.stash |= o.stash;
         self.config |= o.config;
+        self.bisect |= o.bisect;
+        self.submodules |= o.submodules;
     }
 }
 
@@ -116,6 +123,14 @@ fn classify(path: &Path, root: &Path) -> RepoChange {
         "rebase-merge" | "rebase-apply" => {
             c.state = true;
         }
+        "BISECT_LOG" | "BISECT_START" | "BISECT_TERMS" | "BISECT_NAMES" | "BISECT_EXPECTED_REV" => {
+            c.state = true;
+            c.bisect = true;
+        }
+        "modules" => {
+            c.submodules = true;
+            c.state = true;
+        }
         "config" => {
             c.config = true;
         }
@@ -127,15 +142,14 @@ fn classify(path: &Path, root: &Path) -> RepoChange {
 
 pub fn watch(app: AppHandle, state: &WatcherState, path: &Path) -> Result<(), String> {
     let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
-    if let Some(existing) = guard.as_ref() {
-        if existing.path == path {
-            return Ok(());
-        }
+    let key = path.to_path_buf();
+    if guard.contains_key(&key) {
+        return Ok(());
     }
-    *guard = None;
 
     let app_clone = app.clone();
     let root = path.to_path_buf();
+    let path_string = path.to_string_lossy().to_string();
     let mut debouncer = new_debouncer(
         Duration::from_millis(600),
         None,
@@ -144,10 +158,14 @@ pub fn watch(app: AppHandle, state: &WatcherState, path: &Path) -> Result<(), St
                 if events.is_empty() {
                     return;
                 }
-                let mut change = RepoChange::default();
+                let mut change = RepoChange {
+                    path: path_string.clone(),
+                    ..RepoChange::default()
+                };
                 for ev in &events {
                     for p in &ev.paths {
-                        change.merge(classify(p, &root));
+                        let c = classify(p, &root);
+                        change.merge(&c);
                     }
                 }
                 if change.any() {
@@ -163,9 +181,17 @@ pub fn watch(app: AppHandle, state: &WatcherState, path: &Path) -> Result<(), St
         .watch(path, RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
 
-    *guard = Some(ActiveWatcher {
-        path: path.to_path_buf(),
-        _debouncer: debouncer,
-    });
+    guard.insert(
+        key,
+        ActiveWatcher {
+            _debouncer: debouncer,
+        },
+    );
+    Ok(())
+}
+
+pub fn unwatch(state: &WatcherState, path: &Path) -> Result<(), String> {
+    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    guard.remove(path);
     Ok(())
 }

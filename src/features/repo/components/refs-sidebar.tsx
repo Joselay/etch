@@ -29,8 +29,9 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { onMenuEvent } from "@/lib/menu-events";
+import type { CommitSummary } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
-import { useSelectionStore } from "@/stores/selection-store";
+import { useSelectionStore, useTabSelection } from "@/stores/selection-store";
 import {
   useCheckout,
   useCheckoutTracking,
@@ -43,6 +44,7 @@ import { useApplyStash, useDropStash, usePopStash, useStashes } from "../hooks/u
 import { useDeleteTag, usePushTag } from "../hooks/use-tag-mutations";
 import { CreateBranchDialog } from "./create-branch-dialog";
 import { DeleteBranchDialog } from "./delete-branch-dialog";
+import { PrPanel } from "./pr-panel";
 import { RebasePlannerDialog } from "./rebase-planner-dialog";
 import { RemotesDialog } from "./remotes-dialog";
 import { RenameBranchDialog } from "./rename-branch-dialog";
@@ -58,9 +60,12 @@ export function RefsSidebar({ repoPath }: Props) {
   const { data, isLoading, error, refetch } = useRefs(repoPath);
   const checkout = useCheckout(repoPath);
   const checkoutTracking = useCheckoutTracking(repoPath);
-  const selectCommit = useSelectionStore((s) => s.selectCommit);
-  const setView = useSelectionStore((s) => s.setView);
-  const currentView = useSelectionStore((s) => s.view);
+  const selectCommitFn = useSelectionStore((s) => s.selectCommit);
+  const setViewFn = useSelectionStore((s) => s.setView);
+  const { view: currentView } = useTabSelection(repoPath);
+  const selectCommit = (id: string | null, summary: CommitSummary | null = null) =>
+    selectCommitFn(repoPath, id, summary);
+  const setView = (v: "history" | "changes" | "reflog") => setViewFn(repoPath, v);
 
   const [createState, setCreateState] = useState<CreateState>({ open: false, startPoint: null });
   const [renameState, setRenameState] = useState<BranchDialogState>({ open: false, name: "" });
@@ -190,6 +195,7 @@ export function RefsSidebar({ repoPath }: Props) {
         </div>
         <ScrollArea className="flex-1">
           <div className="flex flex-col gap-1 px-1 py-2">
+            <PrPanel repoPath={repoPath} />
             {needle && !hasAnyMatch && (
               <div className="px-2 py-4 text-center text-xs text-muted-foreground">
                 No refs match “{filter}”.
@@ -246,12 +252,26 @@ export function RefsSidebar({ repoPath }: Props) {
                         >
                           New branch from here
                         </ContextMenuItem>
-                        <ContextMenuItem
-                          disabled={b.isHead}
-                          onSelect={() => merge.mutate({ target: b.name })}
-                        >
-                          Merge into current
-                        </ContextMenuItem>
+                        <ContextMenuSub>
+                          <ContextMenuSubTrigger disabled={b.isHead}>
+                            Merge into current
+                          </ContextMenuSubTrigger>
+                          <ContextMenuSubContent>
+                            <ContextMenuItem onSelect={() => merge.mutate({ target: b.name })}>
+                              Merge (fast-forward when possible)
+                            </ContextMenuItem>
+                            <ContextMenuItem
+                              onSelect={() => merge.mutate({ target: b.name, noFf: true })}
+                            >
+                              Merge --no-ff (always create merge commit)
+                            </ContextMenuItem>
+                            <ContextMenuItem
+                              onSelect={() => merge.mutate({ target: b.name, squash: true })}
+                            >
+                              Squash merge (stage changes; commit manually)
+                            </ContextMenuItem>
+                          </ContextMenuSubContent>
+                        </ContextMenuSub>
                         <ContextMenuItem
                           disabled={b.isHead}
                           onSelect={() => startRebase.mutate({ onto: b.name })}

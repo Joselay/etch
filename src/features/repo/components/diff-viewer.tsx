@@ -503,6 +503,25 @@ function DiffBody({
     setActiveHunk(0);
   }, []);
 
+  if (data.isLfs) {
+    const ptr = data.newLfsPointer ?? data.oldLfsPointer;
+    return (
+      <div className="flex flex-col gap-2 p-4 text-xs">
+        <div className="font-medium text-foreground">Git LFS pointer</div>
+        <div className="text-muted-foreground">
+          The actual file is stored remotely. Use <code>git lfs pull</code> to fetch it.
+        </div>
+        {ptr && (
+          <dl className="mt-2 grid grid-cols-[max-content,1fr] gap-x-3 gap-y-1 font-mono">
+            <dt className="text-muted-foreground">size</dt>
+            <dd>{ptr.size.toLocaleString()} bytes</dd>
+            <dt className="text-muted-foreground">oid</dt>
+            <dd className="break-all">sha256:{ptr.oid}</dd>
+          </dl>
+        )}
+      </div>
+    );
+  }
   if (data.isBinary) {
     if (data.imageMimeType && (data.oldImage || data.newImage)) {
       return <ImageDiff data={data} />;

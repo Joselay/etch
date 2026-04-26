@@ -1,9 +1,11 @@
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
-use crate::git::cli::run_git;
+use crate::git::cli::{run_git, run_git_cancellable};
 
 // Reject remote/branch names that could be interpreted as git flags
 // (e.g. `--upload-pack=evil`) or contain shell/path separators beyond
@@ -64,7 +66,12 @@ pub fn upstream_status(repo: &Path) -> AppResult<UpstreamStatus> {
     Ok(s)
 }
 
-pub fn fetch(repo: &Path, remote: Option<&str>, prune: bool) -> AppResult<()> {
+pub fn fetch_cancellable(
+    repo: &Path,
+    remote: Option<&str>,
+    prune: bool,
+    cancel: Option<Arc<AtomicBool>>,
+) -> AppResult<()> {
     let mut args: Vec<&str> = vec!["fetch"];
     if prune {
         args.push("--prune");
@@ -76,7 +83,11 @@ pub fn fetch(repo: &Path, remote: Option<&str>, prune: bool) -> AppResult<()> {
     } else {
         args.push("--all");
     }
-    run_git(repo, &args)?;
+    if let Some(flag) = cancel {
+        run_git_cancellable(repo, &args, flag)?;
+    } else {
+        run_git(repo, &args)?;
+    }
     Ok(())
 }
 
@@ -171,6 +182,24 @@ pub fn set_remote_url(repo: &Path, name: &str, url: &str, push: bool) -> AppResu
     args.push(name);
     args.push(url);
     run_git(repo, &args)?;
+    Ok(())
+}
+
+pub fn set_upstream(repo: &Path, branch: &str, remote: &str, remote_branch: &str) -> AppResult<()> {
+    validate_ref_arg(branch, "branch")?;
+    validate_ref_arg(remote, "remote")?;
+    validate_ref_arg(remote_branch, "branch")?;
+    let upstream = format!("{remote}/{remote_branch}");
+    run_git(
+        repo,
+        &["branch", "--set-upstream-to", &upstream, "--", branch],
+    )?;
+    Ok(())
+}
+
+pub fn unset_upstream(repo: &Path, branch: &str) -> AppResult<()> {
+    validate_ref_arg(branch, "branch")?;
+    run_git(repo, &["branch", "--unset-upstream", "--", branch])?;
     Ok(())
 }
 
