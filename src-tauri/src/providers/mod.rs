@@ -113,17 +113,17 @@ mod tests {
     #[test]
     fn parses_https() {
         let got = parse_remote_url("https://github.com/foo/bar.git");
-        assert_eq!(
-            got,
-            Some(("github.com".into(), "foo".into(), "bar".into()))
-        );
+        assert_eq!(got, Some(("github.com".into(), "foo".into(), "bar".into())));
     }
 
     #[test]
     fn preserves_hyphenated_hostnames() {
         // Hyphens inside a domain segment (not an SSH alias suffix) must be kept.
         let got = parse_remote_url("git@gitlab.company-name.com:org/proj.git");
-        assert_eq!(got.as_ref().map(|(h, _, _)| h.as_str()), Some("gitlab.company-name.com"));
+        assert_eq!(
+            got.as_ref().map(|(h, _, _)| h.as_str()),
+            Some("gitlab.company-name.com")
+        );
     }
 
     #[test]

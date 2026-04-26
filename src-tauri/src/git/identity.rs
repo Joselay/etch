@@ -159,7 +159,8 @@ mod tests {
         write_identity(Some(tmp.path()), Some(""), None).unwrap();
         // After unset, repo-local lookup should yield None (or fall back to global
         // if the test host has one — read only the local scope).
-        let out = run_git_optional(tmp.path(), &["config", "--local", "--get", "user.name"]).unwrap();
+        let out =
+            run_git_optional(tmp.path(), &["config", "--local", "--get", "user.name"]).unwrap();
         assert!(out.is_none());
     }
 }

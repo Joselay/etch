@@ -74,10 +74,7 @@ pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
                 .build(handle)?,
         )
         .separator()
-        .item(
-            &MenuItemBuilder::with_id("toggle-word-wrap", "Toggle Diff Word Wrap")
-                .build(handle)?,
-        )
+        .item(&MenuItemBuilder::with_id("toggle-word-wrap", "Toggle Diff Word Wrap").build(handle)?)
         .item(
             &MenuItemBuilder::with_id("toggle-line-numbers", "Toggle Diff Line Numbers")
                 .build(handle)?,

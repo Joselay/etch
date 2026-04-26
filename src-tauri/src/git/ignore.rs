@@ -28,7 +28,9 @@ pub fn append_gitignore(repo: &Path, pattern: &str) -> AppResult<()> {
         return Err(AppError::Other("ignore pattern must not be empty".into()));
     }
     if trimmed.starts_with('-') {
-        return Err(AppError::Other(format!("invalid ignore pattern: {trimmed}")));
+        return Err(AppError::Other(format!(
+            "invalid ignore pattern: {trimmed}"
+        )));
     }
     let mut current = read_gitignore(repo)?;
     if current.lines().any(|l| l.trim() == trimmed) {

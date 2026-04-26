@@ -173,7 +173,7 @@ mod tests {
         run_git(p, &["add", "b.txt"]).unwrap();
         run_git(p, &["commit", "-q", "-m", "topic"]).unwrap();
         checkout(p, "main", false).unwrap();
-        merge(p, "topic", false).unwrap();
+        merge(p, "topic", false, false).unwrap();
         assert_eq!(current_branch(p), "main");
         assert!(p.join("b.txt").exists());
     }
@@ -200,11 +200,10 @@ mod tests {
         fs::write(p.join("b.txt"), "from topic\n").unwrap();
         run_git(p, &["add", "b.txt"]).unwrap();
         run_git(p, &["commit", "-q", "-m", "add b"]).unwrap();
-        let topic_commit = String::from_utf8_lossy(
-            &run_git(p, &["rev-parse", "HEAD"]).unwrap().stdout,
-        )
-        .trim()
-        .to_string();
+        let topic_commit =
+            String::from_utf8_lossy(&run_git(p, &["rev-parse", "HEAD"]).unwrap().stdout)
+                .trim()
+                .to_string();
         checkout(p, "main", false).unwrap();
         cherry_pick(p, &topic_commit).unwrap();
         assert!(p.join("b.txt").exists());
@@ -232,7 +231,7 @@ mod tests {
     #[test]
     fn rejects_flag_injection() {
         let tmp = init_tmp_repo();
-        assert!(merge(tmp.path(), "--exec=evil", false).is_err());
+        assert!(merge(tmp.path(), "--exec=evil", false, false).is_err());
         assert!(revert(tmp.path(), "--reset", true).is_err());
         assert!(cherry_pick(tmp.path(), "--abort").is_err());
     }

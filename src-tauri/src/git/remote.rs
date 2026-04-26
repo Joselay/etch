@@ -241,7 +241,11 @@ mod tests {
         assert!(remotes.iter().any(|r| r.name == "origin"));
 
         rename_remote(p, "fork", "upstream").unwrap();
-        let names: Vec<_> = list_remotes(p).unwrap().into_iter().map(|r| r.name).collect();
+        let names: Vec<_> = list_remotes(p)
+            .unwrap()
+            .into_iter()
+            .map(|r| r.name)
+            .collect();
         assert!(names.contains(&"upstream".to_string()));
         assert!(!names.contains(&"fork".to_string()));
 

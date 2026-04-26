@@ -8,8 +8,7 @@ use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, FileI
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-pub type AppDebouncer =
-    Debouncer<notify_debouncer_full::notify::RecommendedWatcher, FileIdMap>;
+pub type AppDebouncer = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, FileIdMap>;
 
 #[derive(Default)]
 pub struct WatcherState {

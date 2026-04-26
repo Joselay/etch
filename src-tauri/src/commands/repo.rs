@@ -2,16 +2,14 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, State};
 
+use crate::cancel::CancelRegistry;
 use crate::error::{AppError, AppResult};
 use crate::git::{
-    bisect::{
-        bisect_log, bisect_mark, bisect_start, BisectLogEntry, BisectStatus, BisectVerdict,
-    },
+    bisect::{bisect_log, bisect_mark, bisect_start, BisectLogEntry, BisectStatus, BisectVerdict},
     blame::{blame, BlameLine},
     branch::{
-        abort_cherry_pick, abort_merge, abort_revert, checkout, checkout_tracking,
-        cherry_pick, create_branch, delete_branch, merge, rename_branch, reset, revert,
-        ResetMode,
+        abort_cherry_pick, abort_merge, abort_revert, checkout, checkout_tracking, cherry_pick,
+        create_branch, delete_branch, merge, rename_branch, reset, revert, ResetMode,
     },
     cli::run_git,
     config::{
@@ -32,13 +30,13 @@ use crate::git::{
     },
     reflog::{list_reflog, ReflogEntry},
     refs::{list_refs, RefListing},
-    sign::{read_commit_template, read_signing_config, SigningConfig},
     remote::{
         add_remote, fetch_cancellable, list_remotes, origin_remote_url, pull, push, remove_remote,
         rename_remote, set_remote_url, set_upstream, unset_upstream, upstream_status, RemoteInfo,
         UpstreamStatus,
     },
     repo::{clone_repo_cancellable, init_repo, open_repo, RepoInfo},
+    sign::{read_commit_template, read_signing_config, SigningConfig},
     stage::{apply_patch, commit, discard_paths, stage_paths, unstage_paths, CommitResult},
     stash::{apply_stash, create_stash, drop_stash, list_stashes, pop_stash, StashEntry},
     state::{continue_cherry_pick, continue_merge, continue_revert, repo_state, RepoState},
@@ -47,11 +45,8 @@ use crate::git::{
         init_submodule, list_submodules, sync_submodules, update_submodule, SubmoduleInfo,
     },
     tags::{create_tag, delete_tag, push_tag},
-    worktree::{
-        add_worktree, list_worktrees, prune_worktrees, remove_worktree, WorktreeInfo,
-    },
+    worktree::{add_worktree, list_worktrees, prune_worktrees, remove_worktree, WorktreeInfo},
 };
-use crate::cancel::CancelRegistry;
 use crate::providers::github::{
     combined_status_for_ref, list_prs_for_branch, CombinedStatus, PullRequest,
 };
@@ -146,11 +141,9 @@ pub async fn cmd_blame(
     file: String,
     rev: Option<String>,
 ) -> AppResult<Vec<BlameLine>> {
-    tauri::async_runtime::spawn_blocking(move || {
-        blame(&PathBuf::from(path), &file, rev.as_deref())
-    })
-    .await
-    .map_err(|e| AppError::Other(format!("join: {e}")))?
+    tauri::async_runtime::spawn_blocking(move || blame(&PathBuf::from(path), &file, rev.as_deref()))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
@@ -161,15 +154,10 @@ pub async fn cmd_commit_message(path: String, commit_id: String) -> AppResult<St
 }
 
 #[tauri::command]
-pub async fn cmd_commit_changes(
-    path: String,
-    commit_id: String,
-) -> AppResult<Vec<FileChange>> {
-    tauri::async_runtime::spawn_blocking(move || {
-        commit_changes(&PathBuf::from(path), &commit_id)
-    })
-    .await
-    .map_err(|e| AppError::Other(format!("join: {e}")))?
+pub async fn cmd_commit_changes(path: String, commit_id: String) -> AppResult<Vec<FileChange>> {
+    tauri::async_runtime::spawn_blocking(move || commit_changes(&PathBuf::from(path), &commit_id))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]
@@ -221,12 +209,7 @@ pub fn cmd_discard_paths(path: String, paths: Vec<String>) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub fn cmd_apply_patch(
-    path: String,
-    patch: String,
-    cached: bool,
-    reverse: bool,
-) -> AppResult<()> {
+pub fn cmd_apply_patch(path: String, patch: String, cached: bool, reverse: bool) -> AppResult<()> {
     apply_patch(&PathBuf::from(path), &patch, cached, reverse)
 }
 
@@ -269,11 +252,7 @@ pub fn cmd_write_git_config(
 }
 
 #[tauri::command]
-pub fn cmd_unset_git_config(
-    path: Option<String>,
-    key: String,
-    global: bool,
-) -> AppResult<()> {
+pub fn cmd_unset_git_config(path: Option<String>, key: String, global: bool) -> AppResult<()> {
     let repo = path.as_deref().map(PathBuf::from);
     unset_config(repo.as_deref(), &key, global)
 }
@@ -300,11 +279,7 @@ pub fn cmd_read_commit_template(path: String) -> AppResult<Option<String>> {
 }
 
 #[tauri::command]
-pub fn cmd_create_branch(
-    path: String,
-    name: String,
-    start_point: Option<String>,
-) -> AppResult<()> {
+pub fn cmd_create_branch(path: String, name: String, start_point: Option<String>) -> AppResult<()> {
     create_branch(&PathBuf::from(path), &name, start_point.as_deref())
 }
 
@@ -510,7 +485,12 @@ pub fn cmd_drop_stash(path: String, ref_name: String) -> AppResult<()> {
 
 #[tauri::command]
 pub fn cmd_merge(path: String, target: String, no_ff: bool, squash: Option<bool>) -> AppResult<()> {
-    merge(&PathBuf::from(path), &target, no_ff, squash.unwrap_or(false))
+    merge(
+        &PathBuf::from(path),
+        &target,
+        no_ff,
+        squash.unwrap_or(false),
+    )
 }
 
 #[tauri::command]
@@ -708,12 +688,7 @@ pub fn cmd_rename_remote(path: String, old_name: String, new_name: String) -> Ap
 }
 
 #[tauri::command]
-pub fn cmd_set_remote_url(
-    path: String,
-    name: String,
-    url: String,
-    push: bool,
-) -> AppResult<()> {
+pub fn cmd_set_remote_url(path: String, name: String, url: String, push: bool) -> AppResult<()> {
     set_remote_url(&PathBuf::from(path), &name, &url, push)
 }
 
@@ -790,11 +765,9 @@ pub async fn cmd_list_conflicts(path: String) -> AppResult<Vec<ConflictEntry>> {
 
 #[tauri::command]
 pub async fn cmd_conflict_sides(path: String, file: String) -> AppResult<ConflictSides> {
-    tauri::async_runtime::spawn_blocking(move || {
-        read_conflict_sides(&PathBuf::from(path), &file)
-    })
-    .await
-    .map_err(|e| AppError::Other(format!("join: {e}")))?
+    tauri::async_runtime::spawn_blocking(move || read_conflict_sides(&PathBuf::from(path), &file))
+        .await
+        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]

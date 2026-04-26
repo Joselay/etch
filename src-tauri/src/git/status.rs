@@ -23,7 +23,10 @@ pub struct RepoStatus {
 }
 
 pub fn status(path: &Path) -> AppResult<RepoStatus> {
-    let out = run_git(path, &["status", "--porcelain=v1", "-z", "--untracked-files=all"])?;
+    let out = run_git(
+        path,
+        &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+    )?;
     let mut staged = Vec::new();
     let mut unstaged = Vec::new();
     let mut untracked = Vec::new();

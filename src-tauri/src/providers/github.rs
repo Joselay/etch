@@ -136,9 +136,7 @@ impl Provider for Github {
             let msg = match (code, authed) {
                 (401 | 403, true) => "github: token rejected (check scopes and expiry)".into(),
                 (401 | 403, false) => "github: authentication required".into(),
-                (404, true) => {
-                    "github: repo not found or token lacks access".into()
-                }
+                (404, true) => "github: repo not found or token lacks access".into(),
                 (404, false) => "github: private repo or not found — add a token".into(),
                 _ => format!("github: api returned {code}"),
             };
@@ -157,7 +155,11 @@ impl Provider for Github {
             std::collections::HashMap::new();
 
         for c in commits {
-            collect(&mut seen_emails, c.commit.author.as_ref(), c.author.as_ref());
+            collect(
+                &mut seen_emails,
+                c.commit.author.as_ref(),
+                c.author.as_ref(),
+            );
             collect(
                 &mut seen_emails,
                 c.commit.committer.as_ref(),
@@ -337,14 +339,8 @@ mod tests {
     #[test]
     fn detects_github_and_skips_others() {
         let gh = Github;
-        assert!(gh
-            .detect("git@github.com:a/b.git")
-            .is_some());
-        assert!(gh
-            .detect("git@github.com-personal:a/b.git")
-            .is_some());
-        assert!(gh
-            .detect("https://gitlab.com/a/b.git")
-            .is_none());
+        assert!(gh.detect("git@github.com:a/b.git").is_some());
+        assert!(gh.detect("git@github.com-personal:a/b.git").is_some());
+        assert!(gh.detect("https://gitlab.com/a/b.git").is_none());
     }
 }

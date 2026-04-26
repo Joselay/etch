@@ -31,8 +31,12 @@ pub fn list_reflog(
     //   %gs reflog subject (e.g. "rebase (start): checkout main")
     let limit_arg;
     let skip_arg;
-    let mut args: Vec<&str> =
-        vec!["log", "-g", "--format=%H%x09%gd%x09%gn%x09%ge%x09%at%x09%gs", "-z"];
+    let mut args: Vec<&str> = vec![
+        "log",
+        "-g",
+        "--format=%H%x09%gd%x09%gn%x09%ge%x09%at%x09%gs",
+        "-z",
+    ];
     if let Some(n) = limit {
         limit_arg = format!("--max-count={n}");
         args.push(&limit_arg);
@@ -137,7 +141,10 @@ mod tests {
     fn parses_action_verbs() {
         assert_eq!(parse_action("commit: hello"), "commit");
         assert_eq!(parse_action("rebase (start): checkout main"), "rebase");
-        assert_eq!(parse_action("checkout: moving from main to feature"), "checkout");
+        assert_eq!(
+            parse_action("checkout: moving from main to feature"),
+            "checkout"
+        );
         assert_eq!(parse_action(""), "");
     }
 }

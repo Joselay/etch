@@ -17,14 +17,7 @@ pub struct StashEntry {
 
 pub fn list_stashes(repo: &Path) -> AppResult<Vec<StashEntry>> {
     // Use a stable separator unlikely to appear in stash metadata.
-    let out = run_git(
-        repo,
-        &[
-            "stash",
-            "list",
-            "--format=%gd%x00%gs",
-        ],
-    )?;
+    let out = run_git(repo, &["stash", "list", "--format=%gd%x00%gs"])?;
     let text = String::from_utf8_lossy(&out.stdout);
     let mut entries = Vec::new();
     for (idx, line) in text.lines().enumerate() {

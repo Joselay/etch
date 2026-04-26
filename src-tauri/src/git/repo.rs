@@ -136,8 +136,8 @@ mod tests {
     #[test]
     fn clone_rejects_flag_like_url() {
         let tmp = tempfile::tempdir().unwrap();
-        let err = clone_repo_cancellable("--upload-pack=evil", &tmp.path().join("x"), None)
-            .unwrap_err();
+        let err =
+            clone_repo_cancellable("--upload-pack=evil", &tmp.path().join("x"), None).unwrap_err();
         assert!(matches!(err, AppError::Other(_)));
     }
 

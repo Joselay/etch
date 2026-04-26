@@ -2,8 +2,17 @@
   "name": "etch",
   "private": true,
   "version": "0.1.0",
-  "description": "A fast, cross-platform Git GUI client for macOS and Windows, built with Tauri.",
+  "description": "A fast, cross-platform Git GUI client for macOS, Windows and Linux, built with Tauri.",
   "license": "MIT",
+  "author": "Joselay",
+  "homepage": "https://github.com/Joselay/etch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Joselay/etch.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Joselay/etch/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

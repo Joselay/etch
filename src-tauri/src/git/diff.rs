@@ -159,8 +159,7 @@ pub fn commit_changes(path: &Path, commit_id: &str) -> AppResult<Vec<FileChange>
     let old_tree = match parent_tree {
         Some(t) => t,
         None => {
-            empty_tree = repo
-                .empty_tree();
+            empty_tree = repo.empty_tree();
             empty_tree
         }
     };
@@ -320,7 +319,11 @@ fn build_file_diff(file_path: &str, old_bytes: &[u8], new_bytes: &[u8]) -> FileD
         build_hunks(&old_str, &new_str)
     };
 
-    let mime = if is_bin { image_mime_for(file_path) } else { None };
+    let mime = if is_bin {
+        image_mime_for(file_path)
+    } else {
+        None
+    };
     let (old_image, new_image) = match mime {
         Some(_) => (encode_image(old_bytes), encode_image(new_bytes)),
         None => (None, None),
@@ -416,10 +419,7 @@ mod tests {
             .expect("workspace")
             .to_path_buf();
         let repo = gix::open(&here).unwrap();
-        let id = repo
-            .head_id()
-            .expect("head id")
-            .to_string();
+        let id = repo.head_id().expect("head id").to_string();
         (here, id)
     }
 
@@ -434,7 +434,9 @@ mod tests {
     fn builds_diff_for_first_change() {
         let (path, id) = head_commit_id();
         let changes = commit_changes(&path, &id).expect("changes");
-        let first = changes.iter().find(|c| !matches!(c.status, ChangeStatus::Deleted));
+        let first = changes
+            .iter()
+            .find(|c| !matches!(c.status, ChangeStatus::Deleted));
         if let Some(c) = first {
             let d = file_diff(&path, &id, &c.path).expect("diff");
             assert_eq!(d.path, c.path);

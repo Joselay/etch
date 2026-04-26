@@ -75,10 +75,7 @@ pub fn blame(repo: &Path, file: &str, rev: Option<&str>) -> AppResult<Vec<BlameL
                 meta_by_sha.insert(current_sha.clone(), current_meta.clone());
                 filling_meta = false;
             }
-            let meta = meta_by_sha
-                .get(&current_sha)
-                .cloned()
-                .unwrap_or_default();
+            let meta = meta_by_sha.get(&current_sha).cloned().unwrap_or_default();
             result.push(BlameLine {
                 commit_id: current_sha.clone(),
                 short_id: current_sha.chars().take(7).collect(),

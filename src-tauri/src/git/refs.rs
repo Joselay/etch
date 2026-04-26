@@ -50,7 +50,9 @@ pub fn list_refs(path: &Path) -> AppResult<RefListing> {
         gix::head::Kind::Detached { target, .. } => (None, Some(target.to_string()), true),
     };
 
-    let platform = repo.references().map_err(|e| AppError::Git(e.to_string()))?;
+    let platform = repo
+        .references()
+        .map_err(|e| AppError::Git(e.to_string()))?;
 
     let mut local = Vec::new();
     for r in platform

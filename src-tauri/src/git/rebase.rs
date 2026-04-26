@@ -135,8 +135,11 @@ pub fn start_interactive_rebase(
     // Validate that each oid resolves inside this repo to avoid a confusing
     // mid-rebase failure when the caller built the list from stale state.
     for e in todo {
-        run_git(repo, &["rev-parse", "--verify", &format!("{}^{{commit}}", e.oid)])
-            .map_err(|_| AppError::Git(format!("unknown commit {}", e.oid)))?;
+        run_git(
+            repo,
+            &["rev-parse", "--verify", &format!("{}^{{commit}}", e.oid)],
+        )
+        .map_err(|_| AppError::Git(format!("unknown commit {}", e.oid)))?;
     }
 
     let work = temp_work_dir()?;
@@ -159,8 +162,8 @@ pub fn start_interactive_rebase(
         .output()
         .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
     if !output.status.success() {
-        let rebase_running = repo.join(".git/rebase-merge").exists()
-            || repo.join(".git/rebase-apply").exists();
+        let rebase_running =
+            repo.join(".git/rebase-merge").exists() || repo.join(".git/rebase-apply").exists();
         if !rebase_running {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             return Err(AppError::Git(if stderr.is_empty() {
@@ -201,8 +204,8 @@ pub fn start_rebase(repo: &Path, onto: &str, upstream: Option<&str>) -> AppResul
     // Pausing on a conflict exits non-zero. Surface stderr only if no rebase
     // is in progress — that indicates a real failure (bad ref, dirty tree).
     if !status.status.success() {
-        let rebase_running = repo.join(".git/rebase-merge").exists()
-            || repo.join(".git/rebase-apply").exists();
+        let rebase_running =
+            repo.join(".git/rebase-merge").exists() || repo.join(".git/rebase-apply").exists();
         if !rebase_running {
             let stderr = String::from_utf8_lossy(&status.stderr).trim().to_string();
             return Err(crate::error::AppError::Git(if stderr.is_empty() {

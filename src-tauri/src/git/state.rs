@@ -80,7 +80,10 @@ pub fn repo_state(repo: &Path) -> AppResult<RepoState> {
 }
 
 fn read_trim(path: &Path) -> Option<String> {
-    std::fs::read_to_string(path).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 fn read_u32(path: &Path) -> Option<u32> {

@@ -41,7 +41,9 @@ pub fn read_config(repo: Option<&Path>, key: &str, global: bool) -> AppResult<Op
     } else if let Some(p) = repo {
         run_git(p, &args)
     } else {
-        return Err(AppError::Other("repo path required when global=false".into()));
+        return Err(AppError::Other(
+            "repo path required when global=false".into(),
+        ));
     };
     match result {
         Ok(out) => {
@@ -75,7 +77,9 @@ pub fn write_config(repo: Option<&Path>, key: &str, value: &str, global: bool) -
     } else if let Some(p) = repo {
         run_git(p, &args)?;
     } else {
-        return Err(AppError::Other("repo path required when global=false".into()));
+        return Err(AppError::Other(
+            "repo path required when global=false".into(),
+        ));
     }
     Ok(())
 }
@@ -94,7 +98,9 @@ pub fn unset_config(repo: Option<&Path>, key: &str, global: bool) -> AppResult<(
     } else if let Some(p) = repo {
         run_git(p, &args)
     } else {
-        return Err(AppError::Other("repo path required when global=false".into()));
+        return Err(AppError::Other(
+            "repo path required when global=false".into(),
+        ));
     };
     // git config --unset returns 5 when the key is already missing; we treat
     // that as success.
@@ -115,7 +121,9 @@ pub fn list_config(repo: Option<&Path>, global: bool) -> AppResult<Vec<ConfigEnt
     } else if let Some(p) = repo {
         run_git(p, &args)?
     } else {
-        return Err(AppError::Other("repo path required when global=false".into()));
+        return Err(AppError::Other(
+            "repo path required when global=false".into(),
+        ));
     };
     // -z separates entries with NUL; key and value within each are separated
     // by newline.

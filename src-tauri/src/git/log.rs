@@ -25,8 +25,7 @@ pub struct CommitSummary {
 //
 // Columns: id | short | subject | authorName | authorEmail | authorTime
 //        | committerName | committerEmail | committerTime | parents
-const LOG_FORMAT: &str =
-    "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
+const LOG_FORMAT: &str = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
 
 fn parse_commit_log_output(text: &str) -> Vec<CommitSummary> {
     let mut result = Vec::new();
@@ -89,8 +88,8 @@ pub fn commit_log(
             .map_err(|e| AppError::Git(e.to_string()))?;
         let mut seen: std::collections::HashSet<gix::ObjectId> = std::collections::HashSet::new();
         let mut tips = Vec::new();
-        if let Some(id) = head_id.clone() {
-            if seen.insert(id.clone()) {
+        if let Some(id) = head_id {
+            if seen.insert(id) {
                 tips.push(id);
             }
         }
@@ -146,14 +145,12 @@ pub fn commit_log(
             .map_err(|e| AppError::Git(e.to_string()))?;
         let msg = commit.message().map_err(|e| AppError::Git(e.to_string()))?;
         let author = commit.author().map_err(|e| AppError::Git(e.to_string()))?;
-        let committer = commit.committer().map_err(|e| AppError::Git(e.to_string()))?;
+        let committer = commit
+            .committer()
+            .map_err(|e| AppError::Git(e.to_string()))?;
 
         if let Some(needle) = needle.as_deref() {
-            let hit = msg
-                .summary()
-                .to_string()
-                .to_lowercase()
-                .contains(needle)
+            let hit = msg.summary().to_string().to_lowercase().contains(needle)
                 || author.name.to_string().to_lowercase().contains(needle)
                 || author.email.to_string().to_lowercase().contains(needle);
             if !hit {
@@ -229,7 +226,9 @@ fn commit_log_shellout(
     }
 
     let out = run_git(path, &args)?;
-    Ok(parse_commit_log_output(&String::from_utf8_lossy(&out.stdout)))
+    Ok(parse_commit_log_output(&String::from_utf8_lossy(
+        &out.stdout,
+    )))
 }
 
 /// Commits in `head..base` (i.e. on `head` but not on `base`). Useful for
@@ -249,7 +248,9 @@ pub fn range_diff(
     let limit_s = limit.to_string();
     let range = format!("{base}..{head}");
     let out = run_git(repo, &["log", "-z", LOG_FORMAT, "-n", &limit_s, &range])?;
-    Ok(parse_commit_log_output(&String::from_utf8_lossy(&out.stdout)))
+    Ok(parse_commit_log_output(&String::from_utf8_lossy(
+        &out.stdout,
+    )))
 }
 
 /// Full commit message (subject + body) for a single commit. Used by the UI
@@ -291,19 +292,12 @@ pub fn commit_log_for_file(
     let out = run_git(
         repo,
         &[
-            "log",
-            "--follow",
-            "-z",
-            LOG_FORMAT,
-            "--skip",
-            &skip_s,
-            "-n",
-            &limit_s,
-            "--",
-            file,
+            "log", "--follow", "-z", LOG_FORMAT, "--skip", &skip_s, "-n", &limit_s, "--", file,
         ],
     )?;
-    Ok(parse_commit_log_output(&String::from_utf8_lossy(&out.stdout)))
+    Ok(parse_commit_log_output(&String::from_utf8_lossy(
+        &out.stdout,
+    )))
 }
 
 #[cfg(test)]
