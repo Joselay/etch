@@ -69,6 +69,7 @@ export function useCommands(): Command[] {
   const toggleAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
   const openSettings = useUiStore((s) => s.openSettings);
   const openShortcuts = useUiStore((s) => s.openShortcuts);
+  const togglePalette = useUiStore((s) => s.togglePalette);
   const wordWrap = useUiStore((s) => s.diffWordWrap);
   const toggleWrap = useUiStore((s) => s.toggleDiffWordWrap);
   const lineNumbers = useUiStore((s) => s.diffLineNumbers);
@@ -128,6 +129,7 @@ export function useCommands(): Command[] {
       group: "Global",
       shortcut: { keys: ["mod", "K"] },
       shortcutOnly: true,
+      run: togglePalette,
     });
 
     // Repository
@@ -341,6 +343,7 @@ export function useCommands(): Command[] {
     pullOp,
     pushOp,
     setView,
+    togglePalette,
     toggleAllBranches,
     toggleLayout,
     toggleLineNumbers,

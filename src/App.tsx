@@ -11,6 +11,7 @@ import { WelcomeScreen } from "@/features/repo/components/welcome-screen";
 import { useInitRepo } from "@/features/repo/hooks/use-clone-repo";
 import { useOpenRepo } from "@/features/repo/hooks/use-open-repo";
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
+import { useCommandShortcuts } from "@/hooks/use-command-shortcuts";
 import { useGlobalRefresh } from "@/hooks/use-global-refresh";
 import { useMenuEvents } from "@/hooks/use-menu-events";
 import { useThemeShortcut } from "@/hooks/use-theme-shortcut";
@@ -31,6 +32,7 @@ function AppInner() {
   useGlobalRefresh();
   useMenuEvents();
   useThemeShortcut();
+  useCommandShortcuts();
 
   const { pickAndOpen } = useOpenRepo();
   const { initAt } = useInitRepo();

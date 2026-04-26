@@ -45,13 +45,6 @@ import { useOpenRepo } from "../hooks/use-open-repo";
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const modKey = isMac ? "⌘" : "Ctrl";
 
-function isTypingTarget(t: EventTarget | null): boolean {
-  if (!(t instanceof HTMLElement)) return false;
-  const tag = t.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  return t.isContentEditable;
-}
-
 export function WelcomeScreen() {
   const { pickAndOpen, openAt, isOpening, error } = useOpenRepo();
   const { initAt, isInitializing } = useInitRepo();
@@ -76,31 +69,6 @@ export function WelcomeScreen() {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (!mod || e.altKey) return;
-      if (isTypingTarget(e.target)) return;
-      const key = e.key.toLowerCase();
-
-      if (key === "o" && !e.shiftKey) {
-        e.preventDefault();
-        void pickAndOpen();
-      } else if (key === "o" && e.shiftKey) {
-        e.preventDefault();
-        setCloneOpen(true);
-      } else if (key === "n" && !e.shiftKey) {
-        e.preventDefault();
-        void pickAndInit();
-      } else if (e.key === ",") {
-        e.preventDefault();
-        openSettings();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [pickAndOpen, pickAndInit, openSettings, setCloneOpen]);
 
   const hasRecents = recents.length > 0;
 
