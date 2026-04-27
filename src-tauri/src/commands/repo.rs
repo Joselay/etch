@@ -324,11 +324,15 @@ pub async fn cmd_fetch(
     token_id: Option<u64>,
 ) -> AppResult<()> {
     let flag = token_id.and_then(|id| cancel.flag_for(id));
-    tauri::async_runtime::spawn_blocking(move || {
+    let result = tauri::async_runtime::spawn_blocking(move || {
         fetch_cancellable(&PathBuf::from(&path), remote.as_deref(), prune, flag)
     })
     .await
-    .map_err(|e| AppError::Other(format!("join: {e}")))?
+    .map_err(|e| AppError::Other(format!("join: {e}")))?;
+    if let Some(id) = token_id {
+        cancel.remove(id);
+    }
+    result
 }
 
 #[tauri::command]
@@ -382,11 +386,15 @@ pub async fn cmd_clone_repo(
 ) -> AppResult<RepoInfo> {
     let dest_buf = PathBuf::from(&dest);
     let flag = token_id.and_then(|id| cancel.flag_for(id));
-    tauri::async_runtime::spawn_blocking(move || {
+    let clone_result = tauri::async_runtime::spawn_blocking(move || {
         clone_repo_cancellable(&url, &PathBuf::from(&dest), flag)
     })
     .await
-    .map_err(|e| AppError::Other(format!("join: {e}")))??;
+    .map_err(|e| AppError::Other(format!("join: {e}")))?;
+    if let Some(id) = token_id {
+        cancel.remove(id);
+    }
+    clone_result?;
     let info = open_repo(&dest_buf)?;
     let watch_path = PathBuf::from(&info.path);
     watch(app, &watcher, &watch_path).map_err(AppError::Other)?;
