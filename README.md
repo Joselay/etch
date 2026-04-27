@@ -32,12 +32,10 @@
 
 ## Screenshots
 
-| | |
-|---|---|
-| ![Commit graph](./docs/assets/screenshot-graph.png) | ![Diff viewer](./docs/assets/screenshot-diff.png) |
-| **Commit graph & history** | **Word-level diff viewer** |
-| ![Staging](./docs/assets/screenshot-staging.png) | ![Command palette](./docs/assets/screenshot-palette.png) |
-| **Line-by-line staging** | **Command palette (`⌘K`)** |
+| | | |
+|---|---|---|
+| ![Commit graph](./docs/assets/screenshot-graph.png) | ![Diff viewer](./docs/assets/screenshot-diff.png) | ![Staging](./docs/assets/screenshot-staging.png) |
+| **Commit graph & history** | **Word-level diff viewer** | **Line-by-line staging** |
 
 ## Features
 
