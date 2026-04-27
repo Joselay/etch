@@ -112,6 +112,30 @@ fn write_sequence_editor_script(dir: &Path) -> AppResult<PathBuf> {
     }
 }
 
+fn rebase_in_progress(repo: &Path) -> bool {
+    repo.join(".git/rebase-merge").exists() || repo.join(".git/rebase-apply").exists()
+}
+
+/// Marker that records the temp work dir holding the GIT_SEQUENCE_EDITOR
+/// script for an in-flight interactive rebase. We can't delete the script
+/// until the rebase actually finishes — git may re-invoke it on --continue
+/// if the user reschedules a reword/edit step — so we persist the path here
+/// and clean it up when continue_rebase / abort_rebase observe completion.
+fn etch_rebase_marker(repo: &Path) -> PathBuf {
+    repo.join(".git").join("etch-rebase-work")
+}
+
+fn cleanup_persisted_work_dir(repo: &Path) {
+    let marker = etch_rebase_marker(repo);
+    if let Ok(content) = std::fs::read_to_string(&marker) {
+        let path = PathBuf::from(content.trim());
+        if path.exists() {
+            let _ = std::fs::remove_dir_all(&path);
+        }
+        let _ = std::fs::remove_file(&marker);
+    }
+}
+
 fn temp_work_dir() -> AppResult<PathBuf> {
     let mut base = std::env::temp_dir();
     let nanos = std::time::SystemTime::now()
@@ -167,20 +191,22 @@ pub fn start_interactive_rebase(
     let output = cmd
         .output()
         .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
-    if !output.status.success() {
-        let rebase_running =
-            repo.join(".git/rebase-merge").exists() || repo.join(".git/rebase-apply").exists();
-        if !rebase_running {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(AppError::Git(if stderr.is_empty() {
-                format!("git exited with status {}", output.status)
-            } else {
-                stderr
-            }));
-        }
+    let still_rebasing = rebase_in_progress(repo);
+    if !output.status.success() && !still_rebasing {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(AppError::Git(if stderr.is_empty() {
+            format!("git exited with status {}", output.status)
+        } else {
+            stderr
+        }));
     }
-    // Best-effort cleanup; ignore errors since the rebase may still reference it.
-    let _ = std::fs::remove_dir_all(&work);
+    if still_rebasing {
+        // Persist the work-dir path so continue_rebase / abort_rebase can
+        // clean it up after the rebase actually finishes.
+        let _ = std::fs::write(etch_rebase_marker(repo), work.to_string_lossy().as_bytes());
+    } else {
+        let _ = std::fs::remove_dir_all(&work);
+    }
     Ok(())
 }
 
@@ -231,13 +257,19 @@ pub fn start_rebase(repo: &Path, onto: &str, upstream: Option<&str>) -> AppResul
 pub fn continue_rebase(repo: &Path) -> AppResult<()> {
     // `GIT_EDITOR=:` skips the commit-message editor when a reword/squash step
     // is the next to apply; the user edits messages through the UI instead.
-    run_with_no_editor(repo, &["rebase", "--continue"])?;
-    Ok(())
+    let result = run_with_no_editor(repo, &["rebase", "--continue"]);
+    if !rebase_in_progress(repo) {
+        cleanup_persisted_work_dir(repo);
+    }
+    result
 }
 
 pub fn abort_rebase(repo: &Path) -> AppResult<()> {
-    run_git(repo, &["rebase", "--abort"])?;
-    Ok(())
+    let result = run_git(repo, &["rebase", "--abort"]).map(|_| ());
+    if !rebase_in_progress(repo) {
+        cleanup_persisted_work_dir(repo);
+    }
+    result
 }
 
 pub fn skip_rebase(repo: &Path) -> AppResult<()> {
@@ -403,6 +435,47 @@ mod tests {
         let text = String::from_utf8_lossy(&log.stdout);
         assert!(!text.contains("drop-me"));
         assert!(text.contains("keep"));
+    }
+
+    #[test]
+    fn interactive_rebase_preserves_work_dir_until_completion() {
+        // Build topic and main with a conflicting change so the interactive
+        // rebase pauses on conflict; verify the GIT_SEQUENCE_EDITOR script
+        // and todo file survive until --abort cleans them up.
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path();
+        run_git(p, &["init", "-q", "-b", "main"]).unwrap();
+        run_git(p, &["config", "user.email", "t@t.com"]).unwrap();
+        run_git(p, &["config", "user.name", "t"]).unwrap();
+        run_git(p, &["config", "commit.gpgsign", "false"]).unwrap();
+        fs::write(p.join("a.txt"), "base\n").unwrap();
+        run_git(p, &["add", "a.txt"]).unwrap();
+        run_git(p, &["commit", "-q", "-m", "base"]).unwrap();
+        run_git(p, &["checkout", "-q", "-b", "topic"]).unwrap();
+        fs::write(p.join("a.txt"), "topic\n").unwrap();
+        run_git(p, &["commit", "-q", "-am", "topic"]).unwrap();
+        run_git(p, &["checkout", "-q", "main"]).unwrap();
+        fs::write(p.join("a.txt"), "main\n").unwrap();
+        run_git(p, &["commit", "-q", "-am", "main"]).unwrap();
+        run_git(p, &["checkout", "-q", "topic"]).unwrap();
+
+        let todo = preview_todo(p, "topic", "main").unwrap();
+        let _ = start_interactive_rebase(p, "main", "main", &todo);
+
+        // Conflict pause -> work dir must be preserved and tracked.
+        let marker = p.join(".git/etch-rebase-work");
+        assert!(marker.exists(), "marker file should record work dir");
+        let work_dir = std::fs::read_to_string(&marker).unwrap();
+        let work_path = std::path::PathBuf::from(work_dir.trim());
+        assert!(work_path.exists(), "work dir should outlive the spawn");
+
+        // Aborting the rebase must clean up both the work dir and the marker.
+        abort_rebase(p).unwrap();
+        assert!(!marker.exists(), "marker should be removed after abort");
+        assert!(
+            !work_path.exists(),
+            "work dir should be removed after abort"
+        );
     }
 
     #[test]
