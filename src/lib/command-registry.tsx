@@ -70,7 +70,6 @@ export function useCommands(): Command[] {
   const toggleAllBranches = useUiStore((s) => s.toggleCommitLogAllBranches);
   const openSettings = useModalStore((s) => s.openSettings);
   const openShortcuts = useModalStore((s) => s.openShortcuts);
-  const togglePalette = useModalStore((s) => s.togglePalette);
   const wordWrap = useUiStore((s) => s.diffWordWrap);
   const toggleWrap = useUiStore((s) => s.toggleDiffWordWrap);
   const lineNumbers = useUiStore((s) => s.diffLineNumbers);
@@ -124,14 +123,9 @@ export function useCommands(): Command[] {
       icon: Settings,
       run: openSettings,
     });
-    out.push({
-      id: "global.palette",
-      label: "Command palette",
-      group: "Global",
-      shortcut: { keys: ["mod", "K"] },
-      shortcutOnly: true,
-      run: togglePalette,
-    });
+    // ⌘K is registered as a native menu accelerator
+    // (src-tauri/src/menu.rs). Registering it here as well caused the
+    // palette to toggle twice on a single keypress.
 
     // Repository
     out.push({
@@ -344,7 +338,6 @@ export function useCommands(): Command[] {
     pullOp,
     pushOp,
     setView,
-    togglePalette,
     toggleAllBranches,
     toggleLayout,
     toggleLineNumbers,
