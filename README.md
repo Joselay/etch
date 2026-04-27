@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/status-early%20access-blue?style=flat-square" alt="Early access" />
   </p>
 
-  <img src="./docs/assets/demo.gif" alt="Etch demo — multi-repo tabs, ⌘K palette, word-level diff" width="100%" />
+  <img src="./docs/assets/etch-demo.gif" alt="Etch demo — multi-repo tabs, ⌘K palette, word-level diff" width="100%" />
 </div>
 
 > ⚠️ **Pre-1.0 alpha.** Etch is built and maintained by a single developer. It works for everyday local development, but you _will_ find bugs in less common workflows. Please use it on repositories you can recover (or that are already pushed to a remote), and [open an issue](https://github.com/Joselay/etch/issues/new/choose) when something breaks — that's the fastest way the project improves.
