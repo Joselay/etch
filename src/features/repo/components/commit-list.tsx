@@ -189,9 +189,11 @@ export function CommitList({ repoPath }: Props) {
     }
   }, [lastVisibleIndex, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Arrow-key navigation through the commit list. Active when the focused
-  // element is the list (or empty body), so it doesn't interfere with the
-  // diff viewer's `j`/`k` or any input field.
+  // Arrow-key navigation through the commit list. Skips when the user is
+  // typing in an input; otherwise fires globally so it works regardless of
+  // which non-editable element happens to hold focus (tab trigger, resize
+  // handle, sidebar item, etc.). WebKit doesn't focus buttons on click, so
+  // gating on focus-in-list would miss the common case.
   useEffect(() => {
     if (rows.length === 0) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -202,10 +204,6 @@ export function CommitList({ repoPath }: Props) {
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable) {
           return;
         }
-        // Scope to the commit list — only consume arrow keys when focus is
-        // inside our scroll container (or nothing in particular is focused).
-        const inList = parentRef.current?.contains(target) || target === document.body;
-        if (!inList) return;
       }
       const key = e.key;
       if (key !== "ArrowDown" && key !== "ArrowUp" && key !== "Home" && key !== "End") return;
