@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
   FolderGit2,
   FolderOpen,
@@ -25,6 +26,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -32,6 +42,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -40,6 +51,7 @@ import { cn } from "@/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
 import { type RepoView, useSelectionStore, useTabSelection } from "@/stores/selection-store";
+import { useCheckout } from "../hooks/use-branch-mutations";
 import { useOpenRepo } from "../hooks/use-open-repo";
 import { useRefs } from "../hooks/use-refs";
 import { useRemoteAuthorsContextValue } from "../hooks/use-remote-authors";
@@ -81,7 +93,9 @@ export function RepoLayout() {
   const remoteAuthorsValue = useRemoteAuthorsContextValue(activeRepo?.path ?? null);
   const openSettings = useModalStore((s) => s.openSettings);
   const { openAt } = useOpenRepo();
+  const checkout = useCheckout(activeRepo?.path ?? "");
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+  const [branchPickerOpen, setBranchPickerOpen] = useState(false);
 
   const dirtyCount =
     (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0);
@@ -200,21 +214,14 @@ export function RepoLayout() {
                 data-tauri-drag-region
                 className="flex h-12 shrink-0 items-center justify-between gap-3 px-4"
               >
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 items-center gap-2">
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       aria-label="Switch repository"
-                      className="group -mx-1.5 flex min-w-0 items-center gap-3 rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent"
+                      className="group -mx-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent"
                     >
                       <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="truncate font-semibold">{name}</span>
-                      <span
-                        className="flex items-center gap-1.5 text-sm text-muted-foreground"
-                        title={branchLabel}
-                      >
-                        <GitBranch className="h-3.5 w-3.5" />
-                        <span className="max-w-[24ch] truncate">{branchLabel}</span>
-                      </span>
                       <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-64">
@@ -256,6 +263,67 @@ export function RepoLayout() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  <Popover open={branchPickerOpen} onOpenChange={setBranchPickerOpen}>
+                    <PopoverTrigger
+                      aria-label="Switch branch"
+                      title={branchLabel}
+                      className="group -mx-1 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent data-[state=open]:text-foreground"
+                    >
+                      <GitBranch className="h-3.5 w-3.5 shrink-0" />
+                      <span className="max-w-[24ch] truncate">{branchLabel}</span>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-72 p-0">
+                      <Command>
+                        <CommandInput placeholder="Switch branch…" />
+                        <CommandList>
+                          <CommandEmpty>No branches.</CommandEmpty>
+                          {(() => {
+                            const locals = refs?.local ?? [];
+                            const current = locals.find((b) => b.isHead);
+                            const others = locals.filter((b) => !b.isHead);
+                            return (
+                              <>
+                                {current ? (
+                                  <CommandGroup heading="Current">
+                                    <CommandItem
+                                      key={current.fullName}
+                                      value={current.name}
+                                      onSelect={() => setBranchPickerOpen(false)}
+                                      className="font-medium"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                      <span className="truncate">{current.name}</span>
+                                    </CommandItem>
+                                  </CommandGroup>
+                                ) : null}
+                                {others.length > 0 ? (
+                                  <>
+                                    {current ? <CommandSeparator /> : null}
+                                    <CommandGroup heading="Switch to">
+                                      {others.map((b) => (
+                                        <CommandItem
+                                          key={b.fullName}
+                                          value={b.name}
+                                          onSelect={() => {
+                                            setBranchPickerOpen(false);
+                                            checkout.mutate({ target: b.name });
+                                          }}
+                                        >
+                                          <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
+                                          <span className="truncate">{b.name}</span>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </>
+                                ) : null}
+                              </>
+                            );
+                          })()}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <RemoteActions repoPath={activeRepo.path} />
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
