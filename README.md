@@ -3,7 +3,7 @@
 
   <h1>Etch</h1>
 
-  <p><strong>A fast, native Git GUI for macOS, Windows & Linux.</strong><br/>
+  <p><strong>A fast, open-source Git GUI for macOS, Windows & Linux.</strong><br/>
   Built to make branching, committing, and reviewing code feel effortless.</p>
 
   <p>
@@ -20,7 +20,7 @@
 
 ## Why Etch?
 
-- **Native and fast.** Built on Tauri 2 — small binary, low memory, no Electron.
+- **Lightweight.** Built on Tauri 2 — small binary, low memory, no bundled Chromium.
 - **Multi-repo tabs.** Switch between repositories the way you switch browser tabs. Sessions persist across restarts.
 - **Keyboard-first.** Navigate the graph, stage hunks, and run any command without leaving the home row. `⌘K` opens the palette.
 - **Honest visuals.** Strict neutral palette, word-level diffs, readable commit graph — designed to disappear when you're working.
