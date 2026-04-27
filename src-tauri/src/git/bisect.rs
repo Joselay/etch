@@ -90,7 +90,11 @@ fn parse_status(repo: &Path, raw_message: &str) -> BisectStatus {
 pub fn bisect_start(repo: &Path, bad: &str, good: &str) -> AppResult<BisectStatus> {
     validate_rev(bad, "bad")?;
     validate_rev(good, "good")?;
-    let out = run_git(repo, &["bisect", "start", "--", bad, good])?;
+    // `git bisect start [<bad> [<good>...]] [--] [<paths>...]` — `--` is the
+    // pathspec separator. Putting refs after `--` made git treat them as paths
+    // to limit the bisect to (matching nothing), so bisect never started.
+    // validate_rev already blocks flag injection on bad/good.
+    let out = run_git(repo, &["bisect", "start", bad, good])?;
     let msg = String::from_utf8_lossy(&out.stdout).to_string();
     Ok(parse_status(repo, &msg))
 }
@@ -125,4 +129,57 @@ pub fn bisect_log(repo: &Path) -> AppResult<Vec<BisectLogEntry>> {
         }
     }
     Ok(entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn init_history_repo() -> tempfile::TempDir {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path();
+        run_git(p, &["init", "-q", "-b", "main"]).unwrap();
+        run_git(p, &["config", "user.email", "t@t.com"]).unwrap();
+        run_git(p, &["config", "user.name", "t"]).unwrap();
+        run_git(p, &["config", "commit.gpgsign", "false"]).unwrap();
+        for i in 0..5 {
+            fs::write(p.join("a.txt"), format!("v{i}\n")).unwrap();
+            run_git(p, &["add", "a.txt"]).unwrap();
+            run_git(p, &["commit", "-q", "-m", &format!("c{i}")]).unwrap();
+        }
+        tmp
+    }
+
+    /// With the previous `--` placement, git treated bad/good as pathspecs
+    /// and the bisect either errored or started without refs; either way
+    /// the bisect log was empty. With the fix, the log records both refs.
+    #[test]
+    fn bisect_start_records_bad_and_good_refs() {
+        let tmp = init_history_repo();
+        let p = tmp.path();
+        let head = String::from_utf8_lossy(&run_git(p, &["rev-parse", "HEAD"]).unwrap().stdout)
+            .trim()
+            .to_string();
+        let first = String::from_utf8_lossy(
+            &run_git(p, &["rev-list", "--max-parents=0", "HEAD"])
+                .unwrap()
+                .stdout,
+        )
+        .trim()
+        .to_string();
+
+        bisect_start(p, &head, &first).unwrap();
+        let log = bisect_log(p).unwrap();
+        assert!(
+            log.iter().any(|e| e.verdict == "bad"),
+            "bisect log should record a 'bad' entry"
+        );
+        assert!(
+            log.iter().any(|e| e.verdict == "good"),
+            "bisect log should record a 'good' entry"
+        );
+        // Cleanup so the repo isn't left in a bisecting state.
+        let _ = run_git(p, &["bisect", "reset"]);
+    }
 }
