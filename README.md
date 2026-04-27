@@ -2,7 +2,7 @@
 
 A fast, cross-platform Git GUI client for macOS, Windows and Linux, built with [Tauri](https://tauri.app/).
 
-Etch is early-stage software. The app is usable for local development, but expect rough edges while the project is pre-1.0.
+> ⚠️ **Pre-1.0 alpha.** Etch is built and maintained by a single developer. It works for everyday local development, but you _will_ find bugs in less common workflows. Please use it on repositories you can recover (or that are already pushed to a remote), and [open an issue](https://github.com/Joselay/etch/issues/new/choose) when something breaks — that's the fastest way the project improves.
 
 ## Features
 
@@ -14,6 +14,20 @@ Etch is early-stage software. The app is usable for local development, but expec
 - Work with tags, stashes, submodules, worktrees, reflog, blame, bisect, and rebase flows
 - Inspect merge conflicts and resolve common conflict states
 - Store provider tokens in the native OS keychain for GitHub integration
+
+## Known limitations
+
+These are areas that are intentionally minimal or untested in v0.1. Reports and PRs welcome:
+
+- **Large repositories** — performance on repos with very large histories (>100k commits) or huge working trees has not been broadly tested.
+- **Git LFS** — basic operations work; less common LFS flows (locks, custom transfer agents) are not exercised.
+- **Submodules** — supported for inspection and common updates; deeply nested or recursive submodule edits may be rough.
+- **Interactive rebase** — works for common reorder/squash/drop flows; exotic todo edits and conflicts mid-rebase may need terminal fallback.
+- **Signed commits / SSH signing** — basic GPG/SSH signing is wired through `git`; advanced key configurations may not surface helpful errors.
+- **Windows path edge cases** — long paths, case-insensitive collisions, and CRLF behaviors are less tested than macOS/Linux.
+- **Monorepos with sparse checkout / partial clone** — not specifically optimized.
+- **No built-in merge conflict editor** — Etch surfaces conflicts and lets you resolve files; complex three-way merging is best done in your editor.
+- **Code signing** — current release builds are not yet code-signed/notarized on macOS or Windows. Expect OS warnings on first launch.
 
 ## Tech Stack
 

@@ -66,5 +66,5 @@ jobs:
           releaseName: "Etch ${{ github.ref_name }}"
           releaseBody: "See the assets below to download and install Etch. See [CHANGELOG.md](./CHANGELOG.md) for details."
           releaseDraft: true
-          prerelease: false
+          prerelease: true
           args: ${{ matrix.args }}

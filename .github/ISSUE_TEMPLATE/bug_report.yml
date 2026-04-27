@@ -56,9 +56,50 @@ body:
       placeholder: macOS 15.2 / Windows 11 23H2 / Ubuntu 24.04
     validations:
       required: true
+  - type: dropdown
+    id: repo-shape
+    attributes:
+      label: Repository shape
+      description: Roughly, what does the affected repository look like?
+      options:
+        - Small (<1k commits, single remote)
+        - Medium (1k–20k commits)
+        - Large (20k–100k commits)
+        - Very large (>100k commits)
+        - Monorepo / sparse-checkout / partial-clone
+        - Uses Git LFS
+        - Uses submodules
+        - Uses worktrees
+        - Other (describe in steps)
+    validations:
+      required: true
+  - type: input
+    id: git-equivalent
+    attributes:
+      label: Equivalent git command (if known)
+      description: If you know the `git` command Etch ran or should have run, paste it here. Hugely helpful for triage.
+      placeholder: git rebase -i HEAD~3
+  - type: dropdown
+    id: fresh-repo
+    attributes:
+      label: Reproducible on a fresh repo?
+      description: Can you reproduce this with a brand-new `git init` repo, or only on a specific repository?
+      options:
+        - "Yes — reproducible on a fresh repo"
+        - "No — only on a specific repository"
+        - "Not sure / haven't tried"
+    validations:
+      required: true
+  - type: checkboxes
+    id: data-loss
+    attributes:
+      label: Data loss
+      description: Did this bug cause loss of work (uncommitted changes, lost commits, etc.)?
+      options:
+        - label: This bug caused or could cause data loss
   - type: textarea
     id: logs
     attributes:
       label: Logs / screenshots
-      description: Paste any relevant logs, error messages, or screenshots.
+      description: Paste any relevant logs, error messages, or screenshots. On macOS/Linux, output from the dev console (View → Toggle Developer Tools) is especially useful.
       render: shell
