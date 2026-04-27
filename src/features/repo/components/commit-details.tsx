@@ -1,10 +1,9 @@
 import { format, formatDistanceToNow } from "date-fns";
-import { Check, ChevronDown, ChevronUp, Copy } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FileIcon } from "@/components/file-icon";
 import { ErrorState } from "@/components/states";
-import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -140,7 +139,6 @@ function CommitHeader({ commit, repoPath }: { commit: CommitSummary; repoPath: s
       .replace(/^\n+/, "")
       .trimEnd();
   })();
-  const [bodyOpen, setBodyOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const copySha = async () => {
@@ -154,21 +152,45 @@ function CommitHeader({ commit, repoPath }: { commit: CommitSummary; repoPath: s
   };
 
   return (
-    <header className="flex flex-col gap-2 border-b bg-muted/30 px-4 py-3">
+    <header className="flex flex-col gap-3 border-b bg-muted/30 px-4 py-4">
       <div className="flex gap-3">
         <AuthorAvatar name={commit.authorName} email={commit.authorEmail} size={36} />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium leading-tight">{commit.summary}</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground/80">{commit.authorName}</span>{" "}
-            <span>&lt;{commit.authorEmail}&gt;</span>
-            {" · "}
+          <div className="text-base font-medium leading-tight">{commit.summary}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            <span>
+              <span className="font-medium text-foreground/80">{commit.authorName}</span>{" "}
+              <span className="text-muted-foreground/70">&lt;{commit.authorEmail}&gt;</span>
+            </span>
+            <span aria-hidden>·</span>
             <time dateTime={authored.toISOString()} title={format(authored, "PPpp")}>
               {formatDistanceToNow(authored, { addSuffix: true })}
             </time>
+            <span aria-hidden>·</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={copySha}
+                  className="group inline-flex h-5 shrink-0 items-center gap-1 rounded border border-transparent bg-transparent px-1 font-mono text-[11px] text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground"
+                  aria-label="Copy full commit SHA"
+                >
+                  <span>{commit.shortId}</span>
+                  {copied ? (
+                    <Check className="h-3 w-3 text-foreground" />
+                  ) : (
+                    <Copy className="h-3 w-3 opacity-60 transition-opacity group-hover:opacity-100" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <span className="font-mono text-[11px]">{commit.id}</span>
+                <span className="ml-2 text-muted-foreground">click to copy</span>
+              </TooltipContent>
+            </Tooltip>
           </div>
           {differentCommitter && (
-            <div className="text-xs text-muted-foreground">
+            <div className="mt-0.5 text-xs text-muted-foreground">
               committed by{" "}
               <span className="font-medium text-foreground/80">{commit.committerName}</span>{" "}
               <time dateTime={committed.toISOString()} title={format(committed, "PPpp")}>
@@ -177,49 +199,63 @@ function CommitHeader({ commit, repoPath }: { commit: CommitSummary; repoPath: s
             </div>
           )}
         </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={copySha}
-              className="group inline-flex h-6 shrink-0 items-center gap-1.5 self-start rounded border border-transparent bg-transparent px-1.5 font-mono text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground"
-              aria-label="Copy full commit SHA"
-            >
-              <span>{commit.shortId}</span>
-              {copied ? (
-                <Check className="h-3 w-3 text-emerald-500" />
-              ) : (
-                <Copy className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            <span className="font-mono text-[11px]">{commit.id}</span>
-            <span className="ml-2 text-muted-foreground">click to copy</span>
-          </TooltipContent>
-        </Tooltip>
       </div>
-      {body && (
-        <div className="ml-[calc(36px+0.75rem)] flex flex-col gap-1">
-          {bodyOpen ? (
-            <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded border bg-background/60 px-3 py-2 font-sans text-xs text-foreground/90">
-              {body}
-            </pre>
-          ) : (
-            <p className="line-clamp-2 text-xs text-muted-foreground">{body}</p>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 w-fit gap-1 px-1.5 text-[11px] text-muted-foreground"
-            onClick={() => setBodyOpen((v) => !v)}
-          >
-            {bodyOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            {bodyOpen ? "Hide message body" : "Show full message"}
-          </Button>
-        </div>
-      )}
+      {body && <CommitBody key={commit.id} body={body} />}
     </header>
+  );
+}
+
+const COLLAPSED_MAX_PX = 60;
+
+function CommitBody({ body }: { body: string }) {
+  const measureRef = useRef<HTMLDivElement | null>(null);
+  const [overflows, setOverflows] = useState(false);
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
+
+  useLayoutEffect(() => {
+    const el = measureRef.current;
+    if (!el) return;
+    const check = () => setOverflows(el.scrollHeight > COLLAPSED_MAX_PX + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div className="ml-[calc(36px+0.75rem)] flex flex-col">
+      <div className="relative">
+        <div
+          ref={measureRef}
+          id={bodyId}
+          className={cn(
+            "whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground transition-[max-height] duration-150",
+            open ? undefined : "overflow-hidden",
+          )}
+          style={open ? undefined : { maxHeight: COLLAPSED_MAX_PX }}
+        >
+          {body}
+        </div>
+        {!open && overflows && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-muted/30 to-transparent"
+          />
+        )}
+      </div>
+      {overflows && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={bodyId}
+          className="mt-1.5 w-fit text-[11px] font-medium text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+        >
+          {open ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
   );
 }
 
