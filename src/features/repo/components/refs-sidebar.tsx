@@ -509,7 +509,12 @@ export function RefsSidebar({ repoPath }: Props) {
               )}
             </Section>
 
-            <Section title="Reflog" icon={<History className="h-3.5 w-3.5" />} defaultOpen={false}>
+            <Section
+              title="Reflog"
+              icon={<History className="h-3.5 w-3.5" />}
+              defaultOpen={false}
+            >
+
               <RefItem
                 label="HEAD"
                 onClick={() => setView("reflog")}
