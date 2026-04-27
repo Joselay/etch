@@ -49,4 +49,17 @@ describe("wordDiffRanges", () => {
     expect(wordDiffRanges("", "abc")).toEqual({ left: [], right: [] });
     expect(wordDiffRanges("abc", "")).toEqual({ left: [], right: [] });
   });
+
+  it("bails out on lines too long to LCS without freezing the UI", () => {
+    // ~600 identifier tokens per side -> 360k DP cells under the old code.
+    // Generate alternating tokens to force lots of mismatches.
+    const a = Array.from({ length: 600 }, (_, i) => `aa${i} `).join("");
+    const b = Array.from({ length: 600 }, (_, i) => `bb${i} `).join("");
+    const start = performance.now();
+    const result = wordDiffRanges(a, b);
+    const elapsed = performance.now() - start;
+    expect(result).toEqual({ left: [], right: [] });
+    // Generous bound: the guard short-circuits before commonMask runs at all.
+    expect(elapsed).toBeLessThan(50);
+  });
 });

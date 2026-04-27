@@ -93,6 +93,11 @@ function rangesFromMask(tokens: string[], common: boolean[]): Range[] {
   return out;
 }
 
+// commonMask allocates an (n+1)*(m+1) DP table. For long minified or generated
+// lines that grows into the millions of cells and freezes the main thread.
+// 10 000 ≈ 100×100 tokens — covers normal source lines and stays under ~1 ms.
+const MAX_LCS_CELLS = 10_000;
+
 export function wordDiffRanges(a: string, b: string): { left: Range[]; right: Range[] } {
   // Skip anything wildly different (the LCS mask would just paint everything).
   if (!a || !b) return { left: [], right: [] };
@@ -101,6 +106,10 @@ export function wordDiffRanges(a: string, b: string): { left: Range[]; right: Ra
   // Cheap escape hatch: if the strings share too few tokens, the highlight
   // becomes visual noise. Bail out and let the line bg do the work.
   if (aTokens.length === 0 || bTokens.length === 0) return { left: [], right: [] };
+  // Memory/time guard: refuse to build a huge DP table on the UI thread.
+  // Falling back to an empty mask just means the whole line stays highlighted
+  // by the row background — same outcome as for radically different lines.
+  if (aTokens.length * bTokens.length > MAX_LCS_CELLS) return { left: [], right: [] };
   const { aCommon, bCommon } = commonMask(aTokens, bTokens);
   return {
     left: rangesFromMask(aTokens, aCommon),
