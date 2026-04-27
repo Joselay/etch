@@ -95,6 +95,7 @@ export function RepoLayout() {
   const { openAt } = useOpenRepo();
   const checkout = useCheckout(activeRepo?.path ?? "");
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+  const confirmCloseActionRef = useRef<HTMLButtonElement>(null);
   const [branchPickerOpen, setBranchPickerOpen] = useState(false);
 
   const dirtyCount =
@@ -398,7 +399,12 @@ export function RepoLayout() {
         <StatusBar />
       </Tabs>
       <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            confirmCloseActionRef.current?.focus();
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Close repository with uncommitted changes?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -411,7 +417,9 @@ export function RepoLayout() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep open</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void clearActive()}>Close anyway</AlertDialogAction>
+            <AlertDialogAction ref={confirmCloseActionRef} onClick={() => void clearActive()}>
+              Close anyway
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
