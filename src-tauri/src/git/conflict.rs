@@ -250,6 +250,9 @@ mod tests {
         run_git(p, &["config", "user.email", "t@t.com"]).unwrap();
         run_git(p, &["config", "user.name", "t"]).unwrap();
         run_git(p, &["config", "commit.gpgsign", "false"]).unwrap();
+        // CI runs on Windows where Git defaults to autocrlf=true, which would
+        // round-trip "main\n" as "main\r\n" on checkout and break assertions.
+        run_git(p, &["config", "core.autocrlf", "false"]).unwrap();
         fs::write(p.join("a.txt"), "base\n").unwrap();
         run_git(p, &["add", "a.txt"]).unwrap();
         run_git(p, &["commit", "-q", "-m", "base"]).unwrap();
@@ -335,8 +338,12 @@ mod tests {
         };
         let err = resolve_with_content(tmp.path(), abs, "evil\n").unwrap_err();
         let msg = format!("{err}");
+        // Windows drive paths trip the `:` check before the absoluteness check;
+        // either rejection is correct.
         assert!(
-            msg.contains("must be relative") || msg.contains("escapes repository root"),
+            msg.contains("must be relative")
+                || msg.contains("escapes repository root")
+                || msg.contains("invalid character in path"),
             "unexpected error: {msg}"
         );
     }

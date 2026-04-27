@@ -91,24 +91,29 @@ fn serialize_todo(todo: &[TodoEntry]) -> String {
 
 /// Write a shell script that copies `$ETCH_TODO_FILE` over its first argument,
 /// then mark it executable (Unix) so git can invoke it as GIT_SEQUENCE_EDITOR.
+/// On Windows we still ship a sh script: git invokes editors via the bundled
+/// sh from Git for Windows, and sh would mangle backslashes in a .cmd path.
 fn write_sequence_editor_script(dir: &Path) -> AppResult<PathBuf> {
+    let script = dir.join("seq-editor.sh");
+    let body = "#!/bin/sh\ncat \"$ETCH_TODO_FILE\" > \"$1\"\n";
+    std::fs::write(&script, body)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let script = dir.join("seq-editor.sh");
-        let body = "#!/bin/sh\ncat \"$ETCH_TODO_FILE\" > \"$1\"\n";
-        std::fs::write(&script, body)?;
         let mut perms = std::fs::metadata(&script)?.permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&script, perms)?;
-        Ok(script)
     }
-    #[cfg(windows)]
-    {
-        let script = dir.join("seq-editor.cmd");
-        let body = "@echo off\r\ncopy /Y \"%ETCH_TODO_FILE%\" \"%1\" >NUL\r\n";
-        std::fs::write(&script, body)?;
-        Ok(script)
+    Ok(script)
+}
+
+/// git on Windows invokes editors through sh, which strips backslashes from
+/// the path. Pass forward slashes so the script actually runs.
+fn shell_path(p: &Path) -> String {
+    if cfg!(windows) {
+        p.to_string_lossy().replace('\\', "/")
+    } else {
+        p.to_string_lossy().into_owned()
     }
 }
 
@@ -179,8 +184,8 @@ pub fn start_interactive_rebase(
 
     let mut cmd = std::process::Command::new("git");
     cmd.env("GIT_EDITOR", ":")
-        .env("GIT_SEQUENCE_EDITOR", &script)
-        .env("ETCH_TODO_FILE", &todo_path)
+        .env("GIT_SEQUENCE_EDITOR", shell_path(&script))
+        .env("ETCH_TODO_FILE", shell_path(&todo_path))
         .arg("-C")
         .arg(repo);
     if onto == upstream {

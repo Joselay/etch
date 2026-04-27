@@ -134,6 +134,8 @@ mod tests {
         run_git(tmp.path(), &["config", "user.email", "t@t.com"]).unwrap();
         run_git(tmp.path(), &["config", "user.name", "t"]).unwrap();
         run_git(tmp.path(), &["config", "commit.gpgsign", "false"]).unwrap();
+        // Avoid Windows autocrlf turning "hello\n" into "hello\r\n" after checkout.
+        run_git(tmp.path(), &["config", "core.autocrlf", "false"]).unwrap();
         fs::write(tmp.path().join("a.txt"), "hello\n").unwrap();
         run_git(tmp.path(), &["add", "a.txt"]).unwrap();
         run_git(tmp.path(), &["commit", "-q", "-m", "init"]).unwrap();
