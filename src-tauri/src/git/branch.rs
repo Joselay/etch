@@ -2,9 +2,13 @@ use std::path::Path;
 
 use crate::error::{AppError, AppResult};
 use crate::git::cli::run_git;
-use crate::git::validate::validate_commit_ish;
+use crate::git::validate::{validate_commit_ish, validate_ref_arg};
 
 pub fn create_branch(repo: &Path, name: &str, start_point: Option<&str>) -> AppResult<()> {
+    validate_ref_arg(name, "branch name")?;
+    if let Some(sp) = start_point {
+        validate_commit_ish(sp)?;
+    }
     let mut args: Vec<&str> = vec!["branch", "--", name];
     if let Some(sp) = start_point {
         args.push(sp);
@@ -14,6 +18,12 @@ pub fn create_branch(repo: &Path, name: &str, start_point: Option<&str>) -> AppR
 }
 
 pub fn checkout(repo: &Path, target: &str, create: bool) -> AppResult<()> {
+    // `git checkout -- <target>` switches to pathspec mode, and
+    // `git checkout -b -- <name>` reorders the new-branch name argument.
+    // We can't safely insert `--`, so rely on `validate_ref_arg` (which
+    // already rejects flag-like names) for injection protection — same
+    // approach `reset` uses below.
+    validate_ref_arg(target, "target")?;
     let mut args: Vec<&str> = vec!["checkout"];
     if create {
         args.push("-b");
@@ -24,19 +34,25 @@ pub fn checkout(repo: &Path, target: &str, create: bool) -> AppResult<()> {
 }
 
 pub fn checkout_tracking(repo: &Path, local_name: &str, upstream: &str) -> AppResult<()> {
+    // Same `--` constraint as `checkout`; use `validate_ref_arg` instead.
+    validate_ref_arg(local_name, "branch name")?;
+    validate_ref_arg(upstream, "upstream")?;
     run_git(repo, &["checkout", "-b", local_name, "--track", upstream])?;
     Ok(())
 }
 
 pub fn delete_branch(repo: &Path, name: &str, force: bool) -> AppResult<()> {
+    validate_ref_arg(name, "branch name")?;
     let flag = if force { "-D" } else { "-d" };
     run_git(repo, &["branch", flag, "--", name])?;
     Ok(())
 }
 
 pub fn rename_branch(repo: &Path, old: &str, new: &str, force: bool) -> AppResult<()> {
+    validate_ref_arg(old, "branch name")?;
+    validate_ref_arg(new, "branch name")?;
     let flag = if force { "-M" } else { "-m" };
-    run_git(repo, &["branch", flag, old, new])?;
+    run_git(repo, &["branch", flag, "--", old, new])?;
     Ok(())
 }
 
@@ -234,6 +250,45 @@ mod tests {
         assert!(merge(tmp.path(), "--exec=evil", false, false).is_err());
         assert!(revert(tmp.path(), "--reset", true).is_err());
         assert!(cherry_pick(tmp.path(), "--abort").is_err());
+    }
+
+    #[test]
+    fn checkout_rejects_flag_like_targets() {
+        let tmp = init_tmp_repo();
+        let p = tmp.path();
+        assert!(checkout(p, "--detach", false).is_err());
+        assert!(checkout(p, "-p", false).is_err());
+        assert!(checkout(p, "--orphan=evil", true).is_err());
+    }
+
+    #[test]
+    fn checkout_tracking_rejects_flag_like_args() {
+        let tmp = init_tmp_repo();
+        let p = tmp.path();
+        assert!(checkout_tracking(p, "--detach", "origin/main").is_err());
+        assert!(checkout_tracking(p, "ok", "--upload-pack=evil").is_err());
+    }
+
+    #[test]
+    fn create_branch_rejects_flag_like_names() {
+        let tmp = init_tmp_repo();
+        assert!(create_branch(tmp.path(), "--force", None).is_err());
+        assert!(create_branch(tmp.path(), "ok", Some("--exec=evil")).is_err());
+    }
+
+    #[test]
+    fn rename_branch_rejects_flag_like_names() {
+        let tmp = init_tmp_repo();
+        let p = tmp.path();
+        create_branch(p, "feature", None).unwrap();
+        assert!(rename_branch(p, "feature", "--force", false).is_err());
+        assert!(rename_branch(p, "--force", "renamed", false).is_err());
+    }
+
+    #[test]
+    fn delete_branch_rejects_flag_like_name() {
+        let tmp = init_tmp_repo();
+        assert!(delete_branch(tmp.path(), "--force", false).is_err());
     }
 
     #[test]
