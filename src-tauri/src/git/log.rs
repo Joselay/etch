@@ -32,22 +32,17 @@ const LOG_FORMAT: &str = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1
 // across calls avoids per-commit String allocation in the search hot path.
 fn contains_lower(scratch: &mut String, haystack: &[u8], needle: &str) -> bool {
     scratch.clear();
-    for ch in std::str::from_utf8(haystack)
-        .unwrap_or_else(|_| {
-            // Rare path for non-UTF-8 author fields; fall back to lossy and
-            // accept the allocation.
-            ""
-        })
-        .chars()
-    {
+    let Ok(text) = std::str::from_utf8(haystack) else {
+        // Rare path for non-UTF-8 author fields; fall back to lossy and
+        // accept the allocation.
+        let lossy = String::from_utf8_lossy(haystack);
+        return lossy.to_lowercase().contains(needle);
+    };
+
+    for ch in text.chars() {
         for lc in ch.to_lowercase() {
             scratch.push(lc);
         }
-    }
-    if scratch.is_empty() && !haystack.is_empty() {
-        // UTF-8 decode failed above; do the lossy path.
-        let lossy = String::from_utf8_lossy(haystack);
-        return lossy.to_lowercase().contains(needle);
     }
     scratch.contains(needle)
 }

@@ -26,6 +26,7 @@ bun run dev
 - `src/` — React frontend (Vite). Feature-based: `src/features/<name>/`.
 - `src-tauri/` — Rust backend. Git operations live in `src-tauri/src/git/`; Tauri commands in `src-tauri/src/commands/`.
 - `src/test/` — Vitest setup + smoke tests.
+- `.github/` — issue templates, pull request template, and GitHub Actions workflows.
 
 See [CLAUDE.md](./CLAUDE.md) for the architectural overview.
 
@@ -41,6 +42,8 @@ See [CLAUDE.md](./CLAUDE.md) for the architectural overview.
    ```
 4. Commit using [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat(repo): …`, `fix(diff): …`, `refactor: …`).
 5. Open a pull request against `main`. Fill in the PR template.
+
+Please keep pull requests focused. If a change touches both UI and Rust command behavior, describe the frontend/backend contract in the PR summary.
 
 ## Code Style
 
@@ -76,6 +79,10 @@ bun run test:ui                       # Vitest UI
 ## Reporting Issues
 
 Use the issue templates. For security issues, see [SECURITY.md](./SECURITY.md) — do not file a public issue.
+
+## Conduct
+
+By participating in this project, you agree to follow the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## License
 
