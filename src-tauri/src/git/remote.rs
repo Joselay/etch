@@ -10,10 +10,17 @@ use crate::git::validate::validate_ref_arg;
 
 /// Read `remote.origin.url` from the repo config. Returns `None` when the
 /// config key is unset or empty (i.e. no `origin` remote is configured).
+/// `git config --get` exits 1 for a missing key, which surfaces as
+/// `AppError::Git`; we map that back to `None` to honor the contract.
 pub fn origin_remote_url(repo: &Path) -> AppResult<Option<String>> {
-    let out = run_git(repo, &["config", "--get", "remote.origin.url"])?;
-    let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    Ok(if url.is_empty() { None } else { Some(url) })
+    match run_git(repo, &["config", "--get", "remote.origin.url"]) {
+        Ok(out) => {
+            let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            Ok(if url.is_empty() { None } else { Some(url) })
+        }
+        Err(AppError::Git(_)) => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -259,6 +266,22 @@ mod tests {
 
         remove_remote(p, "origin").unwrap();
         assert_eq!(list_remotes(p).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn origin_remote_url_returns_none_when_unset() {
+        let tmp = init_tmp_repo();
+        let url = origin_remote_url(tmp.path()).unwrap();
+        assert!(url.is_none());
+    }
+
+    #[test]
+    fn origin_remote_url_returns_url_when_set() {
+        let tmp = init_tmp_repo();
+        let p = tmp.path();
+        add_remote(p, "origin", "https://example.com/repo.git").unwrap();
+        let url = origin_remote_url(p).unwrap();
+        assert_eq!(url, Some("https://example.com/repo.git".to_string()));
     }
 
     #[test]
