@@ -27,7 +27,16 @@ pub fn unstage_paths(repo: &Path, paths: &[String]) -> AppResult<()> {
     if paths.is_empty() {
         return Ok(());
     }
-    let mut args: Vec<&str> = vec!["reset", "--"];
+    // `git reset -- <paths>` requires HEAD to resolve; on a freshly initialised
+    // repo HEAD is unborn and the command surfaces a cryptic error. Fall back
+    // to `git rm --cached`, which removes the path from the index in either
+    // state without touching the working tree.
+    let has_head = run_git(repo, &["rev-parse", "--verify", "HEAD"]).is_ok();
+    let mut args: Vec<&str> = if has_head {
+        vec!["reset", "--"]
+    } else {
+        vec!["rm", "--cached", "--"]
+    };
     for p in paths {
         args.push(p);
     }
@@ -146,6 +155,17 @@ mod tests {
         apply_patch(tmp.path(), patch, true, true).unwrap();
         let out = run_git(tmp.path(), &["diff", "--cached", "--name-only"]).unwrap();
         assert!(out.stdout.is_empty());
+    }
+
+    #[test]
+    fn unstage_works_on_unborn_head() {
+        let tmp = init_tmp_repo();
+        fs::write(tmp.path().join("a.txt"), "hello\n").unwrap();
+        stage_paths(tmp.path(), &["a.txt".to_string()]).unwrap();
+        // No commits yet → HEAD is unborn.
+        unstage_paths(tmp.path(), &["a.txt".to_string()]).unwrap();
+        let out = run_git(tmp.path(), &["diff", "--cached", "--name-only"]).unwrap();
+        assert!(out.stdout.is_empty(), "index should be empty after unstage");
     }
 
     #[test]

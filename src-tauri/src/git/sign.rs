@@ -57,12 +57,20 @@ pub fn read_commit_template(repo: &Path) -> AppResult<Option<String>> {
     };
     let p = std::path::Path::new(&expanded);
     if !p.is_absolute() {
-        // Relative to repo root.
+        // Relative to repo root. Reject paths that escape the repo via `..`
+        // or symlinks — `commit.template` is attacker-controllable when the
+        // repo's `.git/config` is hostile.
         let abs = repo.join(p);
-        if !abs.exists() {
+        let Ok(canonical_repo) = repo.canonicalize() else {
+            return Ok(None);
+        };
+        let Ok(canonical_abs) = abs.canonicalize() else {
+            return Ok(None);
+        };
+        if !canonical_abs.starts_with(&canonical_repo) {
             return Ok(None);
         }
-        return Ok(std::fs::read_to_string(&abs).ok());
+        return Ok(std::fs::read_to_string(&canonical_abs).ok());
     }
     if !p.exists() {
         return Ok(None);

@@ -93,7 +93,7 @@ fn write_one(repo: Option<&Path>, key: &str, value: &str) -> AppResult<()> {
                 let output = Command::new("git")
                     .arg("-C")
                     .arg(r)
-                    .args(["config", "--unset", key])
+                    .args(["config", "--unset", "--", key])
                     .output()
                     .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
                 // Exit 5 = not set; treat as success.
@@ -104,7 +104,7 @@ fn write_one(repo: Option<&Path>, key: &str, value: &str) -> AppResult<()> {
             }
             None => {
                 let output = Command::new("git")
-                    .args(["config", "--global", "--unset", key])
+                    .args(["config", "--global", "--unset", "--", key])
                     .output()
                     .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
                 if !output.status.success() && output.status.code() != Some(5) {
@@ -117,11 +117,11 @@ fn write_one(repo: Option<&Path>, key: &str, value: &str) -> AppResult<()> {
     }
     match repo {
         Some(r) => {
-            run_git(r, &["config", key, value])?;
+            run_git(r, &["config", "--", key, value])?;
         }
         None => {
             let output = Command::new("git")
-                .args(["config", "--global", key, value])
+                .args(["config", "--global", "--", key, value])
                 .output()
                 .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
             if !output.status.success() {

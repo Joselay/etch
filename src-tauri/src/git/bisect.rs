@@ -2,8 +2,9 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 use crate::git::cli::run_git;
+use crate::git::validate::validate_commit_ish;
 
 #[derive(Debug, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -38,16 +39,6 @@ pub struct BisectLogEntry {
     pub oid: String,
     pub verdict: String,
     pub subject: String,
-}
-
-fn validate_rev(s: &str, kind: &str) -> AppResult<()> {
-    if s.is_empty() {
-        return Err(AppError::Other(format!("{kind} must not be empty")));
-    }
-    if s.starts_with('-') {
-        return Err(AppError::Other(format!("invalid {kind}: {s}")));
-    }
-    Ok(())
 }
 
 fn parse_status(repo: &Path, raw_message: &str) -> BisectStatus {
@@ -88,12 +79,12 @@ fn parse_status(repo: &Path, raw_message: &str) -> BisectStatus {
 }
 
 pub fn bisect_start(repo: &Path, bad: &str, good: &str) -> AppResult<BisectStatus> {
-    validate_rev(bad, "bad")?;
-    validate_rev(good, "good")?;
+    validate_commit_ish(bad)?;
+    validate_commit_ish(good)?;
     // `git bisect start [<bad> [<good>...]] [--] [<paths>...]` — `--` is the
     // pathspec separator. Putting refs after `--` made git treat them as paths
     // to limit the bisect to (matching nothing), so bisect never started.
-    // validate_rev already blocks flag injection on bad/good.
+    // validate_commit_ish blocks flag injection on bad/good.
     let out = run_git(repo, &["bisect", "start", bad, good])?;
     let msg = String::from_utf8_lossy(&out.stdout).to_string();
     Ok(parse_status(repo, &msg))

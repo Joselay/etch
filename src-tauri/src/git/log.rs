@@ -23,9 +23,14 @@ pub struct CommitSummary {
 // Format string used by every shell-out path: the columns are NUL-separated
 // records (`-z`) and Unit-Separator (\x1f) columns within each record.
 //
-// Columns: id | short | subject | authorName | authorEmail | authorTime
-//        | committerName | committerEmail | committerTime | parents
-const LOG_FORMAT: &str = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P";
+// Subject (`%s`) is placed last so that splitn(10, '\x1f') absorbs any
+// embedded \x1f bytes in the commit subject into that final column, instead
+// of shifting every later column. Other fields (oids, names, emails, times,
+// parent oids) cannot contain \x1f from any normal git path.
+//
+// Columns: id | short | authorName | authorEmail | authorTime
+//        | committerName | committerEmail | committerTime | parents | subject
+const LOG_FORMAT: &str = "--format=%H%x1f%h%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%P%x1f%s";
 
 // Lowercase `haystack` (UTF-8, lossy) into the reused `scratch` buffer and
 // check for `needle`. `needle` must already be lowercase. Reusing the buffer
@@ -53,21 +58,23 @@ fn parse_commit_log_output(text: &str) -> Vec<CommitSummary> {
         if record.is_empty() {
             continue;
         }
-        let cols: Vec<&str> = record.split('\x1f').collect();
+        // splitn(10) keeps the final field intact even if the subject
+        // contains literal \x1f bytes — see #27.
+        let cols: Vec<&str> = record.splitn(10, '\x1f').collect();
         if cols.len() < 10 {
             continue;
         }
         result.push(CommitSummary {
             id: cols[0].to_string(),
             short_id: cols[1].to_string(),
-            summary: cols[2].to_string(),
-            author_name: cols[3].to_string(),
-            author_email: cols[4].to_string(),
-            timestamp: cols[5].parse().unwrap_or(0),
-            committer_name: cols[6].to_string(),
-            committer_email: cols[7].to_string(),
-            committer_timestamp: cols[8].parse().unwrap_or(0),
-            parent_ids: cols[9].split_whitespace().map(|s| s.to_string()).collect(),
+            author_name: cols[2].to_string(),
+            author_email: cols[3].to_string(),
+            timestamp: cols[4].parse().unwrap_or(0),
+            committer_name: cols[5].to_string(),
+            committer_email: cols[6].to_string(),
+            committer_timestamp: cols[7].parse().unwrap_or(0),
+            parent_ids: cols[8].split_whitespace().map(|s| s.to_string()).collect(),
+            summary: cols[9].to_string(),
         });
     }
     result
@@ -374,6 +381,36 @@ mod tests {
         assert_eq!(commits.len(), 2);
         assert_eq!(commits[0].summary, "second");
         assert_eq!(commits[1].summary, "first");
+    }
+
+    #[test]
+    fn subject_with_unit_separator_does_not_corrupt_columns() {
+        use std::fs;
+        let tmp = tempfile::tempdir().unwrap();
+        run_git(tmp.path(), &["init", "-q", "-b", "main"]).unwrap();
+        run_git(tmp.path(), &["config", "user.email", "t@t.com"]).unwrap();
+        run_git(tmp.path(), &["config", "user.name", "t"]).unwrap();
+        run_git(tmp.path(), &["config", "commit.gpgsign", "false"]).unwrap();
+
+        fs::write(tmp.path().join("a.txt"), "x\n").unwrap();
+        run_git(tmp.path(), &["add", "a.txt"]).unwrap();
+        // Subject contains an embedded \x1f byte — used to shift every later
+        // column on parse (#27).
+        run_git(tmp.path(), &["commit", "-q", "-m", "subject\x1finjected"]).unwrap();
+
+        let commits = commit_log(tmp.path(), 10, 0, None, false, Some("a.txt"), None).unwrap();
+        assert_eq!(commits.len(), 1);
+        let c = &commits[0];
+        assert_eq!(c.author_name, "t");
+        assert_eq!(c.author_email, "t@t.com");
+        assert!(
+            c.timestamp > 0,
+            "timestamp should parse, got {}",
+            c.timestamp
+        );
+        // The embedded \x1f stays inside the subject.
+        assert!(c.summary.contains("subject"));
+        assert!(c.summary.contains("injected"));
     }
 
     #[test]

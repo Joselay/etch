@@ -205,6 +205,7 @@ function CommitHeader({ commit, repoPath }: { commit: CommitSummary; repoPath: s
 }
 
 const COLLAPSED_MAX_PX = 60;
+const EXPANDED_MAX_PX = 240;
 
 function CommitBody({ body }: { body: string }) {
   const measureRef = useRef<HTMLDivElement | null>(null);
@@ -230,9 +231,9 @@ function CommitBody({ body }: { body: string }) {
           id={bodyId}
           className={cn(
             "whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground transition-[max-height] duration-150",
-            open ? undefined : "overflow-hidden",
+            open ? "overflow-y-auto" : "overflow-hidden",
           )}
-          style={open ? undefined : { maxHeight: COLLAPSED_MAX_PX }}
+          style={{ maxHeight: open ? EXPANDED_MAX_PX : COLLAPSED_MAX_PX }}
         >
           {body}
         </div>
