@@ -40,6 +40,11 @@ pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         )
         .separator()
         .item(
+            &MenuItemBuilder::with_id("new-tab", "New Tab")
+                .accelerator("CmdOrCtrl+T")
+                .build(handle)?,
+        )
+        .item(
             &MenuItemBuilder::with_id("close-repo", "Close Repository")
                 .accelerator("CmdOrCtrl+W")
                 .build(handle)?,
@@ -57,16 +62,8 @@ pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .build()?;
 
     let view_menu = SubmenuBuilder::new(handle, "View")
-        .item(
-            &MenuItemBuilder::with_id("view-history", "History")
-                .accelerator("CmdOrCtrl+1")
-                .build(handle)?,
-        )
-        .item(
-            &MenuItemBuilder::with_id("view-changes", "Changes")
-                .accelerator("CmdOrCtrl+2")
-                .build(handle)?,
-        )
+        .item(&MenuItemBuilder::with_id("view-history", "History").build(handle)?)
+        .item(&MenuItemBuilder::with_id("view-changes", "Changes").build(handle)?)
         .separator()
         .item(
             &MenuItemBuilder::with_id("command-palette", "Command Palette…")
@@ -105,14 +102,10 @@ pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         )
         .item(
             &MenuItemBuilder::with_id("new-tag", "New Tag…")
-                .accelerator("CmdOrCtrl+T")
+                .accelerator("CmdOrCtrl+Shift+T")
                 .build(handle)?,
         )
-        .item(
-            &MenuItemBuilder::with_id("create-stash", "Stash Changes…")
-                .accelerator("CmdOrCtrl+S")
-                .build(handle)?,
-        )
+        .item(&MenuItemBuilder::with_id("create-stash", "Stash Changes…").build(handle)?)
         .build()?;
 
     let window_menu = SubmenuBuilder::new(handle, "Window")

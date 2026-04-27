@@ -185,7 +185,6 @@ function CommitHeader({ commit, repoPath }: { commit: CommitSummary; repoPath: s
               </TooltipTrigger>
               <TooltipContent side="top">
                 <span className="font-mono text-[11px]">{commit.id}</span>
-                <span className="ml-2 text-muted-foreground">click to copy</span>
               </TooltipContent>
             </Tooltip>
           </div>

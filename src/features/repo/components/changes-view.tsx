@@ -48,7 +48,7 @@ type Props = { repoPath: string };
 export function ChangesView({ repoPath }: Props) {
   const { data: status, isLoading } = useStatus(repoPath);
   const { data: conflicts } = useConflicts(repoPath);
-  const { stage, unstage, discard, applyPatch } = useStageActions(repoPath);
+  const { stage, unstage, discard, discardMixed, applyPatch } = useStageActions(repoPath);
   const conflictActions = useConflictActions(repoPath);
   const commit = useCommit(repoPath);
   const { data: signing } = useSigningConfig(repoPath);
@@ -65,6 +65,8 @@ export function ChangesView({ repoPath }: Props) {
   const [amend, setAmend] = useState(false);
   const [signOff, setSignOff] = useState(false);
   const [discardTarget, setDiscardTarget] = useState<string | null>(null);
+  const [multiSelected, setMultiSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const [discardAllOpen, setDiscardAllOpen] = useState(false);
   const templateAppliedRef = useRef(false);
   const messageBeforeAmendRef = useRef<string | null>(null);
   const messageRef = useRef(message);
@@ -119,6 +121,74 @@ export function ChangesView({ repoPath }: Props) {
     else if (unstaged.length > 0) selectWorkingFile("unstaged", unstaged[0].path);
     else if (untrackedEntries.length > 0) selectWorkingFile("unstaged", untrackedEntries[0].path);
   }, [status, workingFilePath, staged, unstaged, untrackedEntries, selectWorkingFile]);
+
+  // Drop multi-selected paths that no longer exist (e.g. after a discard or
+  // external file change). Selection covers both unstaged and untracked.
+  useEffect(() => {
+    setMultiSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const valid = new Set<string>();
+      for (const u of unstaged) valid.add(u.path);
+      for (const u of untracked) valid.add(u.path);
+      let changed = false;
+      const next = new Set<string>();
+      for (const p of prev) {
+        if (valid.has(p)) next.add(p);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [unstaged, untracked]);
+
+  // Cmd/Ctrl+A selects every changed/untracked file; Cmd/Ctrl+Shift+D discards
+  // them. Scoped to the changes view because this component only mounts there.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const t = e.target;
+      if (t instanceof HTMLElement) {
+        const tag = t.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable)
+          return;
+      }
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key === "a" && !e.shiftKey) {
+        // Always swallow — falling through to the browser's native select-all
+        // would highlight UI text, which is never what the user wants here.
+        e.preventDefault();
+        const next = new Set<string>();
+        for (const u of unstaged) next.add(u.path);
+        for (const u of untracked) next.add(u.path);
+        setMultiSelected(next);
+      } else if (key === "d" && e.shiftKey) {
+        if (multiSelected.size === 0) return;
+        e.preventDefault();
+        setDiscardAllOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [unstaged, untracked, multiSelected]);
+
+  // Clear multi-selection on any click (inside or outside the file list) and
+  // on Escape. Row clicks already clear-and-reselect via their own onSelect,
+  // so the net effect there is unchanged. Skip while the confirm dialog is
+  // open so clicks inside it don't wipe the selection before discard fires.
+  useEffect(() => {
+    if (multiSelected.size === 0) return;
+    if (discardAllOpen || discardTarget) return;
+    const onMouseDown = () => setMultiSelected(new Set());
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMultiSelected(new Set());
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [multiSelected, discardAllOpen, discardTarget]);
 
   const conflictList = conflicts ?? [];
   const nothingToShow =
@@ -272,7 +342,11 @@ export function ChangesView({ repoPath }: Props) {
                         depth={depth}
                         indentPx={indentPx}
                         selected={workingSide === "unstaged" && workingFilePath === f.path}
-                        onSelect={() => selectWorkingFile("unstaged", f.path)}
+                        multiSelected={multiSelected.has(f.path)}
+                        onSelect={() => {
+                          if (multiSelected.size > 0) setMultiSelected(new Set());
+                          selectWorkingFile("unstaged", f.path);
+                        }}
                         actionLabel="Stage"
                         actionDisabled={stage.isPending}
                         onAction={() => stage.mutate([f.path])}
@@ -330,7 +404,11 @@ export function ChangesView({ repoPath }: Props) {
                         depth={depth}
                         indentPx={indentPx}
                         selected={workingSide === "unstaged" && workingFilePath === f.path}
-                        onSelect={() => selectWorkingFile("unstaged", f.path)}
+                        multiSelected={multiSelected.has(f.path)}
+                        onSelect={() => {
+                          if (multiSelected.size > 0) setMultiSelected(new Set());
+                          selectWorkingFile("unstaged", f.path);
+                        }}
                         actionLabel="Stage"
                         actionDisabled={stage.isPending}
                         onAction={() => stage.mutate([f.path])}
@@ -451,6 +529,63 @@ export function ChangesView({ repoPath }: Props) {
         </section>
       </ResizablePanel>
 
+      <AlertDialog open={discardAllOpen} onOpenChange={setDiscardAllOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Discard {multiSelected.size} file{multiSelected.size === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              All changes to the selected files will be lost and cannot be recovered.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {multiSelected.size > 0 && (
+            <ul className="max-h-[40vh] overflow-auto rounded-md border bg-muted/30 p-1">
+              {[...multiSelected].map((p) => (
+                <li
+                  key={p}
+                  className="flex min-w-0 items-center gap-1.5 px-2 py-1 font-mono text-xs"
+                >
+                  <FileIcon path={p} />
+                  <span className="min-w-0 flex-1 truncate">{p}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={discardMixed.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={discardMixed.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                const untrackedSet = new Set(untracked.map((u) => u.path));
+                const tracked: string[] = [];
+                const untrackedPaths: string[] = [];
+                for (const p of multiSelected) {
+                  if (untrackedSet.has(p)) untrackedPaths.push(p);
+                  else tracked.push(p);
+                }
+                if (tracked.length === 0 && untrackedPaths.length === 0) {
+                  setDiscardAllOpen(false);
+                  return;
+                }
+                discardMixed.mutate(
+                  { tracked, untracked: untrackedPaths },
+                  {
+                    onSuccess: () => {
+                      setMultiSelected(new Set());
+                      setDiscardAllOpen(false);
+                    },
+                  },
+                );
+              }}
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!discardTarget} onOpenChange={(o) => !o && setDiscardTarget(null)}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
@@ -533,6 +668,7 @@ function FileRow({
   depth,
   indentPx,
   selected,
+  multiSelected,
   onSelect,
   actionLabel,
   actionDisabled,
@@ -545,6 +681,7 @@ function FileRow({
   depth: number;
   indentPx: number;
   selected: boolean;
+  multiSelected?: boolean;
   onSelect: () => void;
   actionLabel: string;
   actionDisabled?: boolean;
@@ -557,10 +694,12 @@ function FileRow({
         type="button"
         onClick={onSelect}
         data-selected={selected || undefined}
+        data-multiselected={multiSelected || undefined}
         className={cn(
           "group flex w-full min-w-0 cursor-pointer items-stretch text-left text-[13px]",
           "hover:bg-muted/60",
           "data-[selected]:bg-primary/10 data-[selected]:text-foreground",
+          "data-[multiselected]:bg-primary/10 data-[multiselected]:text-foreground",
         )}
       >
         <TreeIndentGuides depth={depth} indentPx={indentPx} />

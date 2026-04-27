@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Etch is a cross-platform Git GUI client (macOS/Windows/Linux) built with Tauri 2 (Rust core) + Vite + React 19 + TypeScript.
 
+## Issue tracker
+
+Bugs and security findings live as GitHub issues on this repo. Before fixing a bug or making a behavior change, run `gh issue list` to check whether it's already tracked, and put `Closes #N` in the PR body for any matches so the merge auto-closes and links the issue. Don't close issues manually before the PR merges.
+
 ## Commands
 
 - `bun install` — install JS deps (Rust deps resolve on first Tauri build)

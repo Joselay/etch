@@ -47,6 +47,18 @@ pub fn discard_paths(repo: &Path, paths: &[String]) -> AppResult<()> {
     Ok(())
 }
 
+pub fn clean_untracked_paths(repo: &Path, paths: &[String]) -> AppResult<()> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let mut args: Vec<&str> = vec!["clean", "-f", "-d", "--"];
+    for p in paths {
+        args.push(p);
+    }
+    run_git(repo, &args)?;
+    Ok(())
+}
+
 /// Apply a unified diff patch using `git apply`.
 ///
 /// - `cached`: apply to the index (stage). Without, applies to the working tree.

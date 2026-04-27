@@ -2,6 +2,7 @@ export type MenuEventName =
   | "new-repo"
   | "open-repo"
   | "clone-repo"
+  | "new-tab"
   | "close-repo"
   | "settings"
   | "view-history"
@@ -20,6 +21,7 @@ export const MENU_EVENTS: readonly MenuEventName[] = [
   "new-repo",
   "open-repo",
   "clone-repo",
+  "new-tab",
   "close-repo",
   "settings",
   "view-history",

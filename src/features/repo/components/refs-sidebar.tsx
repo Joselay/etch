@@ -400,6 +400,7 @@ export function RefsSidebar({ repoPath }: Props) {
             <Section
               title="Tags"
               icon={<Tag className="h-3.5 w-3.5" />}
+              defaultOpen={false}
               action={
                 <Button
                   size="icon"
@@ -457,6 +458,7 @@ export function RefsSidebar({ repoPath }: Props) {
             <Section
               title="Stashes"
               icon={<Archive className="h-3.5 w-3.5" />}
+              defaultOpen={false}
               action={
                 <Button
                   size="icon"
@@ -507,7 +509,7 @@ export function RefsSidebar({ repoPath }: Props) {
               )}
             </Section>
 
-            <Section title="Reflog" icon={<History className="h-3.5 w-3.5" />}>
+            <Section title="Reflog" icon={<History className="h-3.5 w-3.5" />} defaultOpen={false}>
               <RefItem
                 label="HEAD"
                 onClick={() => setView("reflog")}
@@ -565,14 +567,16 @@ function Section({
   icon,
   action,
   children,
+  defaultOpen = true,
 }: {
   title: string;
   icon: React.ReactNode;
   action?: React.ReactNode;
   children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
   return (
-    <Collapsible defaultOpen className="flex flex-col">
+    <Collapsible defaultOpen={defaultOpen} className="flex flex-col">
       <div className="flex items-center justify-between pr-1">
         <CollapsibleTrigger className="group flex flex-1 items-center gap-1.5 rounded px-1.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/60">
           <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />

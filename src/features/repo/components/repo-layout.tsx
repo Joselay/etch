@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ProviderIcon } from "@/components/provider-icon";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +48,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { dispatchMenuEvent, onMenuEvent } from "@/lib/menu-events";
+import { detectRemoteProvider } from "@/lib/remote-provider";
 import { cn } from "@/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
@@ -55,6 +57,7 @@ import { useCheckout } from "../hooks/use-branch-mutations";
 import { useOpenRepo } from "../hooks/use-open-repo";
 import { useRefs } from "../hooks/use-refs";
 import { useRemoteAuthorsContextValue } from "../hooks/use-remote-authors";
+import { useRemotes } from "../hooks/use-remotes";
 import { RepoWatcher } from "../hooks/use-repo-watcher";
 import { useStatus } from "../hooks/use-status";
 import { RemoteAuthorsContext } from "../remote-authors-context";
@@ -73,11 +76,10 @@ const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(na
 export function RepoLayout() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
   const openRepos = useRepoStore((s) => s.openRepos);
+  const welcomeTabOpen = useRepoStore((s) => s.welcomeTabOpen);
   const setActivePath = useRepoStore((s) => s.setActivePath);
-  const closeRepo = useRepoStore((s) => s.closeRepo);
   const clearActive = useRepoStore((s) => s.clearActive);
   const recentRepos = useRepoStore((s) => s.recentRepos);
-  const removeTab = useSelectionStore((s) => s.removeTab);
   const ensureTab = useSelectionStore((s) => s.ensureTab);
   const setViewFn = useSelectionStore((s) => s.setView);
   const { view } = useTabSelection(activeRepo?.path ?? null);
@@ -90,6 +92,7 @@ export function RepoLayout() {
   }, [activeRepo, ensureTab]);
   const { data: status } = useStatus(activeRepo?.path ?? null);
   const { data: refs } = useRefs(activeRepo?.path ?? null);
+  const { data: remotes } = useRemotes(activeRepo?.path ?? null);
   const remoteAuthorsValue = useRemoteAuthorsContextValue(activeRepo?.path ?? null);
   const openSettings = useModalStore((s) => s.openSettings);
   const { openAt } = useOpenRepo();
@@ -115,6 +118,8 @@ export function RepoLayout() {
   if (!activeRepo) return null;
 
   const name = activeRepo.path.split(/[\\/]/).filter(Boolean).pop() ?? activeRepo.path;
+  const primaryRemoteUrl = (remotes?.find((r) => r.name === "origin") ?? remotes?.[0])?.url ?? null;
+  const headerProvider = primaryRemoteUrl ? detectRemoteProvider(primaryRemoteUrl) : null;
   const branchLabel = refs
     ? refs.isDetached
       ? `detached @ ${refs.headCommitId?.slice(0, 7) ?? "?"}`
@@ -126,11 +131,6 @@ export function RepoLayout() {
   const requestClose = () => {
     if (hasDirtyRef.current) setConfirmCloseOpen(true);
     else void clearActive();
-  };
-
-  const closeTab = async (path: string) => {
-    removeTab(path);
-    await closeRepo(path);
   };
 
   const openOrSwitch = (path: string) => {
@@ -151,57 +151,18 @@ export function RepoLayout() {
       <Tabs
         value={view}
         onValueChange={(v) => setView(v as RepoView)}
-        className="flex h-screen flex-col gap-0 bg-background text-foreground"
+        className="flex h-full min-h-0 flex-1 flex-col gap-0 bg-background text-foreground"
       >
-        {openRepos.length > 1 && (
-          <div
-            data-tauri-drag-region
-            className={cn(
-              "flex h-9 shrink-0 items-stretch gap-px overflow-x-auto border-b bg-muted/30",
-              isMac && "pl-[78px]",
-            )}
-          >
-            {openRepos.map((r) => {
-              const folder = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
-              const isActive = r.path === activeRepo.path;
-              return (
-                <div
-                  key={r.path}
-                  className={cn(
-                    "group/tab relative flex min-w-0 max-w-[220px] items-center gap-1.5 border-r px-2 text-xs",
-                    isActive ? "bg-background" : "hover:bg-background/60",
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setActivePath(r.path)}
-                    className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5"
-                    title={r.path}
-                  >
-                    <FolderGit2 className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{folder}</span>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Close ${folder}`}
-                    onClick={() => void closeTab(r.path)}
-                    className="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/tab:opacity-100 data-[active=true]:opacity-100"
-                    data-active={isActive}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
         <ResizablePanelGroup id="etch:repo-outer:v4" orientation="horizontal" className="flex-1">
           <ResizablePanel id="etch:refs-sidebar:v2" defaultSize="16%" minSize="14%" maxSize="22%">
             <aside className="flex h-full flex-col border-r border-border/60">
               <div
                 data-tauri-drag-region
                 aria-hidden
-                className={cn("h-12 shrink-0", isMac && openRepos.length <= 1 && "pl-[78px]")}
+                className={cn(
+                  "h-12 shrink-0",
+                  isMac && openRepos.length <= 1 && !welcomeTabOpen && "pl-[78px]",
+                )}
               />
               <div className="min-h-0 flex-1 overflow-hidden">
                 <RefsSidebar repoPath={activeRepo.path} />
@@ -221,7 +182,11 @@ export function RepoLayout() {
                       aria-label="Switch repository"
                       className="group -mx-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent"
                     >
-                      <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      {headerProvider && headerProvider.kind !== "unknown" ? (
+                        <ProviderIcon url={primaryRemoteUrl} className="h-4 w-4" />
+                      ) : (
+                        <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
                       <span className="truncate font-semibold">{name}</span>
                       <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
                     </DropdownMenuTrigger>
@@ -231,13 +196,19 @@ export function RepoLayout() {
                           <DropdownMenuLabel>Recent repositories</DropdownMenuLabel>
                           {otherRecents.map((r) => {
                             const folder = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
+                            const known =
+                              !!r.remoteUrl && detectRemoteProvider(r.remoteUrl).kind !== "unknown";
                             return (
                               <DropdownMenuItem
                                 key={r.path}
                                 onSelect={() => openOrSwitch(r.path)}
                                 title={r.path}
                               >
-                                <FolderGit2 className="text-muted-foreground" />
+                                {known ? (
+                                  <ProviderIcon url={r.remoteUrl} className="h-4 w-4" />
+                                ) : (
+                                  <FolderGit2 className="text-muted-foreground" />
+                                )}
                                 <span className="truncate">{folder}</span>
                               </DropdownMenuItem>
                             );

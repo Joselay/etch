@@ -37,7 +37,10 @@ use crate::git::{
     },
     repo::{clone_repo_cancellable, init_repo, open_repo, RepoInfo},
     sign::{read_commit_template, read_signing_config, SigningConfig},
-    stage::{apply_patch, commit, discard_paths, stage_paths, unstage_paths, CommitResult},
+    stage::{
+        apply_patch, clean_untracked_paths, commit, discard_paths, stage_paths, unstage_paths,
+        CommitResult,
+    },
     stash::{apply_stash, create_stash, drop_stash, list_stashes, pop_stash, StashEntry},
     state::{continue_cherry_pick, continue_merge, continue_revert, repo_state, RepoState},
     status::{status, RepoStatus},
@@ -206,6 +209,11 @@ pub fn cmd_unstage_paths(path: String, paths: Vec<String>) -> AppResult<()> {
 #[tauri::command]
 pub fn cmd_discard_paths(path: String, paths: Vec<String>) -> AppResult<()> {
     discard_paths(&PathBuf::from(path), &paths)
+}
+
+#[tauri::command]
+pub fn cmd_clean_untracked_paths(path: String, paths: Vec<String>) -> AppResult<()> {
+    clean_untracked_paths(&PathBuf::from(path), &paths)
 }
 
 #[tauri::command]

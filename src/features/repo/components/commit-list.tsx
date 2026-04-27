@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
+  Check,
   Filter,
   GitCommitVertical,
   Pencil,
@@ -630,9 +631,13 @@ const RefChips = memo(function RefChips({
       items.push(
         <span
           key={`l:${b.fullName}`}
-          className="inline-flex h-[18px] items-center rounded-full px-2 font-semibold text-[10px] text-white leading-none"
-          style={{ backgroundColor: laneColor }}
+          className="inline-flex h-[18px] items-center gap-1 rounded-full px-2 font-bold text-[10px] leading-none"
+          style={{
+            color: laneColor,
+            backgroundColor: `color-mix(in srgb, ${laneColor} 28%, transparent)`,
+          }}
         >
+          <Check className="h-2.5 w-2.5" strokeWidth={3} />
           {b.name}
         </span>,
       );
@@ -641,11 +646,7 @@ const RefChips = memo(function RefChips({
       items.push(
         <span
           key={`l:${b.fullName}`}
-          className="inline-flex h-[18px] items-center rounded-full px-2 font-medium text-[10px] leading-none"
-          style={{
-            color: laneColor,
-            backgroundColor: `color-mix(in srgb, ${laneColor} 22%, transparent)`,
-          }}
+          className="inline-flex h-[18px] items-center rounded-full bg-muted/60 px-2 font-medium text-[10px] text-muted-foreground leading-none"
         >
           {b.name}
         </span>,

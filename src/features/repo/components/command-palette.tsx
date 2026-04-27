@@ -43,9 +43,9 @@ export function CommandPalette() {
   };
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
+    <CommandDialog open={open} onOpenChange={setOpen} className="top-[18%] sm:max-w-2xl">
       <CommandInput placeholder="Search commands, branches…" />
-      <CommandList>
+      <CommandList className="max-h-[60vh]">
         <CommandEmpty>No matches.</CommandEmpty>
         {groups.map(([heading, items], idx) => (
           <div key={heading}>

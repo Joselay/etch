@@ -1,5 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { CheckCircle2, Circle, ExternalLink, GitPullRequest, XCircle } from "lucide-react";
+import { ProviderIcon } from "@/components/provider-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PullRequest } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,10 @@ export function PrPanel({ repoPath }: Props) {
 
   return (
     <div className="flex flex-col gap-1.5 px-2 py-2">
+      <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
+        <ProviderIcon url="https://github.com" className="h-3 w-3" />
+        <span className="font-medium">GitHub</span>
+      </div>
       {list.length > 0 && (
         <div className="flex flex-col gap-1">
           {list.map((pr) => (

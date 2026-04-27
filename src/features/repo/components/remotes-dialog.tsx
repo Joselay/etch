@@ -1,5 +1,6 @@
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ProviderIcon } from "@/components/provider-icon";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -93,12 +94,15 @@ function RemoteRow({ repoPath, remote }: { repoPath: string; remote: RemoteInfo 
   if (!editing) {
     return (
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-medium text-sm">{remote.name}</div>
-          <div className="truncate text-muted-foreground text-xs">{remote.url}</div>
-          {remote.pushUrl && (
-            <div className="truncate text-muted-foreground text-xs">push: {remote.pushUrl}</div>
-          )}
+        <div className="flex min-w-0 items-start gap-2">
+          <ProviderIcon url={remote.url} className="mt-0.5 h-4 w-4" />
+          <div className="min-w-0">
+            <div className="font-medium text-sm">{remote.name}</div>
+            <div className="truncate text-muted-foreground text-xs">{remote.url}</div>
+            {remote.pushUrl && (
+              <div className="truncate text-muted-foreground text-xs">push: {remote.pushUrl}</div>
+            )}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Button

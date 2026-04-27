@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
+import { ProviderIcon } from "@/components/provider-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { detectRemoteProvider } from "@/lib/remote-provider";
 import { cn } from "@/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
@@ -82,7 +84,7 @@ export function WelcomeScreen() {
   );
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
+    <main className="relative h-full min-h-0 flex-1 overflow-y-auto bg-background text-foreground">
       <div
         data-tauri-drag-region
         aria-hidden
@@ -213,7 +215,11 @@ export function WelcomeScreen() {
                     onClick={() => void openAt(r.path)}
                   >
                     <ItemMedia variant="icon">
-                      <FolderGit2 />
+                      {r.remoteUrl && detectRemoteProvider(r.remoteUrl).kind !== "unknown" ? (
+                        <ProviderIcon url={r.remoteUrl} className="h-4 w-4" />
+                      ) : (
+                        <FolderGit2 />
+                      )}
                     </ItemMedia>
                     <ItemContent>
                       <ItemTitle>{r.name}</ItemTitle>

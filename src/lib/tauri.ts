@@ -456,6 +456,8 @@ export const api = {
     invoke<void>("cmd_unstage_paths", { path, paths }),
   discardPaths: (path: string, paths: string[]) =>
     invoke<void>("cmd_discard_paths", { path, paths }),
+  cleanUntrackedPaths: (path: string, paths: string[]) =>
+    invoke<void>("cmd_clean_untracked_paths", { path, paths }),
   applyPatch: (path: string, patch: string, cached: boolean, reverse: boolean) =>
     invoke<void>("cmd_apply_patch", { path, patch, cached, reverse }),
   commit: (

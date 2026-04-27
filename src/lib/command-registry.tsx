@@ -15,6 +15,7 @@ import {
   History,
   Keyboard,
   LogOut,
+  Moon,
   Pencil,
   Plus,
   RefreshCw,
@@ -23,7 +24,9 @@ import {
   Tag,
   WrapText,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useCallback, useMemo } from "react";
+import { toast } from "sonner";
 import { dispatchMenuEvent } from "@/lib/menu-events";
 import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
@@ -79,7 +82,13 @@ export function useCommands(): Command[] {
   const wordHighlight = useUiStore((s) => s.diffWordHighlight);
   const toggleWordHighlight = useUiStore((s) => s.toggleDiffWordHighlight);
 
+  const { resolvedTheme, setTheme } = useTheme();
+
   const activeRepo = useRepoStore((s) => s.activeRepo);
+  const openRepos = useRepoStore((s) => s.openRepos);
+  const welcomeTabOpen = useRepoStore((s) => s.welcomeTabOpen);
+  const setActivePath = useRepoStore((s) => s.setActivePath);
+  const openWelcomeTab = useRepoStore((s) => s.openWelcomeTab);
   const setViewFn = useSelectionStore((s) => s.setView);
 
   const path = activeRepo?.path ?? null;
@@ -123,9 +132,40 @@ export function useCommands(): Command[] {
       icon: Settings,
       run: openSettings,
     });
+    out.push({
+      id: "global.toggleTheme",
+      label: "Toggle dark / light mode",
+      group: "Global",
+      keywords: ["theme", "appearance", "dark", "light"],
+      shortcut: { keys: ["D"] },
+      icon: Moon,
+      run: () => {
+        const next = resolvedTheme === "dark" ? "light" : "dark";
+        setTheme(next);
+        toast.success(`${next === "dark" ? "Dark" : "Light"} mode`, { duration: 1200 });
+      },
+    });
     // ⌘K is registered as a native menu accelerator
-    // (src-tauri/src/menu.rs). Registering it here as well caused the
-    // palette to toggle twice on a single keypress.
+    // (src-tauri/src/menu.rs); listed here as `shortcutOnly` without a `run`
+    // so it surfaces in the shortcuts dialog without double-firing.
+    out.push({
+      id: "palette.open",
+      label: "Command palette",
+      group: "Global",
+      keywords: ["palette", "search", "actions"],
+      shortcut: { keys: ["mod", "K"] },
+      shortcutOnly: true,
+    });
+    // ⌘R / F5 is bound in src/hooks/use-global-refresh.ts — listed here for
+    // discoverability only.
+    out.push({
+      id: "global.refresh",
+      label: "Refresh data",
+      group: "Global",
+      keywords: ["reload", "invalidate"],
+      shortcut: { keys: ["mod", "R"] },
+      shortcutOnly: true,
+    });
 
     // Repository
     out.push({
@@ -152,6 +192,47 @@ export function useCommands(): Command[] {
       icon: GitBranch,
       run: () => dispatchMenuEvent("clone-repo"),
     });
+    out.push({
+      id: "tab.new",
+      label: "New tab",
+      group: "Repository",
+      shortcut: { keys: ["mod", "T"] },
+      icon: Plus,
+      keywords: ["welcome"],
+      run: () => dispatchMenuEvent("new-tab"),
+    });
+
+    // Tab switching: Cmd+1..8 jump to the Nth tab; Cmd+9 jumps to the last
+    // tab (browser convention). Tab order: open repos in array order, then
+    // the welcome tab (if open) at the end.
+    const switchToTab = (index: number) => {
+      const tabs: Array<{ kind: "repo"; path: string } | { kind: "welcome" }> = openRepos.map(
+        (r) => ({ kind: "repo" as const, path: r.path }),
+      );
+      if (welcomeTabOpen) tabs.push({ kind: "welcome" });
+      const target = tabs[index];
+      if (!target) return;
+      if (target.kind === "welcome") void openWelcomeTab();
+      else void setActivePath(target.path);
+    };
+    for (const n of [1, 2, 3, 4, 5, 6, 7, 8] as const) {
+      out.push({
+        id: `tab.switch${n}`,
+        label: `Switch to tab ${n}`,
+        group: "Repository",
+        shortcut: { keys: ["mod", String(n)] },
+        shortcutOnly: true,
+        run: () => switchToTab(n - 1),
+      });
+    }
+    out.push({
+      id: "tab.switchLast",
+      label: "Switch to last tab",
+      group: "Repository",
+      shortcut: { keys: ["mod", "9"] },
+      shortcutOnly: true,
+      run: () => switchToTab(openRepos.length + (welcomeTabOpen ? 1 : 0) - 1),
+    });
     if (activeRepo) {
       out.push({
         id: "repo.close",
@@ -170,7 +251,7 @@ export function useCommands(): Command[] {
         id: "view.history",
         label: "Show history",
         group: "View",
-        shortcut: { keys: ["mod", "1"] },
+        shortcut: { keys: ["H"] },
         icon: History,
         keywords: ["log", "commits"],
         run: () => setView("history"),
@@ -179,7 +260,7 @@ export function useCommands(): Command[] {
         id: "view.changes",
         label: "Show changes",
         group: "View",
-        shortcut: { keys: ["mod", "2"] },
+        shortcut: { keys: ["C"] },
         icon: Pencil,
         keywords: ["staging", "working tree"],
         run: () => setView("changes"),
@@ -188,9 +269,9 @@ export function useCommands(): Command[] {
         id: "view.allBranches",
         label: allBranches ? "Show current branch only" : "Show all branches",
         group: "View",
-        shortcut: { keys: ["mod", "shift", "B"] },
+        shortcut: { keys: ["A"] },
         icon: GitMerge,
-        keywords: ["scope", "log"],
+        keywords: ["scope", "log", "filter"],
         run: toggleAllBranches,
       });
 
@@ -239,7 +320,7 @@ export function useCommands(): Command[] {
         id: "git.newTag",
         label: "New tag…",
         group: "Git",
-        shortcut: { keys: ["mod", "T"] },
+        shortcut: { keys: ["mod", "shift", "T"] },
         icon: Tag,
         run: () => dispatchMenuEvent("new-tag"),
       });
@@ -247,7 +328,7 @@ export function useCommands(): Command[] {
         id: "git.stash",
         label: "Stash changes…",
         group: "Git",
-        shortcut: { keys: ["mod", "S"] },
+        shortcut: { keys: ["S"] },
         icon: Tag,
         keywords: ["save", "wip"],
         run: () => dispatchMenuEvent("create-stash"),
@@ -299,12 +380,56 @@ export function useCommands(): Command[] {
         shortcutOnly: true,
       });
 
+      // Commit list nav — bound in src/features/repo/components/commit-list.tsx
+      out.push({
+        id: "commit.prev",
+        label: "Previous commit",
+        group: "Commit list",
+        shortcut: { keys: ["↑"] },
+        shortcutOnly: true,
+      });
+      out.push({
+        id: "commit.next",
+        label: "Next commit",
+        group: "Commit list",
+        shortcut: { keys: ["↓"] },
+        shortcutOnly: true,
+      });
+      out.push({
+        id: "commit.first",
+        label: "First commit",
+        group: "Commit list",
+        shortcut: { keys: ["Home"] },
+        shortcutOnly: true,
+      });
+      out.push({
+        id: "commit.last",
+        label: "Last commit",
+        group: "Commit list",
+        shortcut: { keys: ["End"] },
+        shortcutOnly: true,
+      });
+
       // Changes
       out.push({
         id: "changes.commit",
         label: "Commit",
         group: "Changes",
         shortcut: { keys: ["mod", "↵"] },
+        shortcutOnly: true,
+      });
+      out.push({
+        id: "changes.selectAll",
+        label: "Select all changed files",
+        group: "Changes",
+        shortcut: { keys: ["mod", "A"] },
+        shortcutOnly: true,
+      });
+      out.push({
+        id: "changes.discardSelected",
+        label: "Discard selected files",
+        group: "Changes",
+        shortcut: { keys: ["mod", "shift", "D"] },
         shortcutOnly: true,
       });
 
@@ -333,10 +458,15 @@ export function useCommands(): Command[] {
     hasUpstream,
     layout,
     lineNumbers,
+    openRepos,
     openSettings,
     openShortcuts,
+    openWelcomeTab,
     pullOp,
     pushOp,
+    resolvedTheme,
+    setActivePath,
+    setTheme,
     setView,
     toggleAllBranches,
     toggleLayout,
@@ -345,6 +475,7 @@ export function useCommands(): Command[] {
     toggleWrap,
     upstream?.ahead,
     upstream?.behind,
+    welcomeTabOpen,
     wordHighlight,
     wordWrap,
   ]);

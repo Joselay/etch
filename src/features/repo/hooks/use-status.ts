@@ -54,6 +54,19 @@ export function useStageActions(path: string | null) {
       },
       onError: toastGitError,
     }),
+    discardMixed: useMutation({
+      mutationFn: async (vars: { tracked: string[]; untracked: string[] }) => {
+        if (vars.tracked.length > 0) await api.discardPaths(path as string, vars.tracked);
+        if (vars.untracked.length > 0)
+          await api.cleanUntrackedPaths(path as string, vars.untracked);
+      },
+      onSuccess: (_d, vars) => {
+        invalidate();
+        const total = vars.tracked.length + vars.untracked.length;
+        toast.success(`Discarded ${total} ${pluralize(total, "file")}`);
+      },
+      onError: toastGitError,
+    }),
     applyPatch: useMutation({
       mutationFn: (vars: { patch: string; cached: boolean; reverse: boolean; toast: string }) =>
         api.applyPatch(path as string, vars.patch, vars.cached, vars.reverse),

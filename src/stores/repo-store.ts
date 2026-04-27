@@ -3,19 +3,22 @@ import { toast } from "sonner";
 import { create } from "zustand";
 import { api, type RepoInfo } from "@/lib/tauri";
 
-type RecentRepo = { path: string; lastOpenedAt: number };
+type RecentRepo = { path: string; lastOpenedAt: number; remoteUrl?: string };
 
 type RepoState = {
   openRepos: RepoInfo[];
   activeRepo: RepoInfo | null;
   recentRepos: RecentRepo[];
   hydrated: boolean;
+  welcomeTabOpen: boolean;
   setActive: (repo: RepoInfo) => Promise<void>;
   setActivePath: (path: string | null) => Promise<void>;
   closeRepo: (path: string) => Promise<void>;
   clearActive: () => Promise<void>;
   hydrate: () => Promise<void>;
   removeRecent: (path: string) => Promise<void>;
+  openWelcomeTab: () => Promise<void>;
+  closeWelcomeTab: () => Promise<void>;
 };
 
 const STORE_FILE = "etch.store.json";
@@ -45,6 +48,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   activeRepo: null,
   recentRepos: [],
   hydrated: false,
+  welcomeTabOpen: false,
 
   hydrate: async () => {
     if (get().hydrated) return;
@@ -94,18 +98,26 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
   setActive: async (repo) => {
     const now = Date.now();
-    const { openRepos, recentRepos } = get();
+    const { openRepos, recentRepos, welcomeTabOpen, activeRepo } = get();
+    // Opening a repo from the welcome tab consumes that tab slot (browser-style).
+    const consumeWelcome = welcomeTabOpen && activeRepo === null;
     const filteredRecents = recentRepos.filter((r) => r.path !== repo.path);
-    const recents = [{ path: repo.path, lastOpenedAt: now }, ...filteredRecents].slice(
-      0,
-      MAX_RECENTS,
-    );
+    const previousRemoteUrl = recentRepos.find((r) => r.path === repo.path)?.remoteUrl;
+    const recents = [
+      { path: repo.path, lastOpenedAt: now, remoteUrl: previousRemoteUrl },
+      ...filteredRecents,
+    ].slice(0, MAX_RECENTS);
     const existsIdx = openRepos.findIndex((r) => r.path === repo.path);
     const next =
       existsIdx >= 0
         ? openRepos.map((r) => (r.path === repo.path ? repo : r))
         : [...openRepos, repo];
-    set({ openRepos: next, activeRepo: repo, recentRepos: recents });
+    set({
+      openRepos: next,
+      activeRepo: repo,
+      recentRepos: recents,
+      welcomeTabOpen: consumeWelcome ? false : welcomeTabOpen,
+    });
     try {
       const store = await getStore();
       await store.set(RECENTS_KEY, recents);
@@ -116,6 +128,23 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       next.map((r) => r.path),
       repo.path,
     );
+    // Best-effort remote URL capture for the welcome screen / switcher provider icon.
+    void (async () => {
+      try {
+        const remotes = await api.listRemotes(repo.path);
+        const url = (remotes.find((r) => r.name === "origin") ?? remotes[0])?.url ?? null;
+        if (!url) return;
+        const current = get().recentRepos;
+        const updated = current.map((r) => (r.path === repo.path ? { ...r, remoteUrl: url } : r));
+        if (updated.some((r, i) => r.remoteUrl !== current[i]?.remoteUrl)) {
+          set({ recentRepos: updated });
+          const store = await getStore();
+          await store.set(RECENTS_KEY, updated);
+        }
+      } catch {
+        // best-effort; missing remote URL just means no provider icon
+      }
+    })();
   },
 
   setActivePath: async (path) => {
@@ -138,11 +167,16 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   },
 
   closeRepo: async (path) => {
-    const { openRepos, activeRepo } = get();
+    const { openRepos, activeRepo, welcomeTabOpen } = get();
     const remaining = openRepos.filter((r) => r.path !== path);
     let nextActive = activeRepo;
     if (activeRepo?.path === path) {
-      nextActive = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+      // Prefer falling back to the welcome tab if it's open; otherwise the most recent repo.
+      nextActive = welcomeTabOpen
+        ? null
+        : remaining.length > 0
+          ? remaining[remaining.length - 1]
+          : null;
     }
     set({ openRepos: remaining, activeRepo: nextActive });
     await persistSession(
@@ -160,6 +194,30 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     const { activeRepo } = get();
     if (!activeRepo) return;
     await get().closeRepo(activeRepo.path);
+  },
+
+  openWelcomeTab: async () => {
+    const { welcomeTabOpen, openRepos } = get();
+    set({ welcomeTabOpen: true, activeRepo: null });
+    if (!welcomeTabOpen) {
+      await persistSession(
+        openRepos.map((r) => r.path),
+        null,
+      );
+    }
+  },
+
+  closeWelcomeTab: async () => {
+    const { welcomeTabOpen, activeRepo, openRepos } = get();
+    if (!welcomeTabOpen) return;
+    // If the welcome tab was the active tab, fall back to the most recent repo.
+    const nextActive =
+      activeRepo ?? (openRepos.length > 0 ? openRepos[openRepos.length - 1] : null);
+    set({ welcomeTabOpen: false, activeRepo: nextActive });
+    await persistSession(
+      openRepos.map((r) => r.path),
+      nextActive?.path ?? null,
+    );
   },
 
   removeRecent: async (path) => {

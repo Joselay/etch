@@ -131,8 +131,8 @@ mod tests {
             .expect("workspace dir");
         let refs = list_refs(here).expect("refs");
         assert!(
-            !refs.local.is_empty() || refs.head_ref.is_some(),
-            "expected at least HEAD or a local branch"
+            refs.head_commit_id.is_some(),
+            "expected HEAD to resolve to a commit"
         );
     }
 }
