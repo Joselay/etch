@@ -25,10 +25,20 @@ Two-process app. Keep the boundary clean:
 
 - **Frontend** (`src/`): React 19 + Vite, entrypoint `src/main.tsx` → `src/App.tsx`. Tailwind v4 via `@tailwindcss/vite` (CSS in `src/App.css`, no `tailwind.config`). Path alias `@/* → src/*`.
   - Feature-based layout: `src/features/<name>/` (currently `repo`, `settings`) owns its components/hooks. Keep route-level files thin.
-  - Shared: `src/stores/` (Zustand: `repo-store`, `selection-store`, `ui-store`, `file-tree-store`, `modal-store`), `src/lib/` (notable: `query-client.ts` wires TanStack Query + sync-storage persister; `tauri.ts` wraps `invoke`; `command-registry.tsx` + `menu-events.ts` + `shortcut-format.tsx` back the command palette / native menu bridge; `highlighter.ts` wraps Shiki; `file-tree.ts` / `file-icon.ts` build tree models and map paths via `material-icon-theme`; `commit-graph.ts` + `lane-colors.ts` lay out and color the log graph; `patch.ts` + `word-diff.ts` + `conflict-markers.ts` parse and present diffs; `avatar.ts` resolves commit avatars; `undo-toast.tsx` wraps Sonner for undoable actions; `utils.ts` = shadcn `cn`), `src/hooks/`, `src/components/`.
+  - Shared: `src/stores/` (Zustand: `repo-store`, `selection-store`, `ui-store`, `file-tree-store`, `modal-store`), `src/hooks/`, `src/components/`, and `src/lib/` — notable modules:
+    - `query-client.ts` — TanStack Query + sync-storage persister
+    - `tauri.ts` — typed wrapper around `invoke`
+    - `command-registry.tsx` + `menu-events.ts` + `shortcut-format.tsx` — command palette / native menu bridge
+    - `highlighter.ts` — Shiki wrapper
+    - `file-tree.ts` / `file-icon.ts` — tree models, paths mapped via `material-icon-theme`
+    - `commit-graph.ts` + `lane-colors.ts` — log graph layout and coloring
+    - `patch.ts` + `word-diff.ts` + `conflict-markers.ts` — diff parsing and presentation
+    - `avatar.ts` — commit avatar resolution
+    - `undo-toast.tsx` — Sonner wrapper for undoable actions
+    - `utils.ts` — shadcn `cn`
   - Server state → TanStack Query (persisted); ephemeral UI/selection state → Zustand. Don't mix.
 - **Rust backend** (`src-tauri/src/`): `main.rs` is a thin entry; `lib.rs::run()` only wires plugins (`tauri-plugin-opener`, `tauri-plugin-dialog`, `tauri-plugin-store` — the last is where persisted settings live), `.manage(WatcherState)`, calls `settings::init(app)` in `.setup`, builds the native menu via `menu::build`, and registers commands via `.invoke_handler(tauri::generate_handler![...])`.
-  - `commands/<domain>.rs` (`repo.rs`, `settings.rs`) — thin `#[tauri::command]` handlers; add new commands here and register them in `lib.rs`, then call via `@tauri-apps/api`'s `invoke`.
+  - `commands/<domain>.rs` (`repo.rs`, `settings.rs`) — thin `#[tauri::command]` handlers. **Adding a new command:** define the handler in `commands/<domain>.rs`, register it in `lib.rs`'s `invoke_handler![...]`, then call from the frontend via the typed `invoke` in `src/lib/tauri.ts`.
   - `git/` — all git operations, one module per domain (`branch`, `blame`, `bisect`, `config`, `conflict`, `diff`, `identity`, `ignore`, `lfs`, `log`, `rebase`, `reflog`, `refs`, `remote`, `repo`, `sign`, `stage`, `stash`, `state`, `status`, `submodule`, `tags`, `validate`, `worktree`). All shell out through `git/cli.rs` (no `git2` crate). New git features go here as a new module, not inline in commands.
   - `providers/` — external provider integrations (e.g. `github.rs`). `settings.rs` — persisted app settings. `watcher.rs` — FS watcher state shared across commands. `cancel.rs` — cooperative cancellation tokens for long-running git ops. `menu.rs` — native app menu + accelerator wiring. `error.rs` — unified error type.
   - Tauri config: `src-tauri/tauri.conf.json`; per-window capabilities: `src-tauri/capabilities/`.
