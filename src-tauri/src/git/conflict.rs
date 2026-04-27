@@ -5,12 +5,22 @@ use serde::{Deserialize, Serialize};
 use crate::error::{AppError, AppResult};
 use crate::git::cli::run_git;
 
-/// Resolve a user-supplied path against a repo root, rejecting anything that
-/// would escape it. Lexical pass catches `..` traversal and absolute paths; the
-/// post-check via `canonicalize` catches symlinks that point outside the repo.
-fn safe_repo_join(repo: &Path, rel: &str) -> AppResult<PathBuf> {
-    if rel.is_empty() || rel.contains('\0') {
-        return Err(AppError::Other("invalid path".into()));
+/// Lexical check that a user-supplied path is repo-relative and contains no
+/// traversal. Rejects absolute paths, `..` escapes, control characters, and
+/// the leading `-` that git would parse as a flag. Returns the normalized
+/// relative form so callers can pass a canonical string to git.
+fn validate_relative_path(rel: &str) -> AppResult<String> {
+    if rel.is_empty() {
+        return Err(AppError::Other("path must not be empty".into()));
+    }
+    if rel
+        .chars()
+        .any(|c| c == '\0' || c == '\n' || c == '\r' || c == ':')
+    {
+        return Err(AppError::Other("invalid character in path".into()));
+    }
+    if rel.starts_with('-') {
+        return Err(AppError::Other("path must not begin with '-'".into()));
     }
     let mut normalized = PathBuf::new();
     let mut depth: usize = 0;
@@ -35,7 +45,10 @@ fn safe_repo_join(repo: &Path, rel: &str) -> AppResult<PathBuf> {
             }
         }
     }
-    Ok(repo.join(normalized))
+    normalized
+        .to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| AppError::Other("path contains invalid UTF-8".into()))
 }
 
 /// After the parent directory exists on disk, verify that resolving symlinks
@@ -146,17 +159,18 @@ fn show_stage(repo: &Path, stage: u8, file: &str) -> Option<String> {
 }
 
 pub fn read_conflict_sides(repo: &Path, file: &str) -> AppResult<ConflictSides> {
-    let target = safe_repo_join(repo, file)?;
-    let base = show_stage(repo, 1, file);
-    let ours = show_stage(repo, 2, file);
-    let theirs = show_stage(repo, 3, file);
+    let normalized = validate_relative_path(file)?;
+    let target = repo.join(&normalized);
+    let base = show_stage(repo, 1, &normalized);
+    let ours = show_stage(repo, 2, &normalized);
+    let theirs = show_stage(repo, 3, &normalized);
     let working = if assert_under_repo(repo, &target).is_ok() {
         std::fs::read_to_string(&target).ok()
     } else {
         None
     };
     Ok(ConflictSides {
-        path: file.to_string(),
+        path: normalized,
         base,
         ours,
         theirs,
@@ -165,26 +179,28 @@ pub fn read_conflict_sides(repo: &Path, file: &str) -> AppResult<ConflictSides> 
 }
 
 pub fn resolve_with(repo: &Path, file: &str, side: ResolveSide) -> AppResult<()> {
+    let normalized = validate_relative_path(file)?;
     match side {
         ResolveSide::Ours => {
-            run_git(repo, &["checkout", "--ours", "--", file])?;
+            run_git(repo, &["checkout", "--ours", "--", &normalized])?;
         }
         ResolveSide::Theirs => {
-            run_git(repo, &["checkout", "--theirs", "--", file])?;
+            run_git(repo, &["checkout", "--theirs", "--", &normalized])?;
         }
     }
-    run_git(repo, &["add", "--", file])?;
+    run_git(repo, &["add", "--", &normalized])?;
     Ok(())
 }
 
 pub fn resolve_with_content(repo: &Path, file: &str, content: &str) -> AppResult<()> {
-    let target = safe_repo_join(repo, file)?;
+    let normalized = validate_relative_path(file)?;
+    let target = repo.join(&normalized);
     if let Some(parent) = target.parent() {
         std::fs::create_dir_all(parent)?;
     }
     assert_under_repo(repo, &target)?;
     std::fs::write(&target, content)?;
-    run_git(repo, &["add", "--", file])?;
+    run_git(repo, &["add", "--", &normalized])?;
     Ok(())
 }
 
@@ -192,8 +208,12 @@ pub fn mark_resolved(repo: &Path, files: &[String]) -> AppResult<()> {
     if files.is_empty() {
         return Ok(());
     }
+    let normalized: Vec<String> = files
+        .iter()
+        .map(|f| validate_relative_path(f))
+        .collect::<AppResult<_>>()?;
     let mut args: Vec<&str> = vec!["add", "--"];
-    for f in files {
+    for f in &normalized {
         args.push(f);
     }
     run_git(repo, &args)?;
@@ -204,10 +224,14 @@ pub fn unmark(repo: &Path, files: &[String]) -> AppResult<()> {
     if files.is_empty() {
         return Ok(());
     }
+    let normalized: Vec<String> = files
+        .iter()
+        .map(|f| validate_relative_path(f))
+        .collect::<AppResult<_>>()?;
     // Reset the index entry back to the conflicted state: `reset -- <file>`
     // restores all three stages from HEAD/MERGE_HEAD when the repo is mid-merge.
     let mut args: Vec<&str> = vec!["reset", "--"];
-    for f in files {
+    for f in &normalized {
         args.push(f);
     }
     run_git(repo, &args)?;
@@ -322,6 +346,28 @@ mod tests {
         let tmp = init_conflict_repo();
         let err = resolve_with_content(tmp.path(), "sub/../../escape.txt", "evil\n").unwrap_err();
         assert!(format!("{err}").contains("escapes repository root"));
+    }
+
+    #[test]
+    fn read_conflict_sides_rejects_traversal() {
+        let tmp = init_conflict_repo();
+        assert!(read_conflict_sides(tmp.path(), "../escape.txt").is_err());
+    }
+
+    #[test]
+    fn read_conflict_sides_rejects_colon_revision_syntax() {
+        let tmp = init_conflict_repo();
+        // Without validation, `file=":HEAD:foo"` would let an attacker turn
+        // the show_stage spec into `:N::HEAD:foo` and read arbitrary objects.
+        assert!(read_conflict_sides(tmp.path(), "HEAD:.git/config").is_err());
+        assert!(read_conflict_sides(tmp.path(), ":1:a.txt").is_err());
+    }
+
+    #[test]
+    fn resolve_with_rejects_traversal_and_flag_paths() {
+        let tmp = init_conflict_repo();
+        assert!(resolve_with(tmp.path(), "../escape.txt", ResolveSide::Ours).is_err());
+        assert!(resolve_with(tmp.path(), "-p", ResolveSide::Ours).is_err());
     }
 
     #[test]
