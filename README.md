@@ -18,10 +18,6 @@
 
 > ⚠️ **Pre-1.0 alpha.** Etch is built and maintained by a single developer. It works for everyday local development, but you _will_ find bugs in less common workflows. Please use it on repositories you can recover (or that are already pushed to a remote), and [open an issue](https://github.com/Joselay/etch/issues/new/choose) when something breaks — that's the fastest way the project improves.
 
-<div align="center">
-  <img src="./docs/assets/demo.gif" alt="Multi-repo tabs, keyboard-first navigation, word-level diffs" width="100%" />
-</div>
-
 ## Why Etch?
 
 - **Native and fast.** Built on Tauri 2 — small binary, low memory, no Electron.
