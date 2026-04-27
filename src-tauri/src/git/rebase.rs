@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{AppError, AppResult};
 use crate::git::cli::run_git;
+use crate::git::validate::validate_commit_ish;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -40,6 +41,8 @@ pub struct TodoEntry {
 /// Build the default todo list for `git rebase -i <upstream>` (or `--onto`) —
 /// the commits reachable from `from` but not `onto`, in chronological order.
 pub fn preview_todo(repo: &Path, from: &str, onto: &str) -> AppResult<Vec<TodoEntry>> {
+    validate_commit_ish(from)?;
+    validate_commit_ish(onto)?;
     let range = format!("{onto}..{from}");
     let out = run_git(
         repo,
@@ -129,12 +132,15 @@ pub fn start_interactive_rebase(
     upstream: &str,
     todo: &[TodoEntry],
 ) -> AppResult<()> {
+    validate_commit_ish(onto)?;
+    validate_commit_ish(upstream)?;
     if todo.is_empty() {
         return Err(AppError::Git("todo list is empty".into()));
     }
     // Validate that each oid resolves inside this repo to avoid a confusing
     // mid-rebase failure when the caller built the list from stale state.
     for e in todo {
+        validate_commit_ish(&e.oid)?;
         run_git(
             repo,
             &["rev-parse", "--verify", &format!("{}^{{commit}}", e.oid)],
@@ -183,6 +189,10 @@ pub fn start_interactive_rebase(
 /// Returns Ok even when the rebase pauses on a conflict; the caller inspects
 /// repo_state to tell whether it ran to completion or stopped mid-way.
 pub fn start_rebase(repo: &Path, onto: &str, upstream: Option<&str>) -> AppResult<()> {
+    validate_commit_ish(onto)?;
+    if let Some(up) = upstream {
+        validate_commit_ish(up)?;
+    }
     let status = if let Some(up) = upstream {
         std::process::Command::new("git")
             .env("GIT_EDITOR", ":")
@@ -393,6 +403,37 @@ mod tests {
         let text = String::from_utf8_lossy(&log.stdout);
         assert!(!text.contains("drop-me"));
         assert!(text.contains("keep"));
+    }
+
+    #[test]
+    fn rejects_flag_injection_in_refs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path();
+        run_git(p, &["init", "-q", "-b", "main"]).unwrap();
+        run_git(p, &["config", "user.email", "t@t.com"]).unwrap();
+        run_git(p, &["config", "user.name", "t"]).unwrap();
+        run_git(p, &["config", "commit.gpgsign", "false"]).unwrap();
+        fs::write(p.join("a.txt"), "1\n").unwrap();
+        run_git(p, &["add", "a.txt"]).unwrap();
+        run_git(p, &["commit", "-q", "-m", "base"]).unwrap();
+
+        assert!(start_rebase(p, "--exec=touch /tmp/pwned", None).is_err());
+        assert!(start_rebase(p, "main", Some("--root")).is_err());
+        assert!(preview_todo(p, "--exec=evil", "main").is_err());
+        assert!(preview_todo(p, "main", "--exec=evil").is_err());
+        let bogus_todo = vec![TodoEntry {
+            action: TodoAction::Pick,
+            oid: "main".into(),
+            summary: "x".into(),
+        }];
+        assert!(start_interactive_rebase(p, "--exec=evil", "main", &bogus_todo).is_err());
+        assert!(start_interactive_rebase(p, "main", "--exec=evil", &bogus_todo).is_err());
+        let evil_oid_todo = vec![TodoEntry {
+            action: TodoAction::Pick,
+            oid: "--exec=evil".into(),
+            summary: "x".into(),
+        }];
+        assert!(start_interactive_rebase(p, "main", "main", &evil_oid_todo).is_err());
     }
 
     #[test]
