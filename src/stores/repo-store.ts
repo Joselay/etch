@@ -1,4 +1,5 @@
 import { load, type Store } from "@tauri-apps/plugin-store";
+import { toast } from "sonner";
 import { create } from "zustand";
 import { api, type RepoInfo } from "@/lib/tauri";
 
@@ -10,7 +11,7 @@ type RepoState = {
   recentRepos: RecentRepo[];
   hydrated: boolean;
   setActive: (repo: RepoInfo) => Promise<void>;
-  setActivePath: (path: string | null) => void;
+  setActivePath: (path: string | null) => Promise<void>;
   closeRepo: (path: string) => Promise<void>;
   clearActive: () => Promise<void>;
   hydrate: () => Promise<void>;
@@ -19,12 +20,24 @@ type RepoState = {
 
 const STORE_FILE = "etch.store.json";
 const RECENTS_KEY = "recentRepos";
+const OPEN_PATHS_KEY = "openRepoPaths";
+const ACTIVE_PATH_KEY = "activeRepoPath";
 const MAX_RECENTS = 10;
 
 let storePromise: Promise<Store> | null = null;
 const getStore = () => {
   if (!storePromise) storePromise = load(STORE_FILE, { autoSave: true, defaults: {} });
   return storePromise;
+};
+
+const persistSession = async (openPaths: string[], activePath: string | null) => {
+  try {
+    const store = await getStore();
+    await store.set(OPEN_PATHS_KEY, openPaths);
+    await store.set(ACTIVE_PATH_KEY, activePath);
+  } catch (err) {
+    console.error("Failed to persist session", err);
+  }
 };
 
 export const useRepoStore = create<RepoState>((set, get) => ({
@@ -38,7 +51,41 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     try {
       const store = await getStore();
       const recents = (await store.get<RecentRepo[]>(RECENTS_KEY)) ?? [];
-      set({ recentRepos: recents, hydrated: true });
+      const openPaths = (await store.get<string[]>(OPEN_PATHS_KEY)) ?? [];
+      const activePath = (await store.get<string | null>(ACTIVE_PATH_KEY)) ?? null;
+
+      const results = await Promise.all(
+        openPaths.map(async (path) => {
+          try {
+            return await api.openRepo(path);
+          } catch (err) {
+            console.warn(`Skipping unavailable repo: ${path}`, err);
+            return null;
+          }
+        }),
+      );
+      const restored = results.filter((r): r is RepoInfo => r !== null);
+      const skipped = openPaths.length - restored.length;
+      if (skipped > 0) {
+        toast.warning(
+          `${skipped} repo${skipped === 1 ? "" : "s"} could not be reopened (moved or deleted).`,
+        );
+      }
+      const active =
+        restored.find((r) => r.path === activePath) ??
+        (restored.length > 0 ? restored[restored.length - 1] : null);
+
+      set({
+        recentRepos: recents,
+        openRepos: restored,
+        activeRepo: active,
+        hydrated: true,
+      });
+
+      const restoredPaths = restored.map((r) => r.path);
+      if (restoredPaths.length !== openPaths.length || (active?.path ?? null) !== activePath) {
+        await persistSession(restoredPaths, active?.path ?? null);
+      }
     } catch (err) {
       console.error("Failed to hydrate repo store", err);
       set({ hydrated: true });
@@ -65,17 +112,29 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     } catch (err) {
       console.error("Failed to persist recent repos", err);
     }
+    await persistSession(
+      next.map((r) => r.path),
+      repo.path,
+    );
   },
 
-  setActivePath: (path) => {
+  setActivePath: async (path) => {
     const { openRepos } = get();
     if (!path) {
       set({ activeRepo: null });
+      await persistSession(
+        openRepos.map((r) => r.path),
+        null,
+      );
       return;
     }
     const repo = openRepos.find((r) => r.path === path);
     if (!repo) return;
     set({ activeRepo: repo });
+    await persistSession(
+      openRepos.map((r) => r.path),
+      repo.path,
+    );
   },
 
   closeRepo: async (path) => {
@@ -86,6 +145,10 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       nextActive = remaining.length > 0 ? remaining[remaining.length - 1] : null;
     }
     set({ openRepos: remaining, activeRepo: nextActive });
+    await persistSession(
+      remaining.map((r) => r.path),
+      nextActive?.path ?? null,
+    );
     try {
       await api.closeRepo(path);
     } catch (err) {

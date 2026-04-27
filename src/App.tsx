@@ -26,8 +26,14 @@ const CACHE_BUSTER = "v1";
 
 function AppInner() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
+  const hydrated = useRepoStore((s) => s.hydrated);
+  const hydrate = useRepoStore((s) => s.hydrate);
   const cloneOpen = useModalStore((s) => s.cloneOpen);
   const setCloneOpen = useModalStore((s) => s.setCloneOpen);
+
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
 
   useGlobalRefresh();
   useMenuEvents();
@@ -57,6 +63,10 @@ function AppInner() {
       for (const off of offs) off();
     };
   }, [pickAndOpen, pickAndInit, setCloneOpen]);
+
+  if (!hydrated) {
+    return null;
+  }
 
   return (
     <>
