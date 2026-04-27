@@ -26,36 +26,12 @@
 - **Honest visuals.** Strict neutral palette, word-level diffs, readable commit graph — designed to disappear when you're working.
 - **Open source.** MIT-licensed, no telemetry, no account required.
 
-## Screenshots
-
-| | | |
-|---|---|---|
-| ![Commit graph](./docs/assets/screenshot-graph.png) | ![Diff viewer](./docs/assets/screenshot-diff.png) | ![Staging](./docs/assets/screenshot-staging.png) |
-| **Commit graph & history** | **Word-level diff viewer** | **Line-by-line staging** |
-
 ## Features
 
-**Browse & inspect**
-- Commit history with a readable lane-colored graph
-- Word-level diffs with syntax highlighting
-- Blame, bisect, and reflog views
-- Inspect merge conflicts and resolve common conflict states
-
-**Stage & commit**
-- Stage, unstage, discard, and patch-apply by line or hunk
-- Signed commits via GPG/SSH (where configured)
-- Amend, fixup, and reword from the history view
-
-**Branch & sync**
-- Create, rename, checkout, delete, and track branches
-- Tags, stashes, and worktrees
-- Fetch, pull, push, and manage remotes
-- GitHub provider tokens stored in the native OS keychain
-
-**Advanced**
-- Interactive rebase (reorder, squash, drop)
-- Submodule inspection and common updates
-- Multi-repository tabs that persist across app restarts
+- **Browse:** lane-colored commit graph, word-level diffs with syntax highlighting, blame, bisect, reflog, conflict inspection.
+- **Stage:** line- and hunk-level staging, GPG/SSH signed commits, amend / fixup / reword from the history view.
+- **Branch & sync:** branches, tags, stashes, worktrees, remotes; GitHub tokens stored in the native OS keychain.
+- **Advanced:** interactive rebase (reorder / squash / drop), submodule inspection, multi-repo tabs that persist across restarts.
 
 ## Install
 
@@ -78,20 +54,6 @@ Then re-open Etch normally. You only need to do this once per install.
 On Windows, SmartScreen may show _"Windows protected your PC"_. Click **More info → Run anyway**. Notarized/signed builds are planned before 1.0.
 
 To build from source, see [Development](#development).
-
-## Known limitations
-
-These are areas that are intentionally minimal or untested in v0.1. Reports and PRs welcome:
-
-- **Large repositories** — performance on repos with very large histories (>100k commits) or huge working trees has not been broadly tested.
-- **Git LFS** — basic operations work; less common LFS flows (locks, custom transfer agents) are not exercised.
-- **Submodules** — supported for inspection and common updates; deeply nested or recursive submodule edits may be rough.
-- **Interactive rebase** — works for common reorder/squash/drop flows; exotic todo edits and conflicts mid-rebase may need terminal fallback.
-- **Signed commits / SSH signing** — basic GPG/SSH signing is wired through `git`; advanced key configurations may not surface helpful errors.
-- **Windows path edge cases** — long paths, case-insensitive collisions, and CRLF behaviors are less tested than macOS/Linux.
-- **Monorepos with sparse checkout / partial clone** — not specifically optimized.
-- **No built-in merge conflict editor** — Etch surfaces conflicts and lets you resolve files; complex three-way merging is best done in your editor.
-- **Code signing** — current release builds are not yet code-signed/notarized on macOS or Windows.
 
 ## Development
 
@@ -127,18 +89,20 @@ All participants are expected to follow the [Code of Conduct](./CODE_OF_CONDUCT.
 
 ## Tech stack
 
-- **Runtime:** Tauri 2 (Rust core) + Vite + React 19 + TypeScript
-- **UI:** Tailwind CSS v4, shadcn/ui, Base UI, Radix, lucide icons
-- **Tooling:** Bun, Biome (lint/format), Vitest
+Tauri 2 (Rust core) + Vite + React 19 + TypeScript. UI built with Tailwind v4, shadcn/ui, Base UI, Radix, and lucide. Tooling: Bun, Biome, Vitest.
 
-## Project status
+## Known limitations
 
-Etch is open source under the MIT License and accepts contributions through GitHub issues and pull requests.
+Pre-1.0 areas that are intentionally minimal or untested. Reports and PRs welcome:
 
-- Public API and UI workflows can change before 1.0.
-- Only the `main` branch receives security fixes.
-- Release builds are produced from `v*` tags through GitHub Actions.
-- Release notes are tracked in [CHANGELOG.md](./CHANGELOG.md).
+- Repos with very large histories (>100k commits) or huge working trees aren't broadly tested.
+- Git LFS — basic operations work; locks and custom transfer agents are not exercised.
+- Submodules — inspection and common updates only; deeply nested edits may be rough.
+- Interactive rebase — common flows work; exotic todo edits and conflicts mid-rebase may need terminal fallback.
+- No built-in merge conflict editor — Etch surfaces conflicts but complex three-way merging is best done in your editor.
+- Release builds are not yet code-signed/notarized on macOS or Windows.
+
+Release notes live in [CHANGELOG.md](./CHANGELOG.md). Public API and UI can change before 1.0; only `main` receives security fixes.
 
 ## License
 
