@@ -14,6 +14,7 @@ type RepoState = {
   setActive: (repo: RepoInfo) => Promise<void>;
   setActivePath: (path: string | null) => Promise<void>;
   closeRepo: (path: string) => Promise<void>;
+  reorderRepos: (fromPath: string, toPath: string) => Promise<void>;
   clearActive: () => Promise<void>;
   hydrate: () => Promise<void>;
   removeRecent: (path: string) => Promise<void>;
@@ -188,6 +189,22 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     } catch (err) {
       console.error("Failed to close repo watcher", err);
     }
+  },
+
+  reorderRepos: async (fromPath, toPath) => {
+    if (fromPath === toPath) return;
+    const { openRepos, activeRepo } = get();
+    const fromIdx = openRepos.findIndex((r) => r.path === fromPath);
+    const toIdx = openRepos.findIndex((r) => r.path === toPath);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = openRepos.slice();
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    set({ openRepos: next });
+    await persistSession(
+      next.map((r) => r.path),
+      activeRepo?.path ?? null,
+    );
   },
 
   clearActive: async () => {
