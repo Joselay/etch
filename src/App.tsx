@@ -17,7 +17,6 @@ import { useGlobalRefresh } from "@/hooks/use-global-refresh";
 import { useMenuEvents } from "@/hooks/use-menu-events";
 import { onMenuEvent } from "@/lib/menu-events";
 import { persister, queryClient, shouldPersistQuery } from "@/lib/query-client";
-import { checkForUpdates } from "@/lib/updater";
 import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
 import "./App.css";
@@ -39,11 +38,6 @@ function AppInner() {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
-
-  useEffect(() => {
-    const t = setTimeout(() => void checkForUpdates({ silent: true }), 3000);
-    return () => clearTimeout(t);
-  }, []);
 
   useGlobalRefresh();
   useMenuEvents();
@@ -74,7 +68,6 @@ function AppInner() {
         const { activeRepo: a, welcomeTabOpen: w } = useRepoStore.getState();
         if (!a && w) void closeWelcomeTab();
       }),
-      onMenuEvent("check-updates", () => void checkForUpdates({ silent: false })),
     ];
     return () => {
       for (const off of offs) off();

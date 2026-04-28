@@ -31,8 +31,8 @@
     "targets": "all",
     "publisher": "Joselay",
     "category": "DeveloperTool",
-    "shortDescription": "A fast, open-source Git GUI for macOS, Windows and Linux.",
-    "longDescription": "Etch is a fast, keyboard-first Git GUI built with Tauri. Multi-repo tabs, lane-colored commit graph, word-level diffs, and an honest neutral palette. MIT-licensed, no telemetry, no account required.",
+    "shortDescription": "A fast Git GUI for macOS, Windows and Linux.",
+    "longDescription": "Etch is a fast, keyboard-first Git GUI built with Tauri. Multi-repo tabs, lane-colored commit graph, word-level diffs, and a neutral palette.",
     "copyright": "Copyright (c) 2026 Joselay",
     "homepage": "https://github.com/Joselay/etch",
     "icon": [
@@ -41,15 +41,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "createUpdaterArtifacts": true
-  },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://github.com/Joselay/etch/releases/latest/download/latest.json"
-      ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVEMjA0RTkyOTI0NUNFRQpSV1R1WENRcDZRVFNEbjRzdDhWSVdEKzFORFFLM3JYSUFxYXpjZzBzdjNCU1dyZkI1T0hab2RRMAo="
-    }
+    ]
   }
 }
