@@ -16,6 +16,7 @@ type RepoState = {
   setActivePath: (path: string | null) => Promise<void>;
   closeRepo: (path: string) => Promise<void>;
   reorderRepos: (fromPath: string, toPath: string) => Promise<void>;
+  ensureRemoteUrl: (path: string) => Promise<void>;
   clearActive: () => Promise<void>;
   hydrate: () => Promise<void>;
   removeRecent: (path: string) => Promise<void>;
@@ -219,6 +220,11 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     } catch (err) {
       console.error("Failed to close repo watcher", err);
     }
+  },
+
+  ensureRemoteUrl: async (path) => {
+    if (get().remoteUrls[path]) return;
+    await fetchAndCacheRemoteUrl(path, get, set);
   },
 
   reorderRepos: async (fromPath, toPath) => {

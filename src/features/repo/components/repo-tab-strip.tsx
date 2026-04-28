@@ -9,6 +9,7 @@ import {
 import { horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GitBranch, X } from "lucide-react";
+import { useEffect } from "react";
 import { ProviderIcon } from "@/components/provider-icon";
 import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/stores/repo-store";
@@ -117,6 +118,14 @@ function RepoTab({
   onActivate: () => void;
   onClose: () => void;
 }) {
+  const ensureRemoteUrl = useRepoStore((s) => s.ensureRemoteUrl);
+  // Backstop: if this tab mounts without a cached URL (e.g. hydrate ran
+  // before remoteUrls was wired up, or HMR preserved an older store state),
+  // fetch and cache it now.
+  useEffect(() => {
+    if (!remoteUrl) void ensureRemoteUrl(path);
+  }, [remoteUrl, path, ensureRemoteUrl]);
+
   const folder = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: path,
