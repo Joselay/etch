@@ -75,14 +75,18 @@ export function WelcomeScreen() {
 
   const hasRecents = recents.length > 0;
 
-  const recentsList = useMemo(
-    () =>
-      recents.map((r) => {
-        const name = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
-        return { ...r, name, remoteUrl: r.remoteUrl ?? remoteUrls[r.path] };
-      }),
-    [recents, remoteUrls],
-  );
+  const recentsList = useMemo(() => {
+    const commonPrefix = longestCommonDirPrefix(recents.map((r) => r.path));
+    return recents.map((r) => {
+      const name = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
+      return {
+        ...r,
+        name,
+        displayPath: compactPath(r.path, commonPrefix),
+        remoteUrl: r.remoteUrl ?? remoteUrls[r.path],
+      };
+    });
+  }, [recents, remoteUrls]);
 
   return (
     <main className="relative h-full min-h-0 flex-1 overflow-y-auto bg-background text-foreground">
@@ -225,7 +229,7 @@ export function WelcomeScreen() {
                     <ItemContent>
                       <ItemTitle>{r.name}</ItemTitle>
                       <ItemDescription className="truncate" title={r.path}>
-                        {r.path}
+                        {r.displayPath}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions className="items-center gap-1">
@@ -313,6 +317,27 @@ export function WelcomeScreen() {
       </div>
     </main>
   );
+}
+
+function longestCommonDirPrefix(paths: string[]): string {
+  if (paths.length < 2) return "";
+  const sep = paths[0].includes("\\") ? "\\" : "/";
+  const split = paths.map((p) => p.split(sep));
+  const minLen = Math.min(...split.map((s) => s.length));
+  let i = 0;
+  while (i < minLen - 1 && split.every((s) => s[i] === split[0][i])) i++;
+  return split[0].slice(0, i).join(sep);
+}
+
+function compactPath(path: string, commonPrefix: string): string {
+  const sep = path.includes("\\") ? "\\" : "/";
+  if (commonPrefix && path.startsWith(commonPrefix + sep)) {
+    return `…${sep}${path.slice(commonPrefix.length + sep.length)}`;
+  }
+  // Fallback: collapse /Users/<name> or \Users\<name> to ~
+  const homeMatch = path.match(/^(?:[A-Za-z]:)?[\\/]Users[\\/][^\\/]+/);
+  if (homeMatch) return `~${path.slice(homeMatch[0].length)}`;
+  return path;
 }
 
 function FeatureCard({
