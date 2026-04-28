@@ -1,4 +1,4 @@
-export type RemoteProviderKind = "github" | "gitlab" | "unknown";
+export type RemoteProviderKind = "github" | "gitlab" | "bitbucket" | "unknown";
 
 export type RemoteProvider = {
   kind: RemoteProviderKind;
@@ -25,6 +25,14 @@ export function detectRemoteProvider(url: string | null | undefined): RemoteProv
     canonical.includes(".gitlab.")
   ) {
     return { kind: "gitlab", label: "GitLab", host };
+  }
+  if (
+    canonical === "bitbucket.org" ||
+    canonical.endsWith(".bitbucket.org") ||
+    canonical.startsWith("bitbucket.") ||
+    canonical.includes(".bitbucket.")
+  ) {
+    return { kind: "bitbucket", label: "Bitbucket", host };
   }
   return { kind: "unknown", label: host, host };
 }
