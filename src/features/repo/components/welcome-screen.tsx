@@ -125,7 +125,7 @@ export function WelcomeScreen() {
             <GitBranch className="h-7 w-7 text-primary" strokeWidth={2.25} />
           </div>
           <Badge variant="secondary" className="gap-1.5">
-            <Sparkles className="h-3 w-3" />v{pkg.version} · early access
+            <Sparkles className="h-3 w-3" />v{pkg.version}
           </Badge>
           <h1 className="text-5xl font-semibold tracking-tight">
             Welcome to <span className="font-bold">Etch</span>
