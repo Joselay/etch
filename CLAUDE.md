@@ -8,7 +8,11 @@ Etch is a cross-platform Git GUI client (macOS/Windows/Linux) built with Tauri 2
 
 ## Issue tracker
 
-Bugs and security findings live as GitHub issues on this repo. Before fixing a bug or making a behavior change, run `gh issue list` to check whether it's already tracked, and put `Closes #N` in the PR body for any matches so the merge auto-closes and links the issue. Don't close issues manually before the PR merges.
+Bugs live as GitHub issues on this repo. Before fixing a bug or making a behavior change, run `gh issue list` to check whether it's already tracked. After pushing the fix to `main`, close the matching issue with `gh issue close <N> --comment "Fixed in <sha>"` (or include `Closes #N` in the commit message — GitHub auto-closes on push to the default branch).
+
+## Workflow
+
+This is a personal project. Always commit and push directly to `main` — never create a feature branch, never open a PR. No CI, no review apps, no release pipeline. Friends/coworkers who want to use Etch clone the repo and run `bun run tauri build` themselves.
 
 ## Commits
 
