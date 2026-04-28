@@ -51,6 +51,12 @@ xattr -dr com.apple.quarantine /Applications/Etch.app
 
 Tauri 2 (Rust core) + Vite + React 19 + TypeScript. Tailwind v4, shadcn/ui, Base UI, Radix, lucide. Bun, Biome, Vitest.
 
+## Authorship
+
+Built and maintained by [@Joselay](https://github.com/Joselay). Commits are signed with my personal SSH key — every commit on `main` should show a **Verified** badge on GitHub.
+
+If you fork or copy this code, [MIT](./LICENSE) requires you to keep the copyright notice. Please don't strip it and republish as your own original work.
+
 ## License
 
-[MIT](./LICENSE)
+[MIT](./LICENSE) — Copyright (c) 2026 Joselay.
