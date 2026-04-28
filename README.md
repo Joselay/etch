@@ -20,7 +20,7 @@
 
 ## Why Etch?
 
-- **Lightweight.** Built on Tauri 2 — small binary, low memory, no bundled Chromium.
+- **Lightweight.** Built on Tauri 2 — small binary, low memory, no bundled browser engine (uses your OS's system webview).
 - **Multi-repo tabs.** Switch between repositories the way you switch browser tabs. Sessions persist across restarts.
 - **Keyboard-first.** Navigate the graph, stage hunks, and run any command without leaving the home row. `⌘K` opens the palette.
 - **Honest visuals.** Strict neutral palette, word-level diffs, readable commit graph — designed to disappear when you're working.
