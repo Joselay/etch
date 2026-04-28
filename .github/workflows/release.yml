@@ -64,7 +64,28 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Etch ${{ github.ref_name }}"
-          releaseBody: "See the assets below to download and install Etch. See [CHANGELOG.md](./CHANGELOG.md) for details."
+          releaseBody: |
+            ## Downloads
+
+            | Platform | Asset |
+            |---|---|
+            | macOS (Apple Silicon) | `Etch_*_aarch64.dmg` |
+            | macOS (Intel) | `Etch_*_x64.dmg` |
+            | Windows | `Etch_*_x64-setup.exe` / `.msi` |
+            | Linux | `etch_*_amd64.deb` / `.AppImage` |
+
+            ## First-launch (unsigned builds)
+
+            **macOS** — strip quarantine after copying to `/Applications`:
+            ```bash
+            xattr -dr com.apple.quarantine /Applications/Etch.app
+            ```
+
+            **Windows** — SmartScreen → **More info → Run anyway**.
+
+            ## Changelog
+
+            See [CHANGELOG.md](https://github.com/Joselay/etch/blob/main/CHANGELOG.md) for the full list of changes in this release.
           releaseDraft: true
           prerelease: true
           args: ${{ matrix.args }}
