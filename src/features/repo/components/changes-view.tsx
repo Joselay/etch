@@ -66,6 +66,7 @@ export function ChangesView({ repoPath }: Props) {
   const [signOff, setSignOff] = useState(false);
   const [discardTarget, setDiscardTarget] = useState<string | null>(null);
   const [multiSelected, setMultiSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [discardAllOpen, setDiscardAllOpen] = useState(false);
   const templateAppliedRef = useRef(false);
   const messageBeforeAmendRef = useRef<string | null>(null);
@@ -138,7 +139,59 @@ export function ChangesView({ repoPath }: Props) {
       }
       return changed ? next : prev;
     });
+    setSelectionAnchor((prev) => {
+      if (!prev) return prev;
+      const stillValid =
+        unstaged.some((u) => u.path === prev) || untracked.some((u) => u.path === prev);
+      return stillValid ? prev : null;
+    });
   }, [unstaged, untracked]);
+
+  // Display order for shift-click range selection. Matches buildFileTree's
+  // alphabetical sort within each group; unstaged comes before untracked.
+  const orderedSelectablePaths = useMemo(() => {
+    const u = unstaged.map((x) => x.path).sort((a, b) => a.localeCompare(b));
+    const n = untracked.map((x) => x.path).sort((a, b) => a.localeCompare(b));
+    return [...u, ...n];
+  }, [unstaged, untracked]);
+
+  const handleRowMouseSelect = useCallback(
+    (path: string, e: React.MouseEvent) => {
+      // Shift+click: extend selection from the anchor to this row.
+      if (e.shiftKey && selectionAnchor && selectionAnchor !== path) {
+        const i = orderedSelectablePaths.indexOf(selectionAnchor);
+        const j = orderedSelectablePaths.indexOf(path);
+        if (i >= 0 && j >= 0) {
+          const [lo, hi] = i <= j ? [i, j] : [j, i];
+          const range = orderedSelectablePaths.slice(lo, hi + 1);
+          setMultiSelected((prev) => {
+            const next = new Set(prev);
+            for (const p of range) next.add(p);
+            return next;
+          });
+          selectWorkingFile("unstaged", path);
+          return;
+        }
+      }
+      // Cmd/Ctrl+click (or shift+click with no anchor): toggle this one.
+      if (e.metaKey || e.ctrlKey || e.shiftKey) {
+        setSelectionAnchor(path);
+        setMultiSelected((prev) => {
+          const next = new Set(prev);
+          if (next.has(path)) next.delete(path);
+          else next.add(path);
+          return next;
+        });
+        selectWorkingFile("unstaged", path);
+        return;
+      }
+      // Plain click: clear multi-selection, set anchor + focused file.
+      setSelectionAnchor(path);
+      if (multiSelected.size > 0) setMultiSelected(new Set());
+      selectWorkingFile("unstaged", path);
+    },
+    [multiSelected, orderedSelectablePaths, selectionAnchor, selectWorkingFile],
+  );
 
   // Cmd/Ctrl+A selects every changed/untracked file; Cmd/Ctrl+Shift+D discards
   // them. Scoped to the changes view because this component only mounts there.
@@ -363,20 +416,7 @@ export function ChangesView({ repoPath }: Props) {
                         indentPx={indentPx}
                         selected={workingSide === "unstaged" && workingFilePath === f.path}
                         multiSelected={multiSelected.has(f.path)}
-                        onSelect={(e) => {
-                          if (e.metaKey || e.ctrlKey || e.shiftKey) {
-                            setMultiSelected((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(f.path)) next.delete(f.path);
-                              else next.add(f.path);
-                              return next;
-                            });
-                            selectWorkingFile("unstaged", f.path);
-                            return;
-                          }
-                          if (multiSelected.size > 0) setMultiSelected(new Set());
-                          selectWorkingFile("unstaged", f.path);
-                        }}
+                        onSelect={(e) => handleRowMouseSelect(f.path, e)}
                         actionLabel="Stage"
                         actionDisabled={stage.isPending}
                         onAction={() => stage.mutate([f.path])}
@@ -435,20 +475,7 @@ export function ChangesView({ repoPath }: Props) {
                         indentPx={indentPx}
                         selected={workingSide === "unstaged" && workingFilePath === f.path}
                         multiSelected={multiSelected.has(f.path)}
-                        onSelect={(e) => {
-                          if (e.metaKey || e.ctrlKey || e.shiftKey) {
-                            setMultiSelected((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(f.path)) next.delete(f.path);
-                              else next.add(f.path);
-                              return next;
-                            });
-                            selectWorkingFile("unstaged", f.path);
-                            return;
-                          }
-                          if (multiSelected.size > 0) setMultiSelected(new Set());
-                          selectWorkingFile("unstaged", f.path);
-                        }}
+                        onSelect={(e) => handleRowMouseSelect(f.path, e)}
                         actionLabel="Stage"
                         actionDisabled={stage.isPending}
                         onAction={() => stage.mutate([f.path])}
