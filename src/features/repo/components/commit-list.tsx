@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
+  ArrowUp,
   Check,
   Filter,
   GitCommitVertical,
@@ -153,6 +154,34 @@ export function CommitList({ repoPath }: Props) {
     () => layoutGraph(rows.map((r) => ({ id: r.id, parentIds: r.parentIds }))),
     [rows],
   );
+
+  // A commit is "pushed" if it's reachable through parents from any remote
+  // tracking ref. We BFS from every remote target through `parentIds` over the
+  // currently loaded log. Commits whose ancestors haven't been paged in yet
+  // may show as unpushed until the user scrolls — acceptable trade-off for an
+  // O(N) frontend check with no backend round-trip.
+  const pushedSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!refs?.remote.length) return set;
+    const byId = new Map<string, CommitSummary>();
+    for (const r of rows) byId.set(r.id, r);
+    const stack: string[] = [];
+    for (const r of refs.remote) {
+      if (r.target && byId.has(r.target)) stack.push(r.target);
+    }
+    while (stack.length > 0) {
+      const id = stack.pop() as string;
+      if (set.has(id)) continue;
+      set.add(id);
+      const c = byId.get(id);
+      if (!c) continue;
+      for (const p of c.parentIds) {
+        if (!set.has(p) && byId.has(p)) stack.push(p);
+      }
+    }
+    return set;
+  }, [rows, refs?.remote]);
+  const hasRemotes = (refs?.remote.length ?? 0) > 0;
   const graphWidth = GRAPH_PAD_LEFT + Math.max(1, graph.width) * LANE_WIDTH + GRAPH_PAD_RIGHT;
   const isDark = useIsDark();
 
@@ -425,11 +454,31 @@ export function CommitList({ repoPath }: Props) {
                       )}
                       style={{ minHeight: ROW_HEIGHT }}
                     >
-                      <GraphCell row={g} height={ROW_HEIGHT} width={graphWidth} isDark={isDark} />
+                      <GraphCell
+                        row={g}
+                        height={ROW_HEIGHT}
+                        width={graphWidth}
+                        isDark={isDark}
+                        unpushed={hasRemotes && !pushedSet.has(c.id)}
+                      />
                       <AuthorAvatar name={c.authorName} email={c.authorEmail} size={28} />
-                      <code className="w-[4.5rem] shrink-0 font-mono text-xs text-muted-foreground">
-                        {c.shortId}
-                      </code>
+                      <span className="flex w-[4.5rem] shrink-0 items-center gap-1">
+                        <code className="font-mono text-xs text-muted-foreground">{c.shortId}</code>
+                        {hasRemotes && !pushedSet.has(c.id) && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                role="img"
+                                aria-label="Local-only commit (not on any remote)"
+                                className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm bg-muted text-muted-foreground"
+                              >
+                                <ArrowUp className="h-2.5 w-2.5" strokeWidth={2.5} />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Local-only — not pushed</TooltipContent>
+                          </Tooltip>
+                        )}
+                      </span>
                       <div className="min-w-0 flex-1 py-1.5">
                         <div className="truncate text-sm">{c.summary}</div>
                         <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -799,11 +848,13 @@ const GraphCell = memo(function GraphCell({
   height,
   width,
   isDark,
+  unpushed,
 }: {
   row: GraphRow;
   height: number;
   width: number;
   isDark: boolean;
+  unpushed?: boolean;
 }) {
   const mid = height / 2;
   const laneX = (i: number) => GRAPH_PAD_LEFT + i * LANE_WIDTH + LANE_WIDTH / 2;
@@ -873,9 +924,9 @@ const GraphCell = memo(function GraphCell({
         cx={laneX(row.lane)}
         cy={mid}
         r={DOT_RADIUS}
-        fill={laneColor(row.color, isDark)}
-        stroke="var(--background)"
-        strokeWidth={2}
+        fill={unpushed ? "var(--background)" : laneColor(row.color, isDark)}
+        stroke={unpushed ? laneColor(row.color, isDark) : "var(--background)"}
+        strokeWidth={unpushed ? STROKE_WIDTH : 2}
       />
     </svg>
   );
