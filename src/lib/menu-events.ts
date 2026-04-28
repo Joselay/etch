@@ -15,8 +15,7 @@ export type MenuEventName =
   | "push"
   | "new-branch"
   | "new-tag"
-  | "create-stash"
-  | "check-updates";
+  | "create-stash";
 
 export const MENU_EVENTS: readonly MenuEventName[] = [
   "new-repo",
@@ -36,7 +35,6 @@ export const MENU_EVENTS: readonly MenuEventName[] = [
   "new-branch",
   "new-tag",
   "create-stash",
-  "check-updates",
 ] as const;
 
 const PREFIX = "etch:menu:";
