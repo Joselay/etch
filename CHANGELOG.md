@@ -8,7 +8,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) wh
 
 ## [0.1.0] - 2026-04-27
 
-This is the first public pre-release of Etch. Treat it as alpha — please report bugs at https://github.com/Joselay/etch/issues.
+First public pre-release. Before tagging, the codebase went through a focused security and correctness audit pass — most of the entries below come from that pre-release sweep rather than post-release reports. Treat this release as alpha and please report bugs at https://github.com/Joselay/etch/issues.
 
 ### Added
 

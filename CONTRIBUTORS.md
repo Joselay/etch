@@ -6,7 +6,7 @@
 
 ## AI assistance
 
-Most of Etch's implementation was written with [Claude Code](https://claude.com/claude-code) (Anthropic). The architecture, design choices, trade-offs (Tauri over Electron, shell-out to `git` over `libgit2`, multi-repo tab UX), debugging, and release decisions are by the maintainer; the day-to-day code is largely AI-generated.
+Etch's implementation is written with significant assistance from [Claude Code](https://claude.com/claude-code) (Anthropic), under maintainer review. The architecture, design choices, trade-offs (Tauri over Electron, shell-out to `git` over `libgit2`, multi-repo tab UX), security audits, debugging, and release decisions are made by the maintainer; Claude is used as a coding partner for implementation.
 
 Commits made with AI assistance use the `Co-Authored-By: Claude <noreply@anthropic.com>` trailer so attribution is visible in the commit history.
 

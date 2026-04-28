@@ -35,25 +35,35 @@
 
 ## Install
 
-Pre-built binaries for macOS, Windows, and Linux are published on the [Releases page](https://github.com/Joselay/etch/releases).
+Grab the latest pre-built binary from the [Releases page](https://github.com/Joselay/etch/releases/latest):
 
-> Release builds are not yet code-signed/notarized. Expect a Gatekeeper / SmartScreen warning on first launch.
+| Platform | Download |
+|---|---|
+| **macOS** (Apple Silicon) | `Etch_*_aarch64.dmg` |
+| **macOS** (Intel) | `Etch_*_x64.dmg` |
+| **Windows** | `Etch_*_x64-setup.exe` or `.msi` |
+| **Linux** | `etch_*_amd64.deb` or `.AppImage` |
 
-### macOS first-launch warning
+Or build from source — see [Development](#development).
 
-Because the build isn't notarized yet, macOS will refuse to open Etch on first launch with a message like _"Etch.app is damaged and can't be opened"_ or _"cannot be opened because the developer cannot be verified"_. Strip the quarantine attribute that Safari/Chrome added to the download:
+<details>
+<summary><strong>First-launch warning (unsigned builds)</strong></summary>
+
+Release builds are not yet code-signed/notarized. You'll see a one-time warning on first launch.
+
+**macOS** — refuses to open with _"Etch.app is damaged"_ or _"developer cannot be verified"_. Strip the quarantine attribute:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Etch.app
 ```
 
-Then re-open Etch normally. You only need to do this once per install.
+Then re-open normally. One-time per install.
 
-### Windows SmartScreen
+**Windows** — SmartScreen shows _"Windows protected your PC"_. Click **More info → Run anyway**.
 
-On Windows, SmartScreen may show _"Windows protected your PC"_. Click **More info → Run anyway**. Notarized/signed builds are planned before 1.0.
+Notarized/signed builds are planned before 1.0.
 
-To build from source, see [Development](#development).
+</details>
 
 ## Development
 
