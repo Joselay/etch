@@ -162,14 +162,30 @@ export function ChangesView({ repoPath }: Props) {
         for (const u of untracked) next.add(u.path);
         setMultiSelected(next);
       } else if (key === "d" && e.shiftKey) {
-        if (multiSelected.size === 0) return;
-        e.preventDefault();
-        setDiscardAllOpen(true);
+        if (multiSelected.size > 0) {
+          e.preventDefault();
+          setDiscardAllOpen(true);
+          return;
+        }
+        // Fall back to the currently focused file when nothing is multi-selected
+        // — single-click + Cmd+Shift+D should still discard that one file.
+        if (workingSide === "unstaged" && workingFilePath) {
+          const inUnstaged = unstaged.some((u) => u.path === workingFilePath);
+          const inUntracked = untracked.some((u) => u.path === workingFilePath);
+          if (inUnstaged) {
+            e.preventDefault();
+            setDiscardTarget(workingFilePath);
+          } else if (inUntracked) {
+            e.preventDefault();
+            setMultiSelected(new Set([workingFilePath]));
+            setDiscardAllOpen(true);
+          }
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [unstaged, untracked, multiSelected]);
+  }, [unstaged, untracked, multiSelected, workingSide, workingFilePath]);
 
   // Clear multi-selection on any click (inside or outside the file list) and
   // on Escape. Row clicks already clear-and-reselect via their own onSelect,
@@ -178,7 +194,11 @@ export function ChangesView({ repoPath }: Props) {
   useEffect(() => {
     if (multiSelected.size === 0) return;
     if (discardAllOpen || discardTarget) return;
-    const onMouseDown = () => setMultiSelected(new Set());
+    const onMouseDown = (e: MouseEvent) => {
+      // Don't clear when the user is building up a selection via modifier-click.
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+      setMultiSelected(new Set());
+    };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setMultiSelected(new Set());
     };
@@ -343,7 +363,17 @@ export function ChangesView({ repoPath }: Props) {
                         indentPx={indentPx}
                         selected={workingSide === "unstaged" && workingFilePath === f.path}
                         multiSelected={multiSelected.has(f.path)}
-                        onSelect={() => {
+                        onSelect={(e) => {
+                          if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                            setMultiSelected((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(f.path)) next.delete(f.path);
+                              else next.add(f.path);
+                              return next;
+                            });
+                            selectWorkingFile("unstaged", f.path);
+                            return;
+                          }
                           if (multiSelected.size > 0) setMultiSelected(new Set());
                           selectWorkingFile("unstaged", f.path);
                         }}
@@ -405,7 +435,17 @@ export function ChangesView({ repoPath }: Props) {
                         indentPx={indentPx}
                         selected={workingSide === "unstaged" && workingFilePath === f.path}
                         multiSelected={multiSelected.has(f.path)}
-                        onSelect={() => {
+                        onSelect={(e) => {
+                          if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                            setMultiSelected((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(f.path)) next.delete(f.path);
+                              else next.add(f.path);
+                              return next;
+                            });
+                            selectWorkingFile("unstaged", f.path);
+                            return;
+                          }
                           if (multiSelected.size > 0) setMultiSelected(new Set());
                           selectWorkingFile("unstaged", f.path);
                         }}
@@ -682,7 +722,7 @@ function FileRow({
   indentPx: number;
   selected: boolean;
   multiSelected?: boolean;
-  onSelect: () => void;
+  onSelect: (e: React.MouseEvent) => void;
   actionLabel: string;
   actionDisabled?: boolean;
   onAction: () => void;
@@ -692,7 +732,7 @@ function FileRow({
     <FileRowContextMenu repoPath={repoPath} relPath={entry.path}>
       <button
         type="button"
-        onClick={onSelect}
+        onClick={(e) => onSelect(e)}
         data-selected={selected || undefined}
         data-multiselected={multiSelected || undefined}
         className={cn(
