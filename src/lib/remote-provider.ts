@@ -12,10 +12,18 @@ export function detectRemoteProvider(url: string | null | undefined): RemoteProv
   if (!host) return { kind: "unknown", label: "Git", host: null };
 
   const h = host.toLowerCase();
-  if (h === "github.com" || h.endsWith(".github.com")) {
+  // Strip a trailing "-suffix" segment to handle SSH config Host aliases like
+  // `github.com-personal` or `github.com-work` that users add to ~/.ssh/config
+  // when juggling multiple accounts.
+  const canonical = h.replace(/-[^.]*$/, "");
+  if (canonical === "github.com" || canonical.endsWith(".github.com")) {
     return { kind: "github", label: "GitHub", host };
   }
-  if (h === "gitlab.com" || h.startsWith("gitlab.") || h.includes(".gitlab.")) {
+  if (
+    canonical === "gitlab.com" ||
+    canonical.startsWith("gitlab.") ||
+    canonical.includes(".gitlab.")
+  ) {
     return { kind: "gitlab", label: "GitLab", host };
   }
   return { kind: "unknown", label: host, host };
