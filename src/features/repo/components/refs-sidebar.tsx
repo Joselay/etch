@@ -198,7 +198,7 @@ export function RefsSidebar({ repoPath }: Props) {
             )}
           </div>
         </div>
-        <ScrollArea className="flex-1">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col gap-1 px-1 py-2">
             <PrPanel repoPath={repoPath} />
             {needle && !hasAnyMatch && (
