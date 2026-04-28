@@ -8,6 +8,7 @@ import {
   ArrowDown,
   ArrowUp,
   Columns2,
+  Download,
   Eye,
   GitBranch,
   GitMerge,
@@ -28,6 +29,7 @@ import { useTheme } from "next-themes";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { dispatchMenuEvent } from "@/lib/menu-events";
+import { checkForUpdates } from "@/lib/updater";
 import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
 import { useSelectionStore } from "@/stores/selection-store";
@@ -131,6 +133,14 @@ export function useCommands(): Command[] {
       shortcut: { keys: ["mod", ","] },
       icon: Settings,
       run: openSettings,
+    });
+    out.push({
+      id: "global.checkUpdates",
+      label: "Check for updates…",
+      group: "Global",
+      keywords: ["update", "upgrade", "version", "release"],
+      icon: Download,
+      run: () => void checkForUpdates({ silent: false }),
     });
     out.push({
       id: "global.toggleTheme",

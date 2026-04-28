@@ -6,6 +6,7 @@ use tauri::{
 pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let app_menu = SubmenuBuilder::new(handle, "Etch")
         .about(None)
+        .item(&MenuItemBuilder::with_id("check-updates", "Check for Updates…").build(handle)?)
         .separator()
         .item(
             &MenuItemBuilder::with_id("settings", "Preferences…")
