@@ -1,4 +1,4 @@
-import { AlertTriangle, Lock, RotateCcw, Users } from "lucide-react";
+import { AlertTriangle, Lock, RotateCcw, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileIcon } from "@/components/file-icon";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -65,6 +65,7 @@ export function ChangesView({ repoPath }: Props) {
   const [amend, setAmend] = useState(false);
   const [signOff, setSignOff] = useState(false);
   const [discardTarget, setDiscardTarget] = useState<string | null>(null);
+  const [deleteUntrackedTarget, setDeleteUntrackedTarget] = useState<string | null>(null);
   const [multiSelected, setMultiSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [discardAllOpen, setDiscardAllOpen] = useState(false);
@@ -517,6 +518,26 @@ export function ChangesView({ repoPath }: Props) {
                         actionLabel="Stage"
                         actionDisabled={stage.isPending}
                         onAction={() => stage.mutate([f.path])}
+                        secondary={
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-1.5 text-muted-foreground hover:text-destructive"
+                                disabled={discardMixed.isPending}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteUntrackedTarget(f.path);
+                                }}
+                                aria-label="Delete file"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete file</TooltipContent>
+                          </Tooltip>
+                        }
                       />
                     )}
                   />
@@ -714,6 +735,37 @@ export function ChangesView({ repoPath }: Props) {
               }}
             >
               Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!deleteUntrackedTarget}
+        onOpenChange={(o) => !o && setDeleteUntrackedTarget(null)}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete file?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-mono text-foreground">{deleteUntrackedTarget}</span> is
+              untracked and will be permanently deleted from disk. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={discardMixed.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={discardMixed.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!deleteUntrackedTarget) return;
+                discardMixed.mutate(
+                  { tracked: [], untracked: [deleteUntrackedTarget] },
+                  { onSuccess: () => setDeleteUntrackedTarget(null) },
+                );
+              }}
+            >
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
