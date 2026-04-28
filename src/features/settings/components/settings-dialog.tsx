@@ -180,9 +180,6 @@ function ProvidersSection() {
   const { data, isLoading } = useProviderTokens();
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-xs text-muted-foreground">
-        Used to resolve commit authors. Not used for push, pull, or signing.
-      </p>
       {isLoading || !data ? (
         <Skeleton className="h-16 w-full" />
       ) : (
