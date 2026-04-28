@@ -146,7 +146,8 @@ pub fn known_hosts() -> &'static [ProviderHost] {
     &[ProviderHost {
         host: "github.com",
         label: "GitHub",
-        token_help_url: "https://github.com/settings/tokens/new?scopes=repo&description=Etch",
+        token_help_url:
+            "https://github.com/settings/tokens/new?scopes=repo,read:user&description=Etch",
     }]
 }
 

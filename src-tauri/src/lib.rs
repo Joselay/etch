@@ -33,6 +33,7 @@ use commands::repo::{
 };
 use commands::settings::{
     cmd_clear_provider_token, cmd_list_provider_tokens, cmd_set_provider_token,
+    cmd_validate_provider_token,
 };
 use watcher::WatcherState;
 
@@ -149,7 +150,8 @@ pub fn run() {
             cmd_start_interactive_rebase,
             cmd_list_provider_tokens,
             cmd_set_provider_token,
-            cmd_clear_provider_token
+            cmd_clear_provider_token,
+            cmd_validate_provider_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

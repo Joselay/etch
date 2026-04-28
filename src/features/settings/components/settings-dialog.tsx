@@ -1,16 +1,20 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
-  Check,
+  AlertCircle,
+  CheckCircle2,
   Columns2,
   ExternalLink,
   Eye,
+  EyeOff,
   FolderGit2,
   Hash,
   KeyRound,
+  Loader2,
   Lock,
   Monitor,
   Moon,
   Palette,
+  RefreshCw,
   Rows2,
   Sun,
   Trash2,
@@ -18,7 +22,18 @@ import {
   WrapText,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +51,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ProviderToken } from "@/lib/tauri";
+import type { ProviderToken, ProviderTokenIdentity } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
@@ -44,8 +59,10 @@ import { useUiStore } from "@/stores/ui-store";
 import { useGitIdentity, useWriteGitIdentity } from "../hooks/use-git-identity";
 import {
   useClearProviderToken,
+  useProviderTokenIdentity,
   useProviderTokens,
   useSetProviderToken,
+  useValidateProviderToken,
 } from "../hooks/use-provider-tokens";
 import { GitignoreEditor } from "./gitignore-editor";
 import { SigningSection } from "./signing-section";
@@ -427,30 +444,55 @@ function IdentitySection({ title, repoPath }: { title: string; repoPath: string 
 
 function ProviderRow({ provider }: { provider: ProviderToken }) {
   const [token, setToken] = useState("");
+  const [reveal, setReveal] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const save = useSetProviderToken();
   const clear = useClearProviderToken();
+  const validate = useValidateProviderToken();
+  const identity = useProviderTokenIdentity(provider.host, provider.hasToken);
 
-  const isDirty = useMemo(() => token.trim().length > 0, [token]);
+  const trimmed = token.trim();
+  const isDirty = trimmed.length > 0;
+  const looksLikeGithubToken =
+    !isDirty ||
+    trimmed.startsWith("ghp_") ||
+    trimmed.startsWith("github_pat_") ||
+    trimmed.startsWith("gho_");
 
   const onSave = async () => {
-    const trimmed = token.trim();
     if (!trimmed) return;
+    try {
+      await validate.mutateAsync({ host: provider.host, token: trimmed });
+    } catch {
+      return;
+    }
     await save.mutateAsync({ host: provider.host, token: trimmed });
     setToken("");
+    setReveal(false);
+  };
+
+  const onTest = async () => {
+    if (!trimmed) return;
+    try {
+      const id = await validate.mutateAsync({ host: provider.host, token: trimmed });
+      toast.success(`Connected as @${id.login}`);
+    } catch {
+      // toast already shown by hook
+    }
+  };
+
+  const onConfirmRemove = async () => {
+    await clear.mutateAsync(provider.host);
+    setConfirmRemove(false);
+    toast.success(`Removed ${provider.host} token`);
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="text-sm font-medium">{provider.label}</span>
           <span className="truncate text-xs text-muted-foreground">{provider.host}</span>
-          {provider.hasToken && (
-            <Badge variant="secondary" className="gap-1 text-[10px]">
-              <Check className="h-3 w-3" />
-              Saved
-            </Badge>
-          )}
         </div>
         <button
           type="button"
@@ -461,37 +503,229 @@ function ProviderRow({ provider }: { provider: ProviderToken }) {
           <ExternalLink className="h-3 w-3" />
         </button>
       </div>
-      <div className="flex gap-2">
-        <div className="flex flex-1 flex-col gap-1.5">
-          <Label htmlFor={`token-${provider.host}`} className="sr-only">
-            Token for {provider.label}
-          </Label>
-          <Input
-            id={`token-${provider.host}`}
-            type="password"
-            autoComplete="off"
-            placeholder={provider.hasToken ? "•••••• (replace)" : "Paste personal access token"}
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onSave();
-            }}
-          />
-        </div>
-        <Button onClick={onSave} disabled={!isDirty || save.isPending}>
-          {save.isPending ? "Saving…" : "Save"}
-        </Button>
-        {provider.hasToken && (
+
+      {provider.hasToken && (
+        <ProviderIdentityCard
+          host={provider.host}
+          isLoading={identity.isLoading}
+          error={identity.error?.message ?? null}
+          identity={identity.data ?? null}
+          onRecheck={() => identity.refetch()}
+          onRemove={() => setConfirmRemove(true)}
+          isRemoving={clear.isPending}
+        />
+      )}
+
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {provider.label} token?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The token will be deleted from your OS keychain. Author avatars and any authenticated
+              GitHub features will fall back to public/anonymous access until you add it again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clear.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmRemove} disabled={clear.isPending}>
+              {clear.isPending ? "Removing…" : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`token-${provider.host}`} className="text-xs text-muted-foreground">
+          {provider.hasToken ? "Replace token" : "Personal access token"}
+        </Label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Input
+              id={`token-${provider.host}`}
+              type={reveal ? "text" : "password"}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={
+                provider.hasToken ? "Paste a new token to replace" : "ghp_… or github_pat_…"
+              }
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onSave();
+              }}
+              className="pr-9 font-mono text-xs"
+              aria-invalid={isDirty && !looksLikeGithubToken}
+            />
+            <button
+              type="button"
+              onClick={() => setReveal((v) => !v)}
+              className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
+              aria-label={reveal ? "Hide token" : "Show token"}
+              tabIndex={-1}
+            >
+              {reveal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
+          </div>
           <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => clear.mutate(provider.host)}
-            disabled={clear.isPending}
-            aria-label="Clear token"
+            variant="outline"
+            onClick={onTest}
+            disabled={!isDirty || validate.isPending || save.isPending}
           >
-            <Trash2 className="h-4 w-4" />
+            {validate.isPending && !save.isPending ? "Testing…" : "Test"}
           </Button>
+          <Button onClick={onSave} disabled={!isDirty || save.isPending || validate.isPending}>
+            {save.isPending ? "Saving…" : "Save"}
+          </Button>
+        </div>
+        <p
+          className={cn(
+            "text-xs",
+            isDirty && !looksLikeGithubToken ? "text-destructive" : "text-muted-foreground/80",
+          )}
+        >
+          {isDirty && !looksLikeGithubToken
+            ? "Doesn't look like a GitHub token — expected ghp_… or github_pat_…"
+            : "Tokens are validated against GitHub before saving and stored in your OS keychain."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ProviderIdentityCard({
+  host,
+  isLoading,
+  error,
+  identity,
+  onRecheck,
+  onRemove,
+  isRemoving,
+}: {
+  host: string;
+  isLoading: boolean;
+  error: string | null;
+  identity: ProviderTokenIdentity | null;
+  onRecheck: () => void;
+  onRemove: () => void;
+  isRemoving: boolean;
+}) {
+  const isError = !isLoading && (error !== null || identity === null);
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-md border px-3 py-2.5",
+        isError ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/30",
+      )}
+    >
+      <div className="relative shrink-0">
+        {identity?.avatarUrl ? (
+          <img
+            src={identity.avatarUrl}
+            alt=""
+            className="h-9 w-9 rounded-full grayscale"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <UserRound className="h-4 w-4 text-muted-foreground" />
+          </div>
         )}
+        <span
+          className={cn(
+            "absolute -right-0.5 -bottom-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-background",
+            isLoading ? "bg-muted-foreground/40" : isError ? "bg-destructive" : "bg-foreground",
+          )}
+          aria-hidden
+        >
+          {isLoading ? (
+            <Loader2 className="h-2.5 w-2.5 animate-spin text-background" />
+          ) : isError ? (
+            <AlertCircle className="h-2.5 w-2.5 text-destructive-foreground" />
+          ) : (
+            <CheckCircle2 className="h-2.5 w-2.5 text-background" />
+          )}
+        </span>
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {isLoading ? (
+          <>
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="h-3 w-24" />
+          </>
+        ) : isError ? (
+          <>
+            <span className="text-sm font-medium text-destructive">Token not working</span>
+            <span className="truncate text-xs text-muted-foreground" title={error ?? undefined}>
+              {error ?? `No response from ${host}`}
+            </span>
+          </>
+        ) : (
+          identity && (
+            <>
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                @{identity.login}
+                {identity.name && (
+                  <span className="truncate font-normal text-muted-foreground">
+                    · {identity.name}
+                  </span>
+                )}
+              </span>
+              <div className="flex flex-wrap items-center gap-1">
+                <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal">
+                  {identity.tokenType === "fine-grained"
+                    ? "Fine-grained PAT"
+                    : identity.tokenType === "classic"
+                      ? "Classic PAT"
+                      : "Token"}
+                </Badge>
+                {identity.scopes.length > 0 ? (
+                  identity.scopes.slice(0, 4).map((s) => (
+                    <Badge
+                      key={s}
+                      variant="secondary"
+                      className="h-4 px-1.5 font-mono text-[10px] font-normal"
+                    >
+                      {s}
+                    </Badge>
+                  ))
+                ) : identity.tokenType === "fine-grained" ? (
+                  <span className="text-[10px] text-muted-foreground">
+                    Permissions managed in GitHub
+                  </span>
+                ) : null}
+                {identity.scopes.length > 4 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    +{identity.scopes.length - 4}
+                  </span>
+                )}
+              </div>
+            </>
+          )
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onRecheck}
+          disabled={isLoading}
+          aria-label="Recheck token"
+          title="Recheck"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onRemove}
+          disabled={isRemoving}
+          aria-label="Remove token"
+          title="Remove"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
       </div>
     </div>
   );

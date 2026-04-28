@@ -7,6 +7,93 @@ pub struct Github;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct TokenIdentity {
+    pub login: String,
+    pub name: Option<String>,
+    pub avatar_url: Option<String>,
+    pub profile_url: Option<String>,
+    /// Scopes from `X-OAuth-Scopes` for classic PATs. Fine-grained PATs
+    /// don't expose scopes here and will return an empty list.
+    pub scopes: Vec<String>,
+    /// "classic" | "fine-grained" | "unknown"
+    pub token_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhAuthedUser {
+    login: String,
+    name: Option<String>,
+    avatar_url: Option<String>,
+    html_url: Option<String>,
+}
+
+/// Validate a token against GitHub by calling `GET /user`. The token is
+/// passed in directly so this can be used to test a token before it is
+/// committed to the keychain.
+pub fn validate_token(token: &str) -> AppResult<TokenIdentity> {
+    let token_type = classify_token(token);
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("etch-git-client")
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| AppError::Other(format!("http: {e}")))?;
+    let resp = client
+        .get("https://api.github.com/user")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .map_err(|e| AppError::Other(format!("github: {e}")))?;
+
+    let status = resp.status();
+    let scopes = resp
+        .headers()
+        .get("x-oauth-scopes")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| {
+            s.split(',')
+                .map(|x| x.trim().to_string())
+                .filter(|x| !x.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    if !status.is_success() {
+        let code = status.as_u16();
+        let msg = match code {
+            401 => "token rejected — check that it's valid and not revoked".to_string(),
+            403 => "token forbidden — likely missing scopes or expired".to_string(),
+            _ => format!("github: api returned {code}"),
+        };
+        return Err(AppError::Auth(msg));
+    }
+
+    let user: GhAuthedUser = resp
+        .json()
+        .map_err(|e| AppError::Other(format!("github json: {e}")))?;
+
+    Ok(TokenIdentity {
+        login: user.login,
+        name: user.name,
+        avatar_url: user.avatar_url,
+        profile_url: user.html_url,
+        scopes,
+        token_type: token_type.into(),
+    })
+}
+
+fn classify_token(token: &str) -> &'static str {
+    if token.starts_with("github_pat_") {
+        "fine-grained"
+    } else if token.starts_with("ghp_") || token.starts_with("gho_") {
+        "classic"
+    } else {
+        "unknown"
+    }
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct PullRequest {
     pub number: u64,
     pub title: String,

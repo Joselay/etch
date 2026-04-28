@@ -1,7 +1,8 @@
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
-use crate::settings::{clear_token, has_token, known_hosts, set_token};
+use crate::providers::github::{validate_token as validate_github_token, TokenIdentity};
+use crate::settings::{clear_token, get_token, has_token, known_hosts, set_token};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,4 +40,27 @@ pub async fn cmd_clear_provider_token(host: String) -> AppResult<()> {
     tauri::async_runtime::spawn_blocking(move || clear_token(&host))
         .await
         .map_err(|e| AppError::Other(format!("join: {e}")))?
+}
+
+/// Validate either a freshly-pasted token (when `token` is provided) or the
+/// token currently in the keychain for `host`. Returns the resolved identity
+/// so the UI can show *who* the token authenticates as.
+#[tauri::command]
+pub async fn cmd_validate_provider_token(
+    host: String,
+    token: Option<String>,
+) -> AppResult<TokenIdentity> {
+    tauri::async_runtime::spawn_blocking(move || -> AppResult<TokenIdentity> {
+        let token = match token {
+            Some(t) if !t.trim().is_empty() => t.trim().to_string(),
+            _ => get_token(&host)?
+                .ok_or_else(|| AppError::Auth(format!("no token saved for {host}")))?,
+        };
+        match host.as_str() {
+            "github.com" => validate_github_token(&token),
+            _ => Err(AppError::Other(format!("unknown provider host: {host}"))),
+        }
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("join: {e}")))?
 }

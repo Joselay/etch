@@ -127,6 +127,15 @@ export type ProviderToken = {
   hasToken: boolean;
 };
 
+export type ProviderTokenIdentity = {
+  login: string;
+  name: string | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+  scopes: string[];
+  tokenType: "classic" | "fine-grained" | "unknown";
+};
+
 export type GitIdentity = {
   name: string | null;
   email: string | null;
@@ -520,4 +529,9 @@ export const api = {
   setProviderToken: (host: string, token: string) =>
     invoke<void>("cmd_set_provider_token", { host, token }),
   clearProviderToken: (host: string) => invoke<void>("cmd_clear_provider_token", { host }),
+  validateProviderToken: (host: string, token?: string) =>
+    invoke<ProviderTokenIdentity>("cmd_validate_provider_token", {
+      host,
+      token: token ?? null,
+    }),
 };
