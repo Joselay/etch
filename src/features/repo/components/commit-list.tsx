@@ -617,12 +617,21 @@ const RefChips = memo(function RefChips({
   }
 
   // A local branch is "in sync" when a same-named remote-tracking branch sits
-  // on the same commit. We collapse them into one chip and tack on a cloud
-  // sub-icon to signal "also on remote" without duplicating the label.
-  const remoteNames = new Set(entry.remotes.map((r) => r.name));
+  // on the same commit. We collapse them into one chip and append a cloud
+  // sub-icon plus the remote name(s) ("origin", or "origin, upstream" if
+  // multiple remotes track the same branch) — explicit without repeating the
+  // branch name.
+  const remotesByLocalName = new Map<string, string[]>();
+  for (const r of entry.remotes) {
+    if (!r.remote) continue;
+    const list = remotesByLocalName.get(r.name) ?? [];
+    list.push(r.remote);
+    remotesByLocalName.set(r.name, list);
+  }
 
   for (const b of entry.locals) {
-    const inSync = remoteNames.has(b.name);
+    const syncedRemotes = remotesByLocalName.get(b.name);
+    const syncedLabel = syncedRemotes?.join(", ");
     if (b.isHead) {
       items.push(
         <span
@@ -635,10 +644,17 @@ const RefChips = memo(function RefChips({
         >
           <Check className="h-2.5 w-2.5" strokeWidth={3} />
           {b.name}
-          {inSync && <Cloud className="h-2.5 w-2.5 opacity-70" strokeWidth={2.5} />}
+          {syncedLabel && (
+            <>
+              <Cloud className="h-2.5 w-2.5 opacity-70" strokeWidth={2.5} />
+              <span className="font-normal opacity-80">{syncedLabel}</span>
+            </>
+          )}
         </span>,
       );
-      fullList.push(inSync ? `HEAD → ${b.name} (on remote)` : `HEAD → ${b.name}`);
+      fullList.push(
+        syncedLabel ? `HEAD → ${b.name} (synced with ${syncedLabel})` : `HEAD → ${b.name}`,
+      );
     } else {
       items.push(
         <span
@@ -646,10 +662,15 @@ const RefChips = memo(function RefChips({
           className="inline-flex h-[18px] items-center gap-1 rounded-full bg-muted/60 px-2 font-medium text-[10px] text-muted-foreground leading-none"
         >
           {b.name}
-          {inSync && <Cloud className="h-2.5 w-2.5 opacity-70" strokeWidth={2.5} />}
+          {syncedLabel && (
+            <>
+              <Cloud className="h-2.5 w-2.5 opacity-70" strokeWidth={2.5} />
+              <span className="font-normal opacity-80">{syncedLabel}</span>
+            </>
+          )}
         </span>,
       );
-      fullList.push(inSync ? `${b.name} (on remote)` : b.name);
+      fullList.push(syncedLabel ? `${b.name} (synced with ${syncedLabel})` : b.name);
     }
   }
 
