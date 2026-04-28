@@ -155,6 +155,20 @@ export function ChangesView({ repoPath }: Props) {
     return [...u, ...n];
   }, [unstaged, untracked]);
 
+  // Split the multi-selection into tracked vs untracked, each in display order,
+  // for the discard confirmation dialog.
+  const discardSummary = useMemo(() => {
+    const untrackedSet = new Set(untracked.map((u) => u.path));
+    const tracked: string[] = [];
+    const untrackedPaths: string[] = [];
+    for (const p of orderedSelectablePaths) {
+      if (!multiSelected.has(p)) continue;
+      if (untrackedSet.has(p)) untrackedPaths.push(p);
+      else tracked.push(p);
+    }
+    return { tracked, untracked: untrackedPaths };
+  }, [multiSelected, orderedSelectablePaths, untracked]);
+
   const handleRowMouseSelect = useCallback(
     (path: string, e: React.MouseEvent) => {
       // The currently focused file acts as an implicit anchor / first-pick when
@@ -627,21 +641,26 @@ export function ChangesView({ repoPath }: Props) {
               Discard {multiSelected.size} file{multiSelected.size === 1 ? "" : "s"}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              All changes to the selected files will be lost and cannot be recovered.
+              {discardSummary.untracked.length > 0 && discardSummary.tracked.length > 0
+                ? "Tracked changes will be reverted; untracked files will be permanently deleted."
+                : discardSummary.untracked.length > 0
+                  ? "Untracked files will be permanently deleted from disk."
+                  : "All changes to the selected files will be lost and cannot be recovered."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {multiSelected.size > 0 && (
-            <ul className="max-h-[40vh] overflow-auto rounded-md border bg-muted/30 p-1">
-              {[...multiSelected].map((p) => (
-                <li
-                  key={p}
-                  className="flex min-w-0 items-center gap-1.5 px-2 py-1 font-mono text-xs"
-                >
-                  <FileIcon path={p} />
-                  <span className="min-w-0 flex-1 truncate">{p}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="max-h-[40vh] space-y-2 overflow-auto">
+              {discardSummary.tracked.length > 0 && (
+                <DiscardFileList title="Changed" paths={discardSummary.tracked} />
+              )}
+              {discardSummary.untracked.length > 0 && (
+                <DiscardFileList
+                  title="Untracked (will be deleted)"
+                  tone="danger"
+                  paths={discardSummary.untracked}
+                />
+              )}
+            </div>
           )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={discardMixed.isPending}>Cancel</AlertDialogCancel>
@@ -649,13 +668,7 @@ export function ChangesView({ repoPath }: Props) {
               disabled={discardMixed.isPending}
               onClick={(e) => {
                 e.preventDefault();
-                const untrackedSet = new Set(untracked.map((u) => u.path));
-                const tracked: string[] = [];
-                const untrackedPaths: string[] = [];
-                for (const p of multiSelected) {
-                  if (untrackedSet.has(p)) untrackedPaths.push(p);
-                  else tracked.push(p);
-                }
+                const { tracked, untracked: untrackedPaths } = discardSummary;
                 if (tracked.length === 0 && untrackedPaths.length === 0) {
                   setDiscardAllOpen(false);
                   return;
@@ -706,6 +719,38 @@ export function ChangesView({ repoPath }: Props) {
         </AlertDialogContent>
       </AlertDialog>
     </ResizablePanelGroup>
+  );
+}
+
+function DiscardFileList({
+  title,
+  paths,
+  tone = "default",
+}: {
+  title: string;
+  paths: ReadonlyArray<string>;
+  tone?: "default" | "danger";
+}) {
+  return (
+    <div className="rounded-md border bg-muted/30">
+      <div
+        className={cn(
+          "flex items-center justify-between border-b px-2 py-1 text-[11px] font-semibold uppercase tracking-wider",
+          tone === "danger" ? "text-destructive" : "text-muted-foreground",
+        )}
+      >
+        <span>{title}</span>
+        <span className="tabular-nums">{paths.length}</span>
+      </div>
+      <ul className="p-1">
+        {paths.map((p) => (
+          <li key={p} className="flex min-w-0 items-center gap-1.5 px-2 py-1 font-mono text-xs">
+            <FileIcon path={p} />
+            <span className="min-w-0 flex-1 truncate">{p}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
