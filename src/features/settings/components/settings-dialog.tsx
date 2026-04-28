@@ -180,14 +180,9 @@ function ProvidersSection() {
   const { data, isLoading } = useProviderTokens();
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-md border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
-        <p className="font-medium text-foreground">What tokens are used for</p>
-        <p className="mt-1">
-          Etch uses provider tokens to resolve commit author avatars and display names from public
-          profiles. They are not used to push, pull, or sign commits — those still go through your
-          system Git credentials and SSH keys. PR and issue features are not yet built.
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Used to resolve commit authors. Not used for push, pull, or signing.
+      </p>
       {isLoading || !data ? (
         <Skeleton className="h-16 w-full" />
       ) : (
