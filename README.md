@@ -53,7 +53,7 @@ Tauri 2 (Rust core) + Vite + React 19 + TypeScript. Tailwind v4, shadcn/ui, Base
 
 ## Authorship
 
-Built and maintained by [@Joselay](https://github.com/Joselay). Commits are signed with my personal SSH key — every commit on `main` should show a **Verified** badge on GitHub.
+Built and maintained by [@Joselay](https://github.com/Joselay). Recent commits on `main` are signed with my personal SSH key and show a **Verified** badge on GitHub.
 
 If you fork or copy this code, [MIT](./LICENSE) requires you to keep the copyright notice. Please don't strip it and republish as your own original work.
 
