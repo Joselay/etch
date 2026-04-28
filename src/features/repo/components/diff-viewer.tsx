@@ -92,29 +92,77 @@ function FetchingDiff({
   return <DiffBody data={data} />;
 }
 
-function ImageDiff({ data }: { data: FileDiff }) {
-  const mime = data.imageMimeType as string;
-  const oldSrc = data.oldImage ? `data:${mime};base64,${data.oldImage}` : null;
-  const newSrc = data.newImage ? `data:${mime};base64,${data.newImage}` : null;
+function MediaDiff({ data }: { data: FileDiff }) {
+  const mime = data.mediaMimeType as string;
+  const isPlayable = mime.startsWith("video/") || mime.startsWith("audio/");
+  // For video/audio we hand the webview a Blob URL — `<video>` can range-seek
+  // from a Blob, while a giant data: URL would force it to materialize the
+  // whole payload as a string before playback. Images keep the cheap data URL
+  // path (browser decodes them lazily and atob() of a multi-MB string is not
+  // free).
+  const oldBlob = useBlobUrl(isPlayable ? data.oldMedia : undefined, mime);
+  const newBlob = useBlobUrl(isPlayable ? data.newMedia : undefined, mime);
+  const oldSrc = isPlayable
+    ? oldBlob
+    : data.oldMedia
+      ? `data:${mime};base64,${data.oldMedia}`
+      : null;
+  const newSrc = isPlayable
+    ? newBlob
+    : data.newMedia
+      ? `data:${mime};base64,${data.newMedia}`
+      : null;
   return (
     <div className="grid h-full grid-cols-2 gap-3 overflow-auto p-3">
-      <ImagePane label="Before" src={oldSrc} size={data.oldSize} dimensions={data.oldDimensions} />
-      <ImagePane label="After" src={newSrc} size={data.newSize} dimensions={data.newDimensions} />
+      <MediaPane
+        label="Before"
+        src={oldSrc}
+        mime={mime}
+        size={data.oldSize}
+        dimensions={data.oldDimensions}
+      />
+      <MediaPane
+        label="After"
+        src={newSrc}
+        mime={mime}
+        size={data.newSize}
+        dimensions={data.newDimensions}
+      />
     </div>
   );
 }
 
-function ImagePane({
+function useBlobUrl(base64: string | undefined, mime: string): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!base64) {
+      setUrl(null);
+      return;
+    }
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const obj = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    setUrl(obj);
+    return () => URL.revokeObjectURL(obj);
+  }, [base64, mime]);
+  return url;
+}
+
+function MediaPane({
   label,
   src,
+  mime,
   size,
   dimensions,
 }: {
   label: string;
   src: string | null;
+  mime: string;
   size?: number;
   dimensions?: { width: number; height: number };
 }) {
+  const kind = mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "image";
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
@@ -129,7 +177,15 @@ function ImagePane({
       </div>
       <div className="flex min-h-32 items-center justify-center rounded border border-border/50 bg-[repeating-conic-gradient(theme(colors.muted)_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-2">
         {src ? (
-          <img src={src} alt={label} className="max-h-[70vh] max-w-full object-contain" />
+          kind === "video" ? (
+            // biome-ignore lint/a11y/useMediaCaption: user-provided file, no captions available
+            <video src={src} controls className="max-h-[70vh] max-w-full object-contain" />
+          ) : kind === "audio" ? (
+            // biome-ignore lint/a11y/useMediaCaption: user-provided file, no captions available
+            <audio src={src} controls className="w-full" />
+          ) : (
+            <img src={src} alt={label} className="max-h-[70vh] max-w-full object-contain" />
+          )
         ) : (
           <span className="text-xs text-muted-foreground">No file</span>
         )}
@@ -536,8 +592,8 @@ function DiffBody({
     );
   }
   if (data.isBinary) {
-    if (data.imageMimeType && (data.oldImage || data.newImage)) {
-      return <ImageDiff data={data} />;
+    if (data.mediaMimeType && (data.oldMedia || data.newMedia)) {
+      return <MediaDiff data={data} />;
     }
     return <div className="p-4 text-xs text-muted-foreground">Binary file not shown.</div>;
   }

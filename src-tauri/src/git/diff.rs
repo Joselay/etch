@@ -59,11 +59,11 @@ pub struct FileDiff {
     pub is_binary: bool,
     pub hunks: Vec<DiffHunk>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub image_mime_type: Option<String>,
+    pub media_mime_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub old_image: Option<String>,
+    pub old_media: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub new_image: Option<String>,
+    pub new_media: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub old_size: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -105,7 +105,7 @@ fn maybe_size(bytes: &[u8]) -> Option<u64> {
     }
 }
 
-fn image_mime_for(file_path: &str) -> Option<&'static str> {
+fn media_mime_for(file_path: &str) -> Option<&'static str> {
     let ext = Path::new(file_path)
         .extension()
         .and_then(|s| s.to_str())
@@ -119,12 +119,30 @@ fn image_mime_for(file_path: &str) -> Option<&'static str> {
         "ico" => Some("image/x-icon"),
         "avif" => Some("image/avif"),
         "svg" => Some("image/svg+xml"),
+        "mp4" | "m4v" => Some("video/mp4"),
+        "mov" => Some("video/quicktime"),
+        "webm" => Some("video/webm"),
+        "ogv" => Some("video/ogg"),
+        "mp3" => Some("audio/mpeg"),
+        "wav" => Some("audio/wav"),
+        "ogg" | "oga" => Some("audio/ogg"),
+        "m4a" => Some("audio/mp4"),
+        "flac" => Some("audio/flac"),
         _ => None,
     }
 }
 
-fn encode_image(bytes: &[u8]) -> Option<String> {
-    if bytes.is_empty() {
+fn is_image_mime(mime: &str) -> bool {
+    mime.starts_with("image/")
+}
+
+// Cap on bytes we'll base64-encode and ship over IPC. Files larger than this
+// fall back to "Binary file not shown." — better than freezing the renderer
+// while it materializes a 100 MB string.
+const MAX_MEDIA_PREVIEW_BYTES: usize = 16 * 1024 * 1024;
+
+fn encode_media(bytes: &[u8]) -> Option<String> {
+    if bytes.is_empty() || bytes.len() > MAX_MEDIA_PREVIEW_BYTES {
         None
     } else {
         Some(base64::engine::general_purpose::STANDARD.encode(bytes))
@@ -319,17 +337,17 @@ fn build_file_diff(file_path: &str, old_bytes: &[u8], new_bytes: &[u8]) -> FileD
     };
 
     let mime = if is_bin {
-        image_mime_for(file_path)
+        media_mime_for(file_path)
     } else {
         None
     };
-    let (old_image, new_image) = match mime {
-        Some(_) => (encode_image(old_bytes), encode_image(new_bytes)),
+    let (old_media, new_media) = match mime {
+        Some(_) => (encode_media(old_bytes), encode_media(new_bytes)),
         None => (None, None),
     };
     let (old_dimensions, new_dimensions) = match mime {
-        Some(_) => (image_dimensions(old_bytes), image_dimensions(new_bytes)),
-        None => (None, None),
+        Some(m) if is_image_mime(m) => (image_dimensions(old_bytes), image_dimensions(new_bytes)),
+        _ => (None, None),
     };
 
     FileDiff {
@@ -337,9 +355,9 @@ fn build_file_diff(file_path: &str, old_bytes: &[u8], new_bytes: &[u8]) -> FileD
         old_path: None,
         is_binary: is_bin,
         hunks,
-        image_mime_type: mime.map(|s| s.to_string()),
-        old_image,
-        new_image,
+        media_mime_type: mime.map(|s| s.to_string()),
+        old_media,
+        new_media,
         old_size: maybe_size(old_bytes),
         new_size: maybe_size(new_bytes),
         old_dimensions,

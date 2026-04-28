@@ -73,9 +73,9 @@ export type FileDiff = {
   oldPath: string | null;
   isBinary: boolean;
   hunks: DiffHunk[];
-  imageMimeType?: string;
-  oldImage?: string;
-  newImage?: string;
+  mediaMimeType?: string;
+  oldMedia?: string;
+  newMedia?: string;
   oldSize?: number;
   newSize?: number;
   oldDimensions?: ImageDimensions;
