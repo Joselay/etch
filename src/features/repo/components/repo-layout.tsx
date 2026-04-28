@@ -80,6 +80,7 @@ export function RepoLayout() {
   const setActivePath = useRepoStore((s) => s.setActivePath);
   const clearActive = useRepoStore((s) => s.clearActive);
   const recentRepos = useRepoStore((s) => s.recentRepos);
+  const remoteUrls = useRepoStore((s) => s.remoteUrls);
   const ensureTab = useSelectionStore((s) => s.ensureTab);
   const setViewFn = useSelectionStore((s) => s.setView);
   const { view } = useTabSelection(activeRepo?.path ?? null);
@@ -196,8 +197,8 @@ export function RepoLayout() {
                           <DropdownMenuLabel>Recent repositories</DropdownMenuLabel>
                           {otherRecents.map((r) => {
                             const folder = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
-                            const known =
-                              !!r.remoteUrl && detectRemoteProvider(r.remoteUrl).kind !== "unknown";
+                            const url = r.remoteUrl ?? remoteUrls[r.path];
+                            const known = !!url && detectRemoteProvider(url).kind !== "unknown";
                             return (
                               <DropdownMenuItem
                                 key={r.path}
@@ -205,7 +206,7 @@ export function RepoLayout() {
                                 title={r.path}
                               >
                                 {known ? (
-                                  <ProviderIcon url={r.remoteUrl} className="h-4 w-4" />
+                                  <ProviderIcon url={url} className="h-4 w-4" />
                                 ) : (
                                   <FolderGit2 className="text-muted-foreground" />
                                 )}

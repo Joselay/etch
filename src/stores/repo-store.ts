@@ -9,6 +9,7 @@ type RepoState = {
   openRepos: RepoInfo[];
   activeRepo: RepoInfo | null;
   recentRepos: RecentRepo[];
+  remoteUrls: Record<string, string>;
   hydrated: boolean;
   welcomeTabOpen: boolean;
   setActive: (repo: RepoInfo) => Promise<void>;
@@ -26,6 +27,7 @@ const STORE_FILE = "etch.store.json";
 const RECENTS_KEY = "recentRepos";
 const OPEN_PATHS_KEY = "openRepoPaths";
 const ACTIVE_PATH_KEY = "activeRepoPath";
+const REMOTE_URLS_KEY = "repoRemoteUrls";
 const MAX_RECENTS = 10;
 
 let storePromise: Promise<Store> | null = null;
@@ -44,10 +46,39 @@ const persistSession = async (openPaths: string[], activePath: string | null) =>
   }
 };
 
+const persistRemoteUrls = async (urls: Record<string, string>) => {
+  try {
+    const store = await getStore();
+    await store.set(REMOTE_URLS_KEY, urls);
+  } catch (err) {
+    console.error("Failed to persist remote URLs", err);
+  }
+};
+
+const fetchAndCacheRemoteUrl = async (
+  path: string,
+  get: () => RepoState,
+  set: (partial: Partial<RepoState>) => void,
+) => {
+  try {
+    const remotes = await api.listRemotes(path);
+    const url = (remotes.find((r) => r.name === "origin") ?? remotes[0])?.url ?? null;
+    if (!url) return;
+    const current = get().remoteUrls;
+    if (current[path] === url) return;
+    const updated = { ...current, [path]: url };
+    set({ remoteUrls: updated });
+    await persistRemoteUrls(updated);
+  } catch {
+    // best-effort; missing remote URL just means no provider icon
+  }
+};
+
 export const useRepoStore = create<RepoState>((set, get) => ({
   openRepos: [],
   activeRepo: null,
   recentRepos: [],
+  remoteUrls: {},
   hydrated: false,
   welcomeTabOpen: false,
 
@@ -58,6 +89,13 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       const recents = (await store.get<RecentRepo[]>(RECENTS_KEY)) ?? [];
       const openPaths = (await store.get<string[]>(OPEN_PATHS_KEY)) ?? [];
       const activePath = (await store.get<string | null>(ACTIVE_PATH_KEY)) ?? null;
+      const persistedRemoteUrls = (await store.get<Record<string, string>>(REMOTE_URLS_KEY)) ?? {};
+      // Backfill from legacy recents for users upgrading from before the
+      // dedicated remoteUrls cache existed.
+      const seedRemoteUrls = { ...persistedRemoteUrls };
+      for (const r of recents) {
+        if (r.remoteUrl && !seedRemoteUrls[r.path]) seedRemoteUrls[r.path] = r.remoteUrl;
+      }
 
       const results = await Promise.all(
         openPaths.map(async (path) => {
@@ -84,12 +122,19 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         recentRepos: recents,
         openRepos: restored,
         activeRepo: active,
+        remoteUrls: seedRemoteUrls,
         hydrated: true,
       });
 
       const restoredPaths = restored.map((r) => r.path);
       if (restoredPaths.length !== openPaths.length || (active?.path ?? null) !== activePath) {
         await persistSession(restoredPaths, active?.path ?? null);
+      }
+      // Refresh remote URLs in the background so newly-restored tabs (and any
+      // missing entries) get their provider icon without waiting for the user
+      // to activate them.
+      for (const repo of restored) {
+        void fetchAndCacheRemoteUrl(repo.path, get, set);
       }
     } catch (err) {
       console.error("Failed to hydrate repo store", err);
@@ -129,23 +174,8 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       next.map((r) => r.path),
       repo.path,
     );
-    // Best-effort remote URL capture for the welcome screen / switcher provider icon.
-    void (async () => {
-      try {
-        const remotes = await api.listRemotes(repo.path);
-        const url = (remotes.find((r) => r.name === "origin") ?? remotes[0])?.url ?? null;
-        if (!url) return;
-        const current = get().recentRepos;
-        const updated = current.map((r) => (r.path === repo.path ? { ...r, remoteUrl: url } : r));
-        if (updated.some((r, i) => r.remoteUrl !== current[i]?.remoteUrl)) {
-          set({ recentRepos: updated });
-          const store = await getStore();
-          await store.set(RECENTS_KEY, updated);
-        }
-      } catch {
-        // best-effort; missing remote URL just means no provider icon
-      }
-    })();
+    // Best-effort remote URL capture for the welcome screen / switcher / tab icon.
+    void fetchAndCacheRemoteUrl(repo.path, get, set);
   },
 
   setActivePath: async (path) => {

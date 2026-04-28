@@ -52,6 +52,7 @@ export function WelcomeScreen() {
   const { initAt, isInitializing } = useInitRepo();
   const { isCloning } = useCloneRepo();
   const recents = useRepoStore((s) => s.recentRepos);
+  const remoteUrls = useRepoStore((s) => s.remoteUrls);
   const removeRecent = useRepoStore((s) => s.removeRecent);
   const hydrate = useRepoStore((s) => s.hydrate);
   const openSettings = useModalStore((s) => s.openSettings);
@@ -78,9 +79,9 @@ export function WelcomeScreen() {
     () =>
       recents.map((r) => {
         const name = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
-        return { ...r, name };
+        return { ...r, name, remoteUrl: r.remoteUrl ?? remoteUrls[r.path] };
       }),
-    [recents],
+    [recents, remoteUrls],
   );
 
   return (

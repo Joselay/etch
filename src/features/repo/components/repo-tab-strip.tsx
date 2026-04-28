@@ -20,7 +20,7 @@ export function RepoTabStrip() {
   const openRepos = useRepoStore((s) => s.openRepos);
   const activeRepo = useRepoStore((s) => s.activeRepo);
   const welcomeTabOpen = useRepoStore((s) => s.welcomeTabOpen);
-  const recentRepos = useRepoStore((s) => s.recentRepos);
+  const remoteUrls = useRepoStore((s) => s.remoteUrls);
   const setActivePath = useRepoStore((s) => s.setActivePath);
   const closeRepo = useRepoStore((s) => s.closeRepo);
   const reorderRepos = useRepoStore((s) => s.reorderRepos);
@@ -59,7 +59,7 @@ export function RepoTabStrip() {
           strategy={horizontalListSortingStrategy}
         >
           {openRepos.map((r) => {
-            const remoteUrl = recentRepos.find((rec) => rec.path === r.path)?.remoteUrl ?? null;
+            const remoteUrl = remoteUrls[r.path] ?? null;
             return (
               <RepoTab
                 key={r.path}
