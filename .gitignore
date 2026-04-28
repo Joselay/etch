@@ -28,3 +28,7 @@ src-tauri/.tauri
 *.njsproj
 *.sln
 *.sw?
+
+# Personal AI dev environment (CLAUDE.md is intentionally tracked)
+.claude/skills/
+skills-lock.json
