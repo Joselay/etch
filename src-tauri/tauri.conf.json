@@ -49,7 +49,7 @@
       "endpoints": [
         "https://github.com/Joselay/etch/releases/latest/download/latest.json"
       ],
-      "pubkey": "REPLACE_WITH_TAURI_SIGNING_PUBLIC_KEY"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVEMjA0RTkyOTI0NUNFRQpSV1R1WENRcDZRVFNEbjRzdDhWSVdEKzFORFFLM3JYSUFxYXpjZzBzdjNCU1dyZkI1T0hab2RRMAo="
     }
   }
 }

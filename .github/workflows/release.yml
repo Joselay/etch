@@ -89,5 +89,5 @@ jobs:
 
             See [CHANGELOG.md](https://github.com/Joselay/etch/blob/main/CHANGELOG.md) for the full list of changes in this release.
           releaseDraft: true
-          prerelease: true
+          prerelease: false
           args: ${{ matrix.args }}
