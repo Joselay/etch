@@ -15,7 +15,7 @@
 - Lane-colored commit graph, word-level diffs with syntax highlighting, blame, bisect, reflog, conflict inspection.
 - Line- and hunk-level staging, GPG/SSH signed commits, amend / fixup / reword from the history view.
 - Branches, tags, stashes, worktrees, remotes; GitHub tokens stored in the native OS keychain.
-- Interactive rebase (reorder / squash / drop), submodule inspection, multi-repo tabs that persist across restarts.
+- Interactive rebase (reorder / squash / drop), multi-repo tabs that persist across restarts.
 - `⌘K` command palette.
 
 ## Build from source

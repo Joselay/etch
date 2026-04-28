@@ -19,7 +19,6 @@ pub mod stage;
 pub mod stash;
 pub mod state;
 pub mod status;
-pub mod submodule;
 pub mod tags;
 pub mod validate;
 pub mod worktree;

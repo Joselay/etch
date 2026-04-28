@@ -250,15 +250,6 @@ export type BisectLogEntry = {
   subject: string;
 };
 
-export type SubmoduleStatus = "uptodate" | "modified" | "uninitialized" | "conflict";
-
-export type SubmoduleInfo = {
-  path: string;
-  currentOid: string | null;
-  describe: string | null;
-  status: SubmoduleStatus;
-};
-
 export type PullRequest = {
   number: number;
   title: string;
@@ -418,11 +409,6 @@ export const api = {
   bisectMark: (path: string, verdict: BisectVerdict) =>
     invoke<BisectStatus>("cmd_bisect_mark", { path, verdict }),
   bisectLog: (path: string) => invoke<BisectLogEntry[]>("cmd_bisect_log", { path }),
-  listSubmodules: (path: string) => invoke<SubmoduleInfo[]>("cmd_list_submodules", { path }),
-  initSubmodule: (path: string, sub: string) => invoke<void>("cmd_init_submodule", { path, sub }),
-  updateSubmodule: (path: string, sub: string, init: boolean) =>
-    invoke<void>("cmd_update_submodule", { path, sub, init }),
-  syncSubmodules: (path: string) => invoke<void>("cmd_sync_submodules", { path }),
   listPrs: (path: string, branch: string) =>
     invoke<PullRequest[]>("cmd_list_prs", { path, branch }),
   ciStatus: (path: string, ref: string) =>

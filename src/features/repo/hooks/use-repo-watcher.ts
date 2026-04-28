@@ -12,7 +12,6 @@ type RepoChange = {
   stash: boolean;
   config: boolean;
   bisect?: boolean;
-  submodules?: boolean;
 };
 
 export function useRepoWatcher(repoPath: string | null) {
@@ -43,9 +42,6 @@ export function useRepoWatcher(repoPath: string | null) {
       }
       if (c.bisect) {
         qc.invalidateQueries({ queryKey: ["bisect-log", repoPath] });
-      }
-      if (c.submodules) {
-        qc.invalidateQueries({ queryKey: ["submodules", repoPath] });
       }
       if (c.config) {
         qc.invalidateQueries({ queryKey: ["git-config", repoPath] });

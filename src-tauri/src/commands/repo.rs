@@ -44,9 +44,6 @@ use crate::git::{
     stash::{apply_stash, create_stash, drop_stash, list_stashes, pop_stash, StashEntry},
     state::{continue_cherry_pick, continue_merge, continue_revert, repo_state, RepoState},
     status::{status, RepoStatus},
-    submodule::{
-        init_submodule, list_submodules, sync_submodules, update_submodule, SubmoduleInfo,
-    },
     tags::{create_tag, delete_tag, push_tag},
     worktree::{add_worktree, list_worktrees, prune_worktrees, remove_worktree, WorktreeInfo},
 };
@@ -616,34 +613,6 @@ pub fn cmd_remove_worktree(path: String, target: String, force: bool) -> AppResu
 #[tauri::command]
 pub fn cmd_prune_worktrees(path: String) -> AppResult<()> {
     prune_worktrees(&PathBuf::from(path))
-}
-
-#[tauri::command]
-pub async fn cmd_list_submodules(path: String) -> AppResult<Vec<SubmoduleInfo>> {
-    tauri::async_runtime::spawn_blocking(move || list_submodules(&PathBuf::from(path)))
-        .await
-        .map_err(|e| AppError::Other(format!("join: {e}")))?
-}
-
-#[tauri::command]
-pub async fn cmd_init_submodule(path: String, sub: String) -> AppResult<()> {
-    tauri::async_runtime::spawn_blocking(move || init_submodule(&PathBuf::from(path), &sub))
-        .await
-        .map_err(|e| AppError::Other(format!("join: {e}")))?
-}
-
-#[tauri::command]
-pub async fn cmd_update_submodule(path: String, sub: String, init: bool) -> AppResult<()> {
-    tauri::async_runtime::spawn_blocking(move || update_submodule(&PathBuf::from(path), &sub, init))
-        .await
-        .map_err(|e| AppError::Other(format!("join: {e}")))?
-}
-
-#[tauri::command]
-pub async fn cmd_sync_submodules(path: String) -> AppResult<()> {
-    tauri::async_runtime::spawn_blocking(move || sync_submodules(&PathBuf::from(path)))
-        .await
-        .map_err(|e| AppError::Other(format!("join: {e}")))?
 }
 
 #[tauri::command]

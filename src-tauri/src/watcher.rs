@@ -31,7 +31,6 @@ struct RepoChange {
     stash: bool,
     config: bool,
     bisect: bool,
-    submodules: bool,
 }
 
 impl RepoChange {
@@ -44,7 +43,6 @@ impl RepoChange {
             || self.stash
             || self.config
             || self.bisect
-            || self.submodules
     }
     fn merge(&mut self, o: &RepoChange) {
         self.head |= o.head;
@@ -55,7 +53,6 @@ impl RepoChange {
         self.stash |= o.stash;
         self.config |= o.config;
         self.bisect |= o.bisect;
-        self.submodules |= o.submodules;
     }
 }
 
@@ -125,10 +122,6 @@ fn classify(path: &Path, root: &Path) -> RepoChange {
         "BISECT_LOG" | "BISECT_START" | "BISECT_TERMS" | "BISECT_NAMES" | "BISECT_EXPECTED_REV" => {
             c.state = true;
             c.bisect = true;
-        }
-        "modules" => {
-            c.submodules = true;
-            c.state = true;
         }
         "config" => {
             c.config = true;
