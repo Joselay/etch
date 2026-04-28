@@ -10,6 +10,11 @@ Etch is a cross-platform Git GUI client (macOS/Windows/Linux) built with Tauri 2
 
 Bugs and security findings live as GitHub issues on this repo. Before fixing a bug or making a behavior change, run `gh issue list` to check whether it's already tracked, and put `Closes #N` in the PR body for any matches so the merge auto-closes and links the issue. Don't close issues manually before the PR merges.
 
+## Commits
+
+- Use Conventional Commits (`type(scope): subject`) — see existing history for examples.
+- Do not add `Co-Authored-By: Claude` (or any AI co-author) trailers. Maintainer-only attribution.
+
 ## Commands
 
 - `bun install` — install JS deps (Rust deps resolve on first Tauri build)
