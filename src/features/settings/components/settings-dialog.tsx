@@ -50,7 +50,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProviderToken, ProviderTokenIdentity } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useModalStore } from "@/stores/modal-store";
@@ -67,76 +66,94 @@ import {
 import { GitignoreEditor } from "./gitignore-editor";
 import { SigningSection } from "./signing-section";
 
-type Tab = "appearance" | "review" | "identity" | "signing" | "providers" | "repository";
+type Tab = "appearance" | "review" | "identity" | "signing" | "repository" | "providers";
+
+const TABS: { value: Tab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+  { value: "appearance", label: "Appearance", Icon: Palette },
+  { value: "review", label: "Review", Icon: Eye },
+  { value: "identity", label: "Identity", Icon: UserRound },
+  { value: "signing", label: "Signing", Icon: Lock },
+  { value: "repository", label: "Repository", Icon: FolderGit2 },
+  { value: "providers", label: "Providers", Icon: KeyRound },
+];
 
 export function SettingsDialog() {
   const open = useModalStore((s) => s.settingsOpen);
   const setOpen = useModalStore((s) => s.setSettingsOpen);
   const [tab, setTab] = useState<Tab>("appearance");
+  const activeLabel = TABS.find((t) => t.value === tab)?.label ?? "Settings";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="gap-0 p-0 sm:max-w-2xl">
-        <DialogHeader className="px-6 pt-6 pb-3">
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="sr-only">
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>
-            Tokens are stored in your OS keychain. Changes apply immediately.
-          </DialogDescription>
+          <DialogDescription>Configure Etch.</DialogDescription>
         </DialogHeader>
-        <Tabs
-          value={tab}
-          onValueChange={(v) => setTab(v as Tab)}
-          className="flex max-h-[70vh] flex-col"
-        >
-          <TabsList className="mx-6 grid w-auto grid-cols-6">
-            <TabsTrigger value="appearance">
-              <Palette className="h-3.5 w-3.5" />
-              Appearance
-            </TabsTrigger>
-            <TabsTrigger value="review">
-              <Eye className="h-3.5 w-3.5" />
-              Review
-            </TabsTrigger>
-            <TabsTrigger value="identity">
-              <UserRound className="h-3.5 w-3.5" />
-              Identity
-            </TabsTrigger>
-            <TabsTrigger value="signing">
-              <Lock className="h-3.5 w-3.5" />
-              Signing
-            </TabsTrigger>
-            <TabsTrigger value="repository">
-              <FolderGit2 className="h-3.5 w-3.5" />
-              Repository
-            </TabsTrigger>
-            <TabsTrigger value="providers">
-              <KeyRound className="h-3.5 w-3.5" />
-              Providers
-            </TabsTrigger>
-          </TabsList>
-          <div className="flex-1 overflow-y-auto px-6 py-5">
-            <TabsContent value="appearance" className="m-0 flex flex-col gap-4">
-              <AppearanceSection />
-            </TabsContent>
-            <TabsContent value="review" className="m-0 flex flex-col gap-6">
-              <ReviewSection />
-            </TabsContent>
-            <TabsContent value="identity" className="m-0 flex flex-col gap-6">
-              <IdentitySection title="Global identity" repoPath={null} />
-              <ActiveRepoIdentity />
-            </TabsContent>
-            <TabsContent value="signing" className="m-0 flex flex-col gap-6">
-              <SigningSection repoPath={null} />
-              <ActiveRepoSigning />
-            </TabsContent>
-            <TabsContent value="repository" className="m-0 flex flex-col gap-6">
-              <RepositorySection />
-            </TabsContent>
-            <TabsContent value="providers" className="m-0 flex flex-col gap-4">
-              <ProvidersSection />
-            </TabsContent>
+        <div className="flex h-[600px]">
+          <nav className="flex w-48 shrink-0 flex-col gap-0.5 border-r bg-muted/30 p-2">
+            <p className="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">Settings</p>
+            {TABS.map(({ value, label, Icon }) => {
+              const active = tab === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTab(value)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                    active
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  )}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex h-12 shrink-0 items-center border-b px-6">
+              <h2 className="text-sm font-medium">{activeLabel}</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {tab === "appearance" && (
+                <div className="flex flex-col gap-4">
+                  <AppearanceSection />
+                </div>
+              )}
+              {tab === "review" && (
+                <div className="flex flex-col gap-6">
+                  <ReviewSection />
+                </div>
+              )}
+              {tab === "identity" && (
+                <div className="flex flex-col gap-6">
+                  <IdentitySection title="Global identity" repoPath={null} />
+                  <ActiveRepoIdentity />
+                </div>
+              )}
+              {tab === "signing" && (
+                <div className="flex flex-col gap-6">
+                  <SigningSection repoPath={null} />
+                  <ActiveRepoSigning />
+                </div>
+              )}
+              {tab === "repository" && (
+                <div className="flex flex-col gap-6">
+                  <RepositorySection />
+                </div>
+              )}
+              {tab === "providers" && (
+                <div className="flex flex-col gap-4">
+                  <ProvidersSection />
+                </div>
+              )}
+            </div>
           </div>
-        </Tabs>
+        </div>
       </DialogContent>
     </Dialog>
   );
