@@ -616,7 +616,13 @@ const RefChips = memo(function RefChips({
     fullList.push("detached HEAD");
   }
 
+  // A local branch is "in sync" when a same-named remote-tracking branch sits
+  // on the same commit. We collapse them into one chip and tack on a cloud
+  // sub-icon to signal "also on remote" without duplicating the label.
+  const remoteNames = new Set(entry.remotes.map((r) => r.name));
+
   for (const b of entry.locals) {
+    const inSync = remoteNames.has(b.name);
     if (b.isHead) {
       items.push(
         <span
@@ -629,25 +635,26 @@ const RefChips = memo(function RefChips({
         >
           <Check className="h-2.5 w-2.5" strokeWidth={3} />
           {b.name}
+          {inSync && <Cloud className="h-2.5 w-2.5 opacity-70" strokeWidth={2.5} />}
         </span>,
       );
-      fullList.push(`HEAD → ${b.name}`);
+      fullList.push(inSync ? `HEAD → ${b.name} (on remote)` : `HEAD → ${b.name}`);
     } else {
       items.push(
         <span
           key={`l:${b.fullName}`}
-          className="inline-flex h-[18px] items-center rounded-full bg-muted/60 px-2 font-medium text-[10px] text-muted-foreground leading-none"
+          className="inline-flex h-[18px] items-center gap-1 rounded-full bg-muted/60 px-2 font-medium text-[10px] text-muted-foreground leading-none"
         >
           {b.name}
+          {inSync && <Cloud className="h-2.5 w-2.5 opacity-70" strokeWidth={2.5} />}
         </span>,
       );
-      fullList.push(b.name);
+      fullList.push(inSync ? `${b.name} (on remote)` : b.name);
     }
   }
 
   // Suppress origin/<name> when a same-named local branch sits on the same
-  // commit — they convey the same position. The remote chip earns its keep
-  // only when it diverges to a different row.
+  // commit — the in-sync local chip already carries the cloud sub-icon.
   const localNames = new Set(entry.locals.map((b) => b.name));
   for (const r of entry.remotes) {
     if (localNames.has(r.name)) continue;
