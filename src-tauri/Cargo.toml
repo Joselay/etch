@@ -2,10 +2,14 @@
 name = "etch"
 version = "0.1.0"
 description = "A fast, cross-platform Git GUI client for macOS, Windows and Linux."
-authors = ["Menglay"]
+authors = ["Joselay <tongmenglaysmae5@gmail.com>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT"
+repository = "https://github.com/Joselay/etch"
+homepage = "https://github.com/Joselay/etch"
+readme = "../README.md"
+keywords = ["git", "git-gui", "tauri", "version-control"]
+categories = ["development-tools", "gui"]
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
