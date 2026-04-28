@@ -79,6 +79,12 @@ pub fn list_refs(path: &Path) -> AppResult<RefListing> {
     {
         let mut r = r.map_err(|e| AppError::Git(e.to_string()))?;
         let full = r.name().as_bstr().to_string();
+        // Skip symbolic refs/remotes/<remote>/HEAD — they always track the
+        // remote's default branch, so showing them duplicates the chip the
+        // default branch already gets (e.g. origin/HEAD next to origin/main).
+        if full.ends_with("/HEAD") {
+            continue;
+        }
         let target = r.peel_to_id_in_place().ok().map(|id| id.to_string());
         let stripped = short_name(&full, "refs/remotes/");
         let (remote_name, branch_name) = match stripped.split_once('/') {
