@@ -157,9 +157,21 @@ export function ChangesView({ repoPath }: Props) {
 
   const handleRowMouseSelect = useCallback(
     (path: string, e: React.MouseEvent) => {
+      // The currently focused file acts as an implicit anchor / first-pick when
+      // the user starts modifier-clicking without an explicit one — a plain
+      // click that focused a file should count as the first item in the
+      // selection so the next Cmd/Shift+click extends from there.
+      const implicitAnchor =
+        workingSide === "unstaged" &&
+        workingFilePath &&
+        orderedSelectablePaths.includes(workingFilePath)
+          ? workingFilePath
+          : null;
+      const anchor = selectionAnchor ?? implicitAnchor;
+
       // Shift+click: extend selection from the anchor to this row.
-      if (e.shiftKey && selectionAnchor && selectionAnchor !== path) {
-        const i = orderedSelectablePaths.indexOf(selectionAnchor);
+      if (e.shiftKey && anchor && anchor !== path) {
+        const i = orderedSelectablePaths.indexOf(anchor);
         const j = orderedSelectablePaths.indexOf(path);
         if (i >= 0 && j >= 0) {
           const [lo, hi] = i <= j ? [i, j] : [j, i];
@@ -169,15 +181,20 @@ export function ChangesView({ repoPath }: Props) {
             for (const p of range) next.add(p);
             return next;
           });
+          setSelectionAnchor(anchor);
           selectWorkingFile("unstaged", path);
           return;
         }
       }
-      // Cmd/Ctrl+click (or shift+click with no anchor): toggle this one.
+      // Cmd/Ctrl+click (or shift+click with no anchor): toggle this one and
+      // seed the focused file into the selection if nothing was selected yet.
       if (e.metaKey || e.ctrlKey || e.shiftKey) {
         setSelectionAnchor(path);
         setMultiSelected((prev) => {
           const next = new Set(prev);
+          if (next.size === 0 && implicitAnchor && implicitAnchor !== path) {
+            next.add(implicitAnchor);
+          }
           if (next.has(path)) next.delete(path);
           else next.add(path);
           return next;
@@ -190,7 +207,14 @@ export function ChangesView({ repoPath }: Props) {
       if (multiSelected.size > 0) setMultiSelected(new Set());
       selectWorkingFile("unstaged", path);
     },
-    [multiSelected, orderedSelectablePaths, selectionAnchor, selectWorkingFile],
+    [
+      multiSelected,
+      orderedSelectablePaths,
+      selectionAnchor,
+      selectWorkingFile,
+      workingFilePath,
+      workingSide,
+    ],
   );
 
   // Cmd/Ctrl+A selects every changed/untracked file; Cmd/Ctrl+Shift+D discards
