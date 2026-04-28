@@ -29,6 +29,7 @@ src-tauri/.tauri
 *.sln
 *.sw?
 
-# Personal AI dev environment (CLAUDE.md is intentionally tracked at repo root)
+# Personal AI dev environment
 .claude/
+CLAUDE.md
 skills-lock.json
