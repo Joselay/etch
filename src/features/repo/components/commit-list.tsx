@@ -645,7 +645,12 @@ const RefChips = memo(function RefChips({
     }
   }
 
+  // Suppress origin/<name> when a same-named local branch sits on the same
+  // commit — they convey the same position. The remote chip earns its keep
+  // only when it diverges to a different row.
+  const localNames = new Set(entry.locals.map((b) => b.name));
   for (const r of entry.remotes) {
+    if (localNames.has(r.name)) continue;
     const label = r.remote ? `${r.remote}/${r.name}` : r.name;
     items.push(
       <span
