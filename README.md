@@ -8,7 +8,7 @@
   <img src="./docs/assets/etch-demo.webp" alt="Etch demo — multi-repo tabs, ⌘K palette, word-level diff" width="100%" />
 </div>
 
-> Personal project. Built for myself; friends and coworkers are welcome to clone and build.
+> Personal project — built for my own use. Source is public under MIT, but I'm not accepting issues, PRs, or feature requests.
 
 ## Features
 
