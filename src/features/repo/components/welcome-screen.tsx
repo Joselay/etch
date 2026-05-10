@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
+import etchLogo from "@/assets/etch-logo.png";
 import { ProviderIcon } from "@/components/provider-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -126,9 +127,12 @@ export function WelcomeScreen() {
         )}
       >
         <header className="flex flex-col items-center gap-4 text-center">
-          <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-border shadow-sm">
-            <GitBranch className="h-7 w-7 text-primary" strokeWidth={2.25} />
-          </div>
+          <img
+            src={etchLogo}
+            alt=""
+            aria-hidden
+            className="h-16 w-16 rounded-2xl object-cover shadow-sm ring-1 ring-border"
+          />
           <Badge variant="secondary" className="gap-1.5">
             <Sparkles className="h-3 w-3" />v{pkg.version}
           </Badge>
