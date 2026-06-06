@@ -16,11 +16,37 @@ for (const [fullPath, url] of Object.entries(svgUrls)) {
 }
 
 type Manifest = {
+  iconDefinitions: Record<string, { iconPath: string }>;
   fileExtensions: Record<string, string>;
   fileNames: Record<string, string>;
   file: string;
 };
 const m = manifest as unknown as Manifest;
+
+const NEST_EXTENSION_OVERRIDES: Record<string, string> = {
+  "controller.ts": "nest-controller",
+  "controller.js": "nest-controller",
+  "decorator.ts": "nest-decorator",
+  "decorator.js": "nest-decorator",
+  "filter.ts": "nest-filter",
+  "filter.js": "nest-filter",
+  "gateway.ts": "nest-gateway",
+  "gateway.js": "nest-gateway",
+  "guard.ts": "nest-guard",
+  "guard.js": "nest-guard",
+  "interceptor.ts": "nest-interceptor",
+  "interceptor.js": "nest-interceptor",
+  "middleware.ts": "nest-middleware",
+  "middleware.js": "nest-middleware",
+  "module.ts": "nest-module",
+  "module.js": "nest-module",
+  "pipe.ts": "nest-pipe",
+  "pipe.js": "nest-pipe",
+  "resolver.ts": "nest-resolver",
+  "resolver.js": "nest-resolver",
+  "service.ts": "nest-service",
+  "service.js": "nest-service",
+};
 
 const EXTENSION_OVERRIDES: Record<string, string> = {
   ts: "typescript",
@@ -51,13 +77,23 @@ function resolveIconName(path: string): string {
   const segments = lower.split(".");
   for (let i = 1; i < segments.length; i++) {
     const ext = segments.slice(i).join(".");
-    const hit = m.fileExtensions[ext] ?? EXTENSION_OVERRIDES[ext];
+    const hit = NEST_EXTENSION_OVERRIDES[ext] ?? m.fileExtensions[ext] ?? EXTENSION_OVERRIDES[ext];
     if (hit) return hit;
   }
   return m.file;
 }
 
+function iconAssetName(icon: string): string {
+  const iconPath = m.iconDefinitions[icon]?.iconPath;
+  return (
+    iconPath
+      ?.split("/")
+      .pop()
+      ?.replace(/\.svg$/, "") ?? icon
+  );
+}
+
 export function getFileIconUrl(path: string): string | undefined {
   const icon = resolveIconName(path);
-  return urlByName.get(icon) ?? urlByName.get(m.file);
+  return urlByName.get(iconAssetName(icon)) ?? urlByName.get(icon) ?? urlByName.get(m.file);
 }
