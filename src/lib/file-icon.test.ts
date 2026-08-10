@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import { getFileIconUrl } from "./file-icon";
 
 describe("getFileIconUrl", () => {
+  it("uses the Pi icon for AGENTS.md files", () => {
+    expect(getFileIconUrl("AGENTS.md")).toContain("agents");
+    expect(getFileIconUrl("nested/agents.md")).toBe(getFileIconUrl("AGENTS.md"));
+  });
+
   it("uses NestJS icons for dotted Nest convention files", () => {
     expect(getFileIconUrl("src/modules/auth/auth.service.ts")).toContain("nest-service.clone.svg");
     expect(getFileIconUrl("src/modules/auth/auth.controller.ts")).toContain(

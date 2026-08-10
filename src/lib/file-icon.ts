@@ -1,4 +1,5 @@
 import manifest from "material-icon-theme/dist/material-icons.json";
+import agentsIconUrl from "@/assets/file-icons/agents.svg?no-inline";
 
 const svgUrls = import.meta.glob<string>("/node_modules/material-icon-theme/icons/*.svg", {
   query: "?url",
@@ -22,6 +23,10 @@ type Manifest = {
   file: string;
 };
 const m = manifest as unknown as Manifest;
+
+const FILE_NAME_OVERRIDES: Record<string, string> = {
+  "agents.md": agentsIconUrl,
+};
 
 const NEST_EXTENSION_OVERRIDES: Record<string, string> = {
   "controller.ts": "nest-controller",
@@ -94,6 +99,9 @@ function iconAssetName(icon: string): string {
 }
 
 export function getFileIconUrl(path: string): string | undefined {
+  const fileNameOverride = FILE_NAME_OVERRIDES[basename(path).toLowerCase()];
+  if (fileNameOverride) return fileNameOverride;
+
   const icon = resolveIconName(path);
   return urlByName.get(iconAssetName(icon)) ?? urlByName.get(icon) ?? urlByName.get(m.file);
 }
