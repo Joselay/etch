@@ -1,5 +1,5 @@
 import { AlertTriangle, Lock, RotateCcw, Trash2, Users } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileIcon } from "@/components/file-icon";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
@@ -38,12 +38,15 @@ import {
   useStatus,
   useWorkingDiff,
 } from "../hooks/use-status";
-import { ConflictViewer } from "./conflict-viewer";
 import { DiffViewer, type HunkAction, type LineAction } from "./diff-viewer";
 import { FileRowContextMenu } from "./file-row-context-menu";
 import { FileTree, TreeIndentGuides, TreeLeafSpacer } from "./file-tree";
 
 type Props = { repoPath: string };
+
+const ConflictViewer = lazy(() =>
+  import("./conflict-viewer").then((module) => ({ default: module.ConflictViewer })),
+);
 
 export function ChangesView({ repoPath }: Props) {
   const { data: status, isLoading } = useStatus(repoPath);
@@ -633,7 +636,17 @@ export function ChangesView({ repoPath }: Props) {
             (() => {
               const conflict = conflictList.find((c) => c.path === workingFilePath);
               if (conflict) {
-                return <ConflictViewer repoPath={repoPath} entry={conflict} />;
+                return (
+                  <Suspense
+                    fallback={
+                      <div className="p-4 text-xs text-muted-foreground">
+                        Loading conflict editor…
+                      </div>
+                    }
+                  >
+                    <ConflictViewer repoPath={repoPath} entry={conflict} />
+                  </Suspense>
+                );
               }
               return (
                 <WorkingDiffPane

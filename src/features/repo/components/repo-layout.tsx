@@ -12,7 +12,7 @@ import {
   Settings,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ProviderIcon } from "@/components/provider-icon";
 import {
   AlertDialog,
@@ -61,17 +61,22 @@ import { useRemotes } from "../hooks/use-remotes";
 import { RepoWatcher } from "../hooks/use-repo-watcher";
 import { useStatus } from "../hooks/use-status";
 import { RemoteAuthorsContext } from "../remote-authors-context";
-import { ChangesView } from "./changes-view";
 import { CommandPalette } from "./command-palette";
 import { CommitDetails } from "./commit-details";
 import { CommitList } from "./commit-list";
-import { ReflogView } from "./reflog-view";
 import { RefsSidebar } from "./refs-sidebar";
 import { RemoteActions } from "./remote-actions";
 import { RepoStateBanner } from "./repo-state-banner";
 import { StatusBar } from "./status-bar";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
+const ChangesView = lazy(() =>
+  import("./changes-view").then((module) => ({ default: module.ChangesView })),
+);
+const ReflogView = lazy(() =>
+  import("./reflog-view").then((module) => ({ default: module.ReflogView })),
+);
 
 export function RepoLayout() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
@@ -145,9 +150,7 @@ export function RepoLayout() {
 
   return (
     <RemoteAuthorsContext.Provider value={remoteAuthorsValue}>
-      {openRepos.map((r) => (
-        <RepoWatcher key={r.path} path={r.path} />
-      ))}
+      <RepoWatcher />
       <CommandPalette />
       <Tabs
         value={view}
@@ -359,11 +362,15 @@ export function RepoLayout() {
               </TabsContent>
 
               <TabsContent value="changes" className="m-0 min-h-0 flex-1 overflow-hidden">
-                <ChangesView repoPath={activeRepo.path} />
+                <Suspense fallback={<div className="h-full bg-background" />}>
+                  <ChangesView repoPath={activeRepo.path} />
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="reflog" className="m-0 min-h-0 flex-1 overflow-hidden">
-                <ReflogView repoPath={activeRepo.path} />
+                <Suspense fallback={<div className="h-full bg-background" />}>
+                  <ReflogView repoPath={activeRepo.path} />
+                </Suspense>
               </TabsContent>
             </div>
           </ResizablePanel>

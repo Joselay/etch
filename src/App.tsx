@@ -1,17 +1,13 @@
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { ThemeProvider } from "next-themes";
-import { useCallback, useEffect } from "react";
-import { ShortcutsDialog } from "@/components/shortcuts-dialog";
+import { lazy, Suspense, useCallback, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { CloneDialog } from "@/features/repo/components/clone-dialog";
-import { RepoLayout } from "@/features/repo/components/repo-layout";
 import { RepoTabStrip } from "@/features/repo/components/repo-tab-strip";
 import { WelcomeScreen } from "@/features/repo/components/welcome-screen";
 import { useInitRepo } from "@/features/repo/hooks/use-clone-repo";
 import { useOpenRepo } from "@/features/repo/hooks/use-open-repo";
-import { SettingsDialog } from "@/features/settings/components/settings-dialog";
 import { useCommandShortcuts } from "@/hooks/use-command-shortcuts";
 import { useGlobalRefresh } from "@/hooks/use-global-refresh";
 import { useMenuEvents } from "@/hooks/use-menu-events";
@@ -24,6 +20,27 @@ import "./App.css";
 // Bump when the persisted query shape changes to discard stale caches.
 const CACHE_BUSTER = "v1";
 
+const RepoLayout = lazy(() =>
+  import("@/features/repo/components/repo-layout").then((module) => ({
+    default: module.RepoLayout,
+  })),
+);
+const CloneDialog = lazy(() =>
+  import("@/features/repo/components/clone-dialog").then((module) => ({
+    default: module.CloneDialog,
+  })),
+);
+const SettingsDialog = lazy(() =>
+  import("@/features/settings/components/settings-dialog").then((module) => ({
+    default: module.SettingsDialog,
+  })),
+);
+const ShortcutsDialog = lazy(() =>
+  import("@/components/shortcuts-dialog").then((module) => ({
+    default: module.ShortcutsDialog,
+  })),
+);
+
 function AppInner() {
   const activeRepo = useRepoStore((s) => s.activeRepo);
   const hydrated = useRepoStore((s) => s.hydrated);
@@ -34,6 +51,8 @@ function AppInner() {
   const closeWelcomeTab = useRepoStore((s) => s.closeWelcomeTab);
   const cloneOpen = useModalStore((s) => s.cloneOpen);
   const setCloneOpen = useModalStore((s) => s.setCloneOpen);
+  const settingsOpen = useModalStore((s) => s.settingsOpen);
+  const shortcutsOpen = useModalStore((s) => s.shortcutsOpen);
 
   useEffect(() => {
     void hydrate();
@@ -85,10 +104,20 @@ function AppInner() {
       <div className="flex h-screen flex-col overflow-hidden">
         {showTabStrip && <RepoTabStrip />}
         <div className="flex min-h-0 flex-1 flex-col">
-          {activeRepo ? <RepoLayout /> : <WelcomeScreen />}
+          {activeRepo ? (
+            <Suspense fallback={<div className="h-full bg-background" />}>
+              <RepoLayout />
+            </Suspense>
+          ) : (
+            <WelcomeScreen />
+          )}
         </div>
       </div>
-      <CloneDialog open={cloneOpen} onOpenChange={setCloneOpen} />
+      <Suspense fallback={null}>
+        {cloneOpen && <CloneDialog open onOpenChange={setCloneOpen} />}
+        {settingsOpen && <SettingsDialog />}
+        {shortcutsOpen && <ShortcutsDialog />}
+      </Suspense>
     </>
   );
 }
@@ -110,8 +139,6 @@ function App() {
       >
         <TooltipProvider delayDuration={200}>
           <AppInner />
-          <SettingsDialog />
-          <ShortcutsDialog />
           <Toaster />
         </TooltipProvider>
       </PersistQueryClientProvider>

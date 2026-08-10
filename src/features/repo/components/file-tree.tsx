@@ -26,7 +26,7 @@ export function FileTree<T extends { path: string }>({
   indentPx = TREE_INDENT_PX,
   persistKey,
 }: Props<T>) {
-  const nodes = buildFileTree(items);
+  const nodes = useMemo(() => buildFileTree(items), [items]);
   const [localCollapsed, setLocalCollapsed] = useState<Set<string>>(() => new Set());
   const persistedList = useFileTreeStore((s) =>
     persistKey ? (s.collapsed[persistKey] ?? null) : null,

@@ -131,11 +131,13 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       if (restoredPaths.length !== openPaths.length || (active?.path ?? null) !== activePath) {
         await persistSession(restoredPaths, active?.path ?? null);
       }
-      // Refresh remote URLs in the background so newly-restored tabs (and any
-      // missing entries) get their provider icon without waiting for the user
-      // to activate them.
+      // Only fetch missing remote URLs. Cached URLs are display metadata and
+      // refreshing every restored tab creates an avoidable startup Git burst;
+      // the active repository's remotes query keeps its value current.
       for (const repo of restored) {
-        void fetchAndCacheRemoteUrl(repo.path, get, set);
+        if (!seedRemoteUrls[repo.path]) {
+          void fetchAndCacheRemoteUrl(repo.path, get, set);
+        }
       }
     } catch (err) {
       console.error("Failed to hydrate repo store", err);

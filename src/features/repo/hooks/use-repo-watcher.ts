@@ -14,47 +14,48 @@ type RepoChange = {
   bisect?: boolean;
 };
 
-export function useRepoWatcher(repoPath: string | null) {
+export function useRepoWatcher() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    if (!repoPath) return;
     const unlistenPromise = listen<RepoChange>("repo-changed", (e) => {
       const c = e.payload;
-      if (c.path && c.path !== repoPath) return;
+      // Watcher payloads normally include a path. Falling back to the query
+      // family still refreshes safely if an older backend emits no path.
+      const key = (name: string) => (c.path ? [name, c.path] : [name]);
       if (c.index || c.worktree) {
-        qc.invalidateQueries({ queryKey: ["status", repoPath] });
-        qc.invalidateQueries({ queryKey: ["working-diff", repoPath] });
+        qc.invalidateQueries({ queryKey: key("status") });
+        qc.invalidateQueries({ queryKey: key("working-diff") });
       }
       if (c.head || c.refs) {
-        qc.invalidateQueries({ queryKey: ["commit-log", repoPath] });
-        qc.invalidateQueries({ queryKey: ["refs", repoPath] });
-        qc.invalidateQueries({ queryKey: ["upstream-status", repoPath] });
-        qc.invalidateQueries({ queryKey: ["reflog", repoPath] });
+        qc.invalidateQueries({ queryKey: key("commit-log") });
+        qc.invalidateQueries({ queryKey: key("refs") });
+        qc.invalidateQueries({ queryKey: key("upstream-status") });
+        qc.invalidateQueries({ queryKey: key("reflog") });
       }
       if (c.state) {
-        qc.invalidateQueries({ queryKey: ["repo-state", repoPath] });
-        qc.invalidateQueries({ queryKey: ["conflicts", repoPath] });
-        qc.invalidateQueries({ queryKey: ["conflict-sides", repoPath] });
+        qc.invalidateQueries({ queryKey: key("repo-state") });
+        qc.invalidateQueries({ queryKey: key("conflicts") });
+        qc.invalidateQueries({ queryKey: key("conflict-sides") });
       }
       if (c.stash) {
-        qc.invalidateQueries({ queryKey: ["stashes", repoPath] });
+        qc.invalidateQueries({ queryKey: key("stashes") });
       }
       if (c.bisect) {
-        qc.invalidateQueries({ queryKey: ["bisect-log", repoPath] });
+        qc.invalidateQueries({ queryKey: key("bisect-log") });
       }
       if (c.config) {
-        qc.invalidateQueries({ queryKey: ["git-config", repoPath] });
-        qc.invalidateQueries({ queryKey: ["signing-config", repoPath] });
+        qc.invalidateQueries({ queryKey: key("git-config") });
+        qc.invalidateQueries({ queryKey: key("signing-config") });
       }
     });
     return () => {
       unlistenPromise.then((fn) => fn());
     };
-  }, [qc, repoPath]);
+  }, [qc]);
 }
 
-export function RepoWatcher({ path }: { path: string }) {
-  useRepoWatcher(path);
+export function RepoWatcher() {
+  useRepoWatcher();
   return null;
 }
