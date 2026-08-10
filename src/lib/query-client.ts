@@ -5,6 +5,10 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
+      // Git query payloads can contain large diffs and commit pages. Keeping
+      // every previously viewed item for React Query's five-minute default
+      // causes the webview's memory to grow quickly during normal browsing.
+      gcTime: 60_000,
       refetchOnWindowFocus: false,
     },
   },

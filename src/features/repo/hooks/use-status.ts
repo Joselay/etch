@@ -19,6 +19,7 @@ export function useWorkingDiff(path: string | null, filePath: string | null, sta
     queryKey: ["working-diff", path, filePath, staged],
     enabled: !!path && !!filePath,
     queryFn: () => api.workingDiff(path as string, filePath as string, staged),
+    gcTime: 15_000,
   });
 }
 

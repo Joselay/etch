@@ -6,6 +6,7 @@ export function useCommitChanges(path: string | null, commitId: string | null) {
     queryKey: ["commit-changes", path, commitId],
     enabled: !!path && !!commitId,
     queryFn: () => api.commitChanges(path as string, commitId as string),
+    gcTime: 30_000,
   });
 }
 
@@ -23,5 +24,8 @@ export function useFileDiff(path: string | null, commitId: string | null, filePa
     queryKey: ["file-diff", path, commitId, filePath],
     enabled: !!path && !!commitId && !!filePath,
     queryFn: () => api.fileDiff(path as string, commitId as string, filePath as string),
+    // File diffs may include large text or base64 media. Release inactive
+    // entries promptly instead of accumulating them as the selection changes.
+    gcTime: 15_000,
   });
 }

@@ -20,7 +20,9 @@ export default defineConfig(async () => ({
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
-          if (id.includes("/shiki/") || id.includes("@shikijs/")) return "shiki";
+          // Do not force Shiki into one chunk: its language grammars are
+          // dynamic imports and should stay split so viewing one diff does not
+          // load every supported grammar into the webview.
           if (id.includes("/@codemirror/") || id.includes("/@uiw/react-codemirror/"))
             return "codemirror";
           if (id.includes("/recharts/") || id.includes("/d3-")) return "charts";
