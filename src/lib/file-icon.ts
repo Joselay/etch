@@ -1,5 +1,6 @@
 import manifest from "material-icon-theme/dist/material-icons.json";
 import agentsIconUrl from "@/assets/file-icons/agents.svg?no-inline";
+import metatrader5IconUrl from "@/assets/file-icons/metatrader5.svg?no-inline";
 
 const svgUrls = import.meta.glob<string>("/node_modules/material-icon-theme/icons/*.svg", {
   query: "?url",
@@ -26,6 +27,10 @@ const m = manifest as unknown as Manifest;
 
 const FILE_NAME_OVERRIDES: Record<string, string> = {
   "agents.md": agentsIconUrl,
+};
+
+const FILE_EXTENSION_OVERRIDES: Record<string, string> = {
+  mq5: metatrader5IconUrl,
 };
 
 const NEST_EXTENSION_OVERRIDES: Record<string, string> = {
@@ -99,8 +104,12 @@ function iconAssetName(icon: string): string {
 }
 
 export function getFileIconUrl(path: string): string | undefined {
-  const fileNameOverride = FILE_NAME_OVERRIDES[basename(path).toLowerCase()];
+  const lowerName = basename(path).toLowerCase();
+  const fileNameOverride = FILE_NAME_OVERRIDES[lowerName];
   if (fileNameOverride) return fileNameOverride;
+
+  const extensionOverride = FILE_EXTENSION_OVERRIDES[lowerName.split(".").pop() ?? ""];
+  if (extensionOverride) return extensionOverride;
 
   const icon = resolveIconName(path);
   return urlByName.get(iconAssetName(icon)) ?? urlByName.get(icon) ?? urlByName.get(m.file);
