@@ -31,6 +31,8 @@ const FILE_NAME_OVERRIDES: Record<string, string> = {
 
 const FILE_EXTENSION_OVERRIDES: Record<string, string> = {
   mq5: metatrader5IconUrl,
+  mqh: metatrader5IconUrl,
+  set: metatrader5IconUrl,
 };
 
 const NEST_EXTENSION_OVERRIDES: Record<string, string> = {

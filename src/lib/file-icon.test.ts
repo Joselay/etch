@@ -8,9 +8,11 @@ describe("getFileIconUrl", () => {
     expect(getFileIconUrl("nested/agents.md")).toBe(getFileIconUrl("AGENTS.md"));
   });
 
-  it("uses the MetaTrader 5 icon for MQ5 source files", () => {
+  it("uses the MetaTrader 5 icon for MQL source and preset files", () => {
     expect(getFileIconUrl("Scalper.mq5")).toContain("metatrader5");
     expect(getFileIconUrl("Indicators/Momentum.MQ5")).toBe(getFileIconUrl("Scalper.mq5"));
+    expect(getFileIconUrl("Include/Trade.mqh")).toBe(getFileIconUrl("Scalper.mq5"));
+    expect(getFileIconUrl("Presets/Strategy.set")).toBe(getFileIconUrl("Scalper.mq5"));
   });
 
   it("uses NestJS icons for dotted Nest convention files", () => {
