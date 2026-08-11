@@ -1,0 +1,109 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "mql5",
+  "displayName": "MQL5",
+  "scopeName": "source.mql5",
+  "aliases": ["mq5", "mqh"],
+  "fileTypes": ["mq5", "mqh"],
+  "embeddedLangs": ["cpp"],
+  "patterns": [
+    { "include": "#mql-preprocessor" },
+    { "include": "#mql-literals" },
+    { "include": "#mql-keywords" },
+    { "include": "#mql-types" },
+    { "include": "#mql-events" },
+    { "include": "#mql-predefined" },
+    { "include": "source.cpp" }
+  ],
+  "repository": {
+    "mql-preprocessor": {
+      "patterns": [
+        {
+          "begin": "^\\s*(#(?:include|import))\\b",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.directive.include.mql5" }
+          },
+          "end": "$",
+          "patterns": [
+            { "name": "string.quoted.other.include.mql5", "match": "[<\"].*?[>\"]" },
+            { "include": "source.cpp" }
+          ]
+        },
+        {
+          "begin": "^\\s*(#property)\\b",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.directive.property.mql5" }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "name": "variable.parameter.property.mql5",
+              "match": "\\b(?:strict|library|indicator_chart_window|indicator_separate_window|indicator_buffers|indicator_plots|indicator_minimum|indicator_maximum|indicator_height|indicator_level[1-9][0-9]*|indicator_levelcolor|indicator_levelstyle|indicator_levelwidth|indicator_applied_price|indicator_type[1-9][0-9]*|indicator_color[1-9][0-9]*|indicator_width[1-9][0-9]*|indicator_style[1-9][0-9]*|indicator_label[1-9][0-9]*|script_show_confirm|script_show_inputs|description|icon|link|copyright|version)\\b"
+            },
+            { "include": "source.cpp" }
+          ]
+        },
+        {
+          "name": "keyword.control.directive.mql5",
+          "match": "^\\s*#(?:define|undef|ifdef|ifndef|if|elif|else|endif|resource)\\b"
+        }
+      ]
+    },
+    "mql-literals": {
+      "patterns": [
+        { "name": "constant.other.datetime.mql5", "match": "\\bD'[^']*'" },
+        { "name": "constant.other.color.mql5", "match": "\\bC'[^']*'" }
+      ]
+    },
+    "mql-keywords": {
+      "patterns": [
+        {
+          "name": "storage.modifier.mql5",
+          "match": "\\b(?:input|sinput|extern|export|virtual|override|final|const|static)\\b"
+        },
+        {
+          "name": "keyword.control.mql5",
+          "match": "\\b(?:if|else|switch|case|default|for|while|do|break|continue|return)\\b"
+        },
+        {
+          "name": "keyword.declaration.mql5",
+          "match": "\\b(?:class|struct|union|interface|enum|template|typename|typedef|public|protected|private)\\b"
+        },
+        {
+          "name": "keyword.operator.word.mql5",
+          "match": "\\b(?:new|delete|sizeof|dynamic_cast)\\b"
+        },
+        {
+          "name": "constant.language.mql5",
+          "match": "\\b(?:true|false|NULL|EMPTY|EMPTY_VALUE|WHOLE_ARRAY|INVALID_HANDLE|WRONG_VALUE)\\b"
+        }
+      ]
+    },
+    "mql-types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.mql5",
+          "match": "\\b(?:void|bool|char|uchar|short|ushort|int|uint|long|ulong|float|double|string|datetime|color)\\b"
+        },
+        {
+          "name": "storage.type.struct.mql5",
+          "match": "\\b(?:MqlDateTime|MqlParam|MqlRates|MqlTick|MqlBookInfo|MqlTradeRequest|MqlTradeResult|MqlTradeCheckResult|MqlTradeTransaction|MqlCalendarCountry|MqlCalendarEvent|MqlCalendarValue|MqlCalendarValueHistory|MqlCalendarValueLast|MqlCalendarValueLastByEvent)\\b"
+        }
+      ]
+    },
+    "mql-events": {
+      "name": "entity.name.function.event.mql5",
+      "match": "\\b(?:OnInit|OnStart|OnDeinit|OnTick|OnTimer|OnTrade|OnTradeTransaction|OnBookEvent|OnChartEvent|OnCalculate|OnTester|OnTesterInit|OnTesterPass|OnTesterDeinit)\\b"
+    },
+    "mql-predefined": {
+      "patterns": [
+        {
+          "name": "variable.language.mql5",
+          "match": "\\b_(?:Digits|LastError|Period|Point|RandomSeed|StopFlag|Symbol|UninitReason)\\b"
+        },
+        { "name": "constant.language.enum.mql5", "match": "\\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\\b" },
+        { "name": "constant.other.color.mql5", "match": "\\bclr[A-Z][A-Za-z0-9]*\\b" }
+      ]
+    }
+  }
+}

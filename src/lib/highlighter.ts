@@ -1,4 +1,11 @@
-import type { BundledLanguage, BundledTheme, Highlighter, ThemedToken } from "shiki";
+import type {
+  BundledLanguage,
+  BundledTheme,
+  Highlighter,
+  LanguageRegistration,
+  ThemedToken,
+} from "shiki";
+import mql5Grammar from "@/assets/languages/mql5.tmLanguage.json";
 
 export const LIGHT_THEME: BundledTheme = "github-light-default";
 export const DARK_THEME: BundledTheme = "github-dark-default";
@@ -6,6 +13,9 @@ export const DARK_THEME: BundledTheme = "github-dark-default";
 let highlighterPromise: Promise<Highlighter> | null = null;
 const loadedLangs = new Set<string>();
 const pendingLangs = new Map<string, Promise<boolean>>();
+const customLanguages: Record<string, LanguageRegistration> = {
+  mql5: mql5Grammar as unknown as LanguageRegistration,
+};
 
 function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
@@ -24,7 +34,16 @@ export function ensureLanguage(lang: string): Promise<boolean> {
   const task = (async () => {
     try {
       const hl = await getHighlighter();
-      await hl.loadLanguage(lang as BundledLanguage);
+      const customLanguage = customLanguages[lang];
+      if (customLanguage) {
+        // The MQL5 grammar layers MetaTrader-specific syntax over Shiki's
+        // complete C++ grammar, so its embedded language must be available.
+        await hl.loadLanguage("cpp");
+        await hl.loadLanguage(customLanguage);
+        loadedLangs.add("cpp");
+      } else {
+        await hl.loadLanguage(lang as BundledLanguage);
+      }
       loadedLangs.add(lang);
       return true;
     } catch {
@@ -108,6 +127,9 @@ const EXT_TO_LANG: Record<string, string> = {
   svelte: "svelte",
   dart: "dart",
   lua: "lua",
+  mq5: "mql5",
+  mqh: "mql5",
+  set: "ini",
 };
 
 const FILENAME_TO_LANG: Record<string, string> = {
