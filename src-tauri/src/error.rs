@@ -9,22 +9,13 @@ pub enum AppError {
     #[error("git error: {0}")]
     Git(String),
 
-    #[error("auth error: {0}")]
-    Auth(String),
-
-    #[error("keychain error: {0}")]
-    Keychain(String),
-
-    #[error("io error: {0}")]
-    Io(#[from] std::io::Error),
-
     #[error("{0}")]
     Other(String),
 }
 
 impl Serialize for AppError {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&self.to_string())
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
     }
 }
 

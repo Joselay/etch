@@ -23,8 +23,6 @@ export default defineConfig(async () => ({
           // Do not force Shiki into one chunk: its language grammars are
           // dynamic imports and should stay split so viewing one diff does not
           // load every supported grammar into the webview.
-          if (id.includes("/recharts/") || id.includes("/d3-")) return "charts";
-          if (id.includes("/motion/") || id.includes("/framer-motion/")) return "motion";
           if (id.includes("/date-fns/")) return "date-fns";
           if (id.includes("/material-icon-theme/")) return "material-icons";
           if (id.includes("/@radix-ui/") || id.includes("/radix-ui/")) return "radix";

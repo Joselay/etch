@@ -25,37 +25,15 @@ import { wordDiffRanges } from "@/lib/word-diff";
 import { useUiStore } from "@/stores/ui-store";
 import { useFileDiff } from "../hooks/use-commit-details";
 
-export type HunkAction = {
-  label: string;
-  onClick: (hunkIndex: number) => void;
-  destructive?: boolean;
-  disabled?: boolean;
-};
-
-export type LineAction = {
-  label: string;
-  // Receives the user's selection — pairs of hunk + line index — so the parent
-  // can build a partial-line patch and apply it.
-  onClick: (lines: ReadonlyArray<{ hunkIdx: number; lineIdx: number }>) => void;
-  destructive?: boolean;
-  disabled?: boolean;
-};
-
 type Props =
   | {
       repoPath: string;
       commitId: string;
       filePath: string;
       data?: undefined;
-      inline?: undefined;
-      hunkActions?: undefined;
-      lineActions?: undefined;
     }
   | {
       data: FileDiff;
-      inline?: boolean;
-      hunkActions?: HunkAction[];
-      lineActions?: LineAction[];
       repoPath?: undefined;
       commitId?: undefined;
       filePath?: undefined;
@@ -63,9 +41,7 @@ type Props =
 
 export function DiffViewer(props: Props) {
   if ("data" in props && props.data) {
-    return (
-      <DiffBody data={props.data} hunkActions={props.hunkActions} lineActions={props.lineActions} />
-    );
+    return <DiffBody data={props.data} />;
   }
   return (
     <FetchingDiff
@@ -375,15 +351,7 @@ function pairHunkLines(lines: DiffLine[]): SplitPair[] {
   return out;
 }
 
-function DiffBody({
-  data,
-  hunkActions,
-  lineActions,
-}: {
-  data: FileDiff;
-  hunkActions?: HunkAction[];
-  lineActions?: LineAction[];
-}) {
+function DiffBody({ data }: { data: FileDiff }) {
   const { hl, lang } = useHighlighter(data.path);
   const isDark = useIsDark();
   const {
@@ -409,62 +377,7 @@ function DiffBody({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeHunk, setActiveHunk] = useState(0);
 
-  // Per-line selection for the partial-staging UI. Constrained to a single
-  // hunk at a time so we don't have to renumber subsequent hunks when
-  // demoting unselected `-` lines back to context.
-  const [selection, setSelection] = useState<{ hunkIdx: number; lines: Set<number> } | null>(null);
-  const selectionAnchorRef = useRef<number | null>(null);
-
   const hunkCount = data.hunks.length;
-
-  // Drop selection whenever the underlying diff changes — e.g. file switch,
-  // status invalidation after a stage. Use the path + hunk count + first hunk
-  // header as a cheap fingerprint.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional fingerprint
-  useEffect(() => {
-    setSelection(null);
-    selectionAnchorRef.current = null;
-  }, [data.path, hunkCount, data.hunks[0]?.header]);
-
-  const canSelectLines = !!lineActions && lineActions.length > 0;
-
-  const handleLineClick = (hunkIdx: number, lineIdx: number, shiftKey: boolean) => {
-    if (!canSelectLines) return;
-    const line = data.hunks[hunkIdx]?.lines[lineIdx];
-    if (!line || line.kind === "context") return;
-
-    const sameHunk = selection?.hunkIdx === hunkIdx;
-    if (!sameHunk) {
-      setSelection({ hunkIdx, lines: new Set([lineIdx]) });
-      selectionAnchorRef.current = lineIdx;
-      return;
-    }
-
-    const current = selection.lines;
-    if (shiftKey && selectionAnchorRef.current !== null) {
-      const anchor = selectionAnchorRef.current;
-      const start = Math.min(anchor, lineIdx);
-      const end = Math.max(anchor, lineIdx);
-      const next = new Set(current);
-      for (let i = start; i <= end; i++) {
-        const l = data.hunks[hunkIdx].lines[i];
-        if (l && l.kind !== "context") next.add(i);
-      }
-      setSelection({ hunkIdx, lines: next });
-      return;
-    }
-
-    const next = new Set(current);
-    if (next.has(lineIdx)) next.delete(lineIdx);
-    else next.add(lineIdx);
-    if (next.size === 0) {
-      setSelection(null);
-      selectionAnchorRef.current = null;
-    } else {
-      setSelection({ hunkIdx, lines: next });
-      selectionAnchorRef.current = lineIdx;
-    }
-  };
 
   // Pre-compute, per hunk, a map keyed by line index → word-diff highlight
   // ranges. Only paired deletion/addition lines participate; everything else
@@ -578,7 +491,7 @@ function DiffBody({
       <div className="flex flex-col gap-2 p-4 text-xs">
         <div className="font-medium text-foreground">Git LFS pointer</div>
         <div className="text-muted-foreground">
-          The actual file is stored remotely. Use <code>git lfs pull</code> to fetch it.
+          The file content is not available in this repository checkout.
         </div>
         {ptr && (
           <dl className="mt-2 grid grid-cols-[max-content,1fr] gap-x-3 gap-y-1 font-mono">
@@ -685,49 +598,6 @@ function DiffBody({
           </Tooltip>
         </div>
       </div>
-      {selection && lineActions && lineActions.length > 0 && (
-        <div className="flex items-center justify-between gap-2 border-b bg-primary/5 px-3 py-1.5 text-xs">
-          <span className="text-muted-foreground">
-            <span className="font-medium text-foreground">{selection.lines.size}</span> line
-            {selection.lines.size === 1 ? "" : "s"} selected · hunk {selection.hunkIdx + 1}
-          </span>
-          <div className="flex items-center gap-1">
-            {lineActions.map((a) => (
-              <Button
-                key={a.label}
-                size="sm"
-                variant={a.destructive ? "ghost" : "default"}
-                className={cn(
-                  "h-6 px-2 text-xs",
-                  a.destructive && "text-muted-foreground hover:text-destructive",
-                )}
-                disabled={a.disabled || selection.lines.size === 0}
-                onClick={() => {
-                  const lines = [...selection.lines]
-                    .sort((x, y) => x - y)
-                    .map((lineIdx) => ({ hunkIdx: selection.hunkIdx, lineIdx }));
-                  a.onClick(lines);
-                  setSelection(null);
-                  selectionAnchorRef.current = null;
-                }}
-              >
-                {a.label}
-              </Button>
-            ))}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-xs text-muted-foreground"
-              onClick={() => {
-                setSelection(null);
-                selectionAnchorRef.current = null;
-              }}
-            >
-              Clear
-            </Button>
-          </div>
-        </div>
-      )}
       <div ref={scrollRef} className="flex-1 overflow-auto font-mono text-[12px] leading-5">
         <div style={{ height: totalSize, position: "relative", width: "100%" }}>
           {items.map((vi) => {
@@ -768,25 +638,6 @@ function DiffBody({
                       >
                         <Copy className="h-3 w-3" />
                       </Button>
-                      {hunkActions?.map((a) => (
-                        <Button
-                          key={a.label}
-                          size="sm"
-                          variant="ghost"
-                          className={
-                            a.destructive
-                              ? "h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
-                              : "h-6 px-2 text-xs"
-                          }
-                          disabled={a.disabled}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            a.onClick(row.hunkIdx);
-                          }}
-                        >
-                          {a.label}
-                        </Button>
-                      ))}
                     </div>
                   </div>
                 </div>
@@ -796,14 +647,6 @@ function DiffBody({
               const perHunk = wordDiffByHunk.get(row.hunkIdx);
               const leftRanges = row.leftIdx !== null ? perHunk?.get(row.leftIdx) : undefined;
               const rightRanges = row.rightIdx !== null ? perHunk?.get(row.rightIdx) : undefined;
-              const leftSelected =
-                row.leftIdx !== null &&
-                selection?.hunkIdx === row.hunkIdx &&
-                selection.lines.has(row.leftIdx);
-              const rightSelected =
-                row.rightIdx !== null &&
-                selection?.hunkIdx === row.hunkIdx &&
-                selection.lines.has(row.rightIdx);
               return (
                 <div
                   key={vi.key}
@@ -821,12 +664,6 @@ function DiffBody({
                     lang={lang}
                     isDark={isDark}
                     wordRanges={leftRanges}
-                    selected={leftSelected}
-                    onClick={
-                      canSelectLines && row.leftIdx !== null
-                        ? (shift) => handleLineClick(row.hunkIdx, row.leftIdx as number, shift)
-                        : undefined
-                    }
                   />
                   <SplitCell
                     line={row.right}
@@ -837,33 +674,17 @@ function DiffBody({
                     lang={lang}
                     isDark={isDark}
                     wordRanges={rightRanges}
-                    selected={rightSelected}
-                    onClick={
-                      canSelectLines && row.rightIdx !== null
-                        ? (shift) => handleLineClick(row.hunkIdx, row.rightIdx as number, shift)
-                        : undefined
-                    }
                   />
                 </div>
               );
             }
             const line = data.hunks[row.hunkIdx].lines[row.lineIdx];
-            const isSelectable = canSelectLines && line.kind !== "context";
-            const isSelected =
-              selection?.hunkIdx === row.hunkIdx && selection.lines.has(row.lineIdx);
             const baseBg =
               line.kind === "addition"
                 ? "bg-emerald-500/10"
                 : line.kind === "deletion"
                   ? "bg-rose-500/10"
                   : "";
-            const selectedBg =
-              line.kind === "addition"
-                ? "bg-emerald-500/25"
-                : line.kind === "deletion"
-                  ? "bg-rose-500/25"
-                  : "";
-            const bg = isSelected ? selectedBg : baseBg;
             const marker = line.kind === "addition" ? "+" : line.kind === "deletion" ? "-" : " ";
             const lineRanges = wordDiffByHunk.get(row.hunkIdx)?.get(row.lineIdx);
             const highlight: WordHighlight | undefined = lineRanges
@@ -873,38 +694,12 @@ function DiffBody({
                 }
               : undefined;
             return (
-              // biome-ignore lint/a11y/noStaticElementInteractions: role is set conditionally below
-              // biome-ignore lint/a11y/useAriaPropsSupportedByRole: aria-pressed is valid on role=button per WAI-ARIA 1.2
               <div
                 key={vi.key}
                 data-index={vi.index}
                 ref={virtualizer.measureElement}
                 style={style}
-                onClick={
-                  isSelectable
-                    ? (e) => handleLineClick(row.hunkIdx, row.lineIdx, e.shiftKey)
-                    : undefined
-                }
-                onKeyDown={
-                  isSelectable
-                    ? (e) => {
-                        if (e.key === " " || e.key === "Enter") {
-                          e.preventDefault();
-                          handleLineClick(row.hunkIdx, row.lineIdx, e.shiftKey);
-                        }
-                      }
-                    : undefined
-                }
-                role={isSelectable ? "button" : undefined}
-                tabIndex={isSelectable ? 0 : undefined}
-                aria-pressed={isSelectable ? isSelected : undefined}
-                className={cn(
-                  "flex",
-                  !wordWrap && "w-max min-w-full",
-                  bg,
-                  isSelectable && "cursor-pointer hover:brightness-110",
-                  isSelected && "ring-1 ring-inset ring-primary/50",
-                )}
+                className={cn("flex", !wordWrap && "w-max min-w-full", baseBg)}
               >
                 {showLineNumbers && (
                   <>
@@ -949,8 +744,6 @@ function SplitCell({
   lang,
   isDark,
   wordRanges,
-  selected,
-  onClick,
 }: {
   line: DiffLine | null;
   side: "left" | "right";
@@ -960,8 +753,6 @@ function SplitCell({
   lang: string | null;
   isDark: boolean;
   wordRanges?: Array<[number, number]>;
-  selected?: boolean;
-  onClick?: (shiftKey: boolean) => void;
 }) {
   // Empty side of a paired add/remove block — render a muted filler so both
   // columns stay aligned.
@@ -981,46 +772,20 @@ function SplitCell({
       </div>
     );
   }
-  const isSelectable = !!onClick && line.kind !== "context";
   const baseBg =
     line.kind === "addition"
       ? "bg-emerald-500/10"
       : line.kind === "deletion"
         ? "bg-rose-500/10"
         : "";
-  const selectedBg =
-    line.kind === "addition"
-      ? "bg-emerald-500/25"
-      : line.kind === "deletion"
-        ? "bg-rose-500/25"
-        : "";
-  const bg = selected ? selectedBg : baseBg;
   const marker = line.kind === "addition" ? "+" : line.kind === "deletion" ? "-" : " ";
   const lineNumber = side === "left" ? (line.oldLine ?? "") : (line.newLine ?? "");
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: role is set conditionally below
-    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: aria-pressed is valid on role=button per WAI-ARIA 1.2
     <div
-      onClick={isSelectable ? (e) => onClick?.(e.shiftKey) : undefined}
-      onKeyDown={
-        isSelectable
-          ? (e) => {
-              if (e.key === " " || e.key === "Enter") {
-                e.preventDefault();
-                onClick?.(e.shiftKey);
-              }
-            }
-          : undefined
-      }
-      role={isSelectable ? "button" : undefined}
-      tabIndex={isSelectable ? 0 : undefined}
-      aria-pressed={isSelectable ? selected : undefined}
       className={cn(
         "flex w-1/2 min-w-0 border-border/50",
         side === "left" ? "border-r" : "",
-        bg,
-        isSelectable && "cursor-pointer hover:brightness-110",
-        selected && "ring-1 ring-inset ring-primary/50",
+        baseBg,
       )}
     >
       {showLineNumbers && (

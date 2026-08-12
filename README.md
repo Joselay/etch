@@ -3,20 +3,24 @@
 
   <h1>Etch</h1>
 
-  <p><strong>A fast Git GUI for macOS, Windows & Linux.</strong></p>
+  <p><strong>A focused, read-only Git repository viewer for macOS, Windows & Linux.</strong></p>
 
-  <img src="./docs/assets/etch-demo.webp" alt="Etch demo — multi-repo tabs, ⌘K palette, word-level diff" width="100%" />
+  <img src="./docs/assets/etch-demo.webp" alt="Etch demo — multi-repository tabs, commit history, and word-level diffs" width="100%" />
 </div>
 
 > Personal project — built for my own use. Source is public under MIT, but I'm not accepting issues, PRs, or feature requests.
 
 ## Features
 
-- Lane-colored commit graph, word-level diffs with syntax highlighting, blame, bisect, reflog, conflict inspection.
-- Line- and hunk-level staging, GPG/SSH signed commits, amend / fixup / reword from the history view.
-- Branches, tags, stashes, worktrees, remotes; GitHub tokens stored in the native OS keychain.
-- Interactive rebase (reorder / squash / drop), multi-repo tabs that persist across restarts.
-- `⌘K` command palette.
+- Open and close local repositories without changing their contents.
+- Persistent, reorderable multi-repository tabs and a recent-repositories list.
+- Lane-colored commit history with search, commit metadata, changed-file lists, and syntax-highlighted word-level diffs.
+- Read-only working-tree status for staged, unstaged, untracked, and conflicted files, with diff viewing.
+- Automatic filesystem watching plus manual refresh.
+- Light, dark, and system themes.
+
+Etch intentionally does not stage, commit, discard, switch branches, or perform network and other
+repository-mutating operations. Use the Git CLI or another client when you need to make changes.
 
 ## Build from source
 

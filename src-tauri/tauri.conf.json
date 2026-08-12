@@ -31,8 +31,8 @@
     "targets": "all",
     "publisher": "Joselay",
     "category": "DeveloperTool",
-    "shortDescription": "A fast Git GUI for macOS, Windows and Linux.",
-    "longDescription": "Etch is a fast, keyboard-first Git GUI built with Tauri. Multi-repo tabs, lane-colored commit graph, word-level diffs, and a neutral palette.",
+    "shortDescription": "A focused, read-only Git repository viewer.",
+    "longDescription": "Etch is a read-only Git repository viewer built with Tauri, with persistent multi-repository tabs, commit history, working-tree status, and file diffs.",
     "copyright": "Copyright (c) 2026 Joselay",
     "homepage": "https://github.com/Joselay/etch",
     "icon": [

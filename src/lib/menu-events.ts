@@ -1,41 +1,21 @@
 export type MenuEventName =
-  | "new-repo"
   | "open-repo"
-  | "clone-repo"
   | "new-tab"
   | "close-repo"
-  | "settings"
   | "view-history"
   | "view-changes"
-  | "command-palette"
   | "toggle-word-wrap"
-  | "toggle-line-numbers"
-  | "fetch"
-  | "pull"
-  | "push"
-  | "new-branch"
-  | "new-tag"
-  | "create-stash";
+  | "toggle-line-numbers";
 
 export const MENU_EVENTS: readonly MenuEventName[] = [
-  "new-repo",
   "open-repo",
-  "clone-repo",
   "new-tab",
   "close-repo",
-  "settings",
   "view-history",
   "view-changes",
-  "command-palette",
   "toggle-word-wrap",
   "toggle-line-numbers",
-  "fetch",
-  "pull",
-  "push",
-  "new-branch",
-  "new-tag",
-  "create-stash",
-] as const;
+];
 
 const PREFIX = "etch:menu:";
 

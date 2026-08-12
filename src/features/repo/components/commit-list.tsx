@@ -1,30 +1,11 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import {
-  AlertTriangle,
-  Check,
-  Cloud,
-  Filter,
-  GitCommitVertical,
-  Pencil,
-  RotateCcw,
-  Search,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Copy, Pencil, Search, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -32,19 +13,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useIsDark } from "@/hooks/use-is-dark";
 import { type GraphRow, layoutGraph } from "@/lib/commit-graph";
 import { laneColor } from "@/lib/lane-colors";
-import type { BranchRef, CommitSummary, ResetMode, TagRef } from "@/lib/tauri";
+import type { CommitSummary } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useSelectionStore, useTabSelection } from "@/stores/selection-store";
 import { useUiStore } from "@/stores/ui-store";
-import { useCherryPick, useRevert } from "../hooks/use-branch-mutations";
 import { useCommitLog } from "../hooks/use-commit-log";
-import { useRefs } from "../hooks/use-refs";
 import { useStatus } from "../hooks/use-status";
 import { AuthorAvatar } from "./author-avatar";
-import { BisectStartDialog } from "./bisect-start-dialog";
-import { ResetConfirmDialog } from "./reset-confirm-dialog";
-
-type Props = { repoPath: string };
 
 const ROW_HEIGHT = 56;
 const LANE_WIDTH = 14;
@@ -52,330 +27,202 @@ const DOT_RADIUS = 4.5;
 const STROKE_WIDTH = 1.75;
 const GRAPH_PAD_LEFT = 8;
 const GRAPH_PAD_RIGHT = 6;
-const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
+const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"] as const;
 
-export function CommitList({ repoPath }: Props) {
-  const [rawQuery, setRawQuery] = useState("");
+export function CommitList({
+  repoPath,
+  headCommitId,
+}: {
+  repoPath: string;
+  headCommitId: string | null;
+}) {
+  const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [pathFilter, setPathFilter] = useState("");
-  const [debouncedPath, setDebouncedPath] = useState("");
-  const [pickaxe, setPickaxe] = useState("");
-  const [debouncedPickaxe, setDebouncedPickaxe] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedQuery(rawQuery), 200);
-    return () => window.clearTimeout(t);
-  }, [rawQuery]);
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedPath(pathFilter), 300);
-    return () => window.clearTimeout(t);
-  }, [pathFilter]);
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedPickaxe(pickaxe), 300);
-    return () => window.clearTimeout(t);
-  }, [pickaxe]);
-
-  const allBranches = useUiStore((s) => s.commitLogAllBranches);
-  const setAllBranches = useUiStore((s) => s.setCommitLogAllBranches);
-  const { data: refs } = useRefs(repoPath);
+  const allBranches = useUiStore((state) => state.commitLogAllBranches);
+  const setAllBranches = useUiStore((state) => state.setCommitLogAllBranches);
   const { data: status } = useStatus(repoPath);
-  const refsByCommit = useMemo(() => buildRefsByCommit(refs), [refs]);
-  const setView = useSelectionStore((s) => s.setView);
   const { selectedCommitId } = useTabSelection(repoPath);
-
-  const dirtyCount =
-    (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0);
-  const conflictCount = status?.conflicted.length ?? 0;
-  const hasWorkingTree = dirtyCount > 0 || conflictCount > 0;
-  const {
-    data,
-    isLoading,
-    error,
-    isFetching,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-    refetch,
-  } = useCommitLog(repoPath, debouncedQuery, allBranches, debouncedPath, debouncedPickaxe);
-  const parentRef = useRef<HTMLDivElement>(null);
-  const selectCommitFn = useSelectionStore((s) => s.selectCommit);
+  const selectCommitInStore = useSelectionStore((state) => state.selectCommit);
+  const setView = useSelectionStore((state) => state.setView);
   const selectCommit = useCallback(
-    (id: string | null, summary?: CommitSummary | null) => selectCommitFn(repoPath, id, summary),
-    [selectCommitFn, repoPath],
+    (commit: CommitSummary) => selectCommitInStore(repoPath, commit.id, commit),
+    [repoPath, selectCommitInStore],
   );
-  const revert = useRevert(repoPath);
-  const cherryPick = useCherryPick(repoPath);
-  const [resetTarget, setResetTarget] = useState<{ commit: CommitSummary; mode: ResetMode } | null>(
-    null,
-  );
-  const [bisectFrom, setBisectFrom] = useState<string | null>(null);
-  const requestReset = useCallback((commit: CommitSummary, mode: ResetMode) => {
-    setResetTarget({ commit, mode });
-  }, []);
 
-  // Follow HEAD: when the active branch's commit id changes (checkout, pull,
-  // commit), select and scroll to it so the list highlights where you are.
-  // We wait until the new log includes that commit before acting.
-  const headCommitId = refs?.headCommitId ?? null;
-  const prevHeadRef = useRef<string | null>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: virtualizer instance is intentionally excluded — it is recreated each render but its methods operate on the stable parentRef.
   useEffect(() => {
-    if (!headCommitId || !data) return;
-    if (prevHeadRef.current === headCommitId) return;
-    const idx = data.findIndex((c) => c.id === headCommitId);
-    if (idx === -1) return;
-    prevHeadRef.current = headCommitId;
-    selectCommit(headCommitId, data[idx]);
-    virtualizer.scrollToIndex(idx, { align: "start" });
-  }, [headCommitId, data, selectCommit]);
+    const timeout = window.setTimeout(() => setDebouncedQuery(query), 200);
+    return () => window.clearTimeout(timeout);
+  }, [query]);
 
-  // Fallback: ensure something is selected once the log loads, and recover if
-  // the previously selected commit disappears from the visible scope.
-  useEffect(() => {
-    if (!data || data.length === 0) return;
-    if (selectedCommitId && data.some((c) => c.id === selectedCommitId)) return;
-    selectCommit(data[0].id, data[0]);
-  }, [data, selectedCommitId, selectCommit]);
-
-  // Scroll the selected commit into view when selection changes from outside
-  // the list (e.g. clicking a branch/tag in the sidebar). align:"auto" is a
-  // no-op when the row is already visible, so it's safe on every change.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: virtualizer is recreated each render but operates on the stable parentRef.
-  useEffect(() => {
-    if (!selectedCommitId || !data) return;
-    const idx = data.findIndex((c) => c.id === selectedCommitId);
-    if (idx === -1) return;
-    virtualizer.scrollToIndex(idx, { align: "auto" });
-  }, [selectedCommitId, data]);
-
-  const rows = data ?? [];
-
-  const graph = useMemo(
-    () => layoutGraph(rows.map((r) => ({ id: r.id, parentIds: r.parentIds }))),
-    [rows],
-  );
-  const graphWidth = GRAPH_PAD_LEFT + Math.max(1, graph.width) * LANE_WIDTH + GRAPH_PAD_RIGHT;
-  const isDark = useIsDark();
-
-  // HEAD's lane color — used to tint the pinned working-tree row so it reads
-  // as "sitting on top of HEAD."
-  const headIdxForColor = headCommitId ? rows.findIndex((c) => c.id === headCommitId) : -1;
-  const headLaneColorIndex = headIdxForColor >= 0 ? (graph.rows[headIdxForColor]?.color ?? 0) : 0;
-  const headLaneColor = laneColor(headLaneColorIndex, isDark);
-
-  const workingTreeRow = hasWorkingTree ? (
-    <WorkingTreeRow
-      width={graphWidth}
-      color={headLaneColor}
-      dirtyCount={dirtyCount}
-      conflictCount={conflictCount}
-      onClick={() => setView(repoPath, "changes")}
-    />
-  ) : null;
-
+  const log = useCommitLog(repoPath, debouncedQuery, allBranches);
+  const rows = log.data ?? [];
+  const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 12,
-    measureElement: (el) => el.getBoundingClientRect().height,
+    measureElement: (element) => element.getBoundingClientRect().height,
   });
+  const graph = useMemo(
+    () => layoutGraph(rows.map((row) => ({ id: row.id, parentIds: row.parentIds }))),
+    [rows],
+  );
+  const graphWidth = GRAPH_PAD_LEFT + Math.max(1, graph.width) * LANE_WIDTH + GRAPH_PAD_RIGHT;
+  const isDark = useIsDark();
+
+  const dirtyCount =
+    (status?.staged.length ?? 0) +
+    (status?.unstaged.length ?? 0) +
+    (status?.untracked.length ?? 0) +
+    (status?.conflicted.length ?? 0);
+
+  useEffect(() => {
+    if (rows.length === 0) return;
+    if (selectedCommitId && rows.some((commit) => commit.id === selectedCommitId)) return;
+    const initial = rows.find((commit) => commit.id === headCommitId) ?? rows[0];
+    selectCommit(initial);
+  }, [rows, selectedCommitId, headCommitId, selectCommit]);
+
+  useEffect(() => {
+    if (!selectedCommitId) return;
+    const index = rows.findIndex((commit) => commit.id === selectedCommitId);
+    if (index >= 0) virtualizer.scrollToIndex(index, { align: "auto" });
+  }, [selectedCommitId, rows, virtualizer]);
 
   const virtualItems = virtualizer.getVirtualItems();
-  const lastVisibleIndex = virtualItems.length ? virtualItems[virtualItems.length - 1].index : 0;
+  const lastVisible = virtualItems[virtualItems.length - 1]?.index ?? 0;
   useEffect(() => {
-    if (!hasNextPage || isFetchingNextPage) return;
-    if (rows.length === 0) return;
-    if (lastVisibleIndex >= rows.length - 24) {
-      void fetchNextPage();
+    if (log.hasNextPage && !log.isFetchingNextPage && lastVisible >= rows.length - 24) {
+      void log.fetchNextPage();
     }
-  }, [lastVisibleIndex, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [lastVisible, rows.length, log]);
 
-  // Arrow-key navigation through the commit list. Skips when the user is
-  // typing in an input; otherwise fires globally so it works regardless of
-  // which non-editable element happens to hold focus (tab trigger, resize
-  // handle, sidebar item, etc.). WebKit doesn't focus buttons on click, so
-  // gating on focus-in-list would miss the common case.
   useEffect(() => {
     if (rows.length === 0) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const target = e.target;
-      if (target instanceof HTMLElement) {
-        const tag = target.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable) {
-          return;
-        }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.matches("input, textarea, select") || target.isContentEditable)
+      ) {
+        return;
       }
-      const key = e.key;
-      if (key !== "ArrowDown" && key !== "ArrowUp" && key !== "Home" && key !== "End") return;
-      const currentIdx = selectedCommitId ? rows.findIndex((r) => r.id === selectedCommitId) : -1;
-      let nextIdx = currentIdx;
-      if (key === "ArrowDown") nextIdx = Math.min(rows.length - 1, currentIdx + 1);
-      else if (key === "ArrowUp") nextIdx = Math.max(0, currentIdx - 1);
-      else if (key === "Home") nextIdx = 0;
-      else if (key === "End") nextIdx = rows.length - 1;
-      if (nextIdx === currentIdx || nextIdx < 0) return;
-      e.preventDefault();
-      selectCommit(rows[nextIdx].id, rows[nextIdx]);
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      const current = selectedCommitId
+        ? rows.findIndex((commit) => commit.id === selectedCommitId)
+        : -1;
+      let next = current;
+      if (event.key === "ArrowDown") next = Math.min(rows.length - 1, current + 1);
+      if (event.key === "ArrowUp") next = Math.max(0, current - 1);
+      if (event.key === "Home") next = 0;
+      if (event.key === "End") next = rows.length - 1;
+      if (next === current || next < 0) return;
+      event.preventDefault();
+      selectCommit(rows[next]);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [rows, selectedCommitId, selectCommit]);
 
-  const filterCount = (debouncedPath ? 1 : 0) + (debouncedPickaxe ? 1 : 0);
-  const searchBar = (
-    <div className="flex flex-col gap-2 border-b bg-background/95 p-2">
-      <div className="flex items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <ToggleGroup
-              type="single"
-              size="sm"
-              variant="outline"
-              value={allBranches ? "all" : "current"}
-              onValueChange={(v) => {
-                if (v === "all" || v === "current") setAllBranches(v === "all");
-              }}
-              className="h-7"
-            >
-              <ToggleGroupItem value="current" className="h-7 px-2.5 text-xs">
-                Current
-              </ToggleGroupItem>
-              <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
-                All
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </TooltipTrigger>
-          <TooltipContent>Toggle branch scope · ⌘⇧B</TooltipContent>
-        </Tooltip>
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={rawQuery}
-            onChange={(e) => setRawQuery(e.target.value)}
-            placeholder="Search message, author, or email"
-            className="h-7 pl-7 pr-7 text-xs"
-          />
-          {rawQuery && (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setRawQuery("")}
-              aria-label="Clear search"
-              className="-translate-y-1/2 absolute top-1/2 right-1 h-5 w-5"
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
-        {(debouncedQuery || debouncedPath || debouncedPickaxe) && (
-          <span className="text-xs text-muted-foreground">
-            {isFetching && !isFetchingNextPage
-              ? "Searching…"
-              : `${rows.length}${hasNextPage ? "+" : ""} match${rows.length === 1 ? "" : "es"}`}
-          </span>
+  const toolbar = (
+    <div className="flex items-center gap-2 border-b bg-background/95 p-2">
+      <ToggleGroup
+        type="single"
+        size="sm"
+        variant="outline"
+        value={allBranches ? "all" : "current"}
+        onValueChange={(value) => {
+          if (value) setAllBranches(value === "all");
+        }}
+      >
+        <ToggleGroupItem value="current" className="h-7 px-2.5 text-xs">
+          Current
+        </ToggleGroupItem>
+        <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
+          All history
+        </ToggleGroupItem>
+      </ToggleGroup>
+      <div className="relative flex-1">
+        <Search className="pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search message, author, or email"
+          className="h-7 pr-7 pl-7 text-xs"
+        />
+        {query && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="absolute top-1/2 right-1 h-5 w-5 -translate-y-1/2"
+            onClick={() => setQuery("")}
+            aria-label="Clear search"
+          >
+            <X />
+          </Button>
         )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7"
-              data-active={filterCount > 0 || advancedOpen || undefined}
-              onClick={() => setAdvancedOpen((v) => !v)}
-              aria-label="Toggle advanced filters"
-            >
-              <Filter className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {filterCount > 0
-              ? `Filters active (${filterCount}). Click to ${advancedOpen ? "hide" : "show"}.`
-              : "Filter by path or content"}
-          </TooltipContent>
-        </Tooltip>
       </div>
-      {advancedOpen && (
-        <div className="flex items-center gap-2 px-1">
-          <div className="relative flex-1">
-            <Input
-              value={pathFilter}
-              onChange={(e) => setPathFilter(e.target.value)}
-              placeholder="Path filter (e.g. src/feature.ts)"
-              className="h-7 pr-7 text-xs"
-            />
-            {pathFilter && (
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setPathFilter("")}
-                aria-label="Clear path filter"
-                className="-translate-y-1/2 absolute top-1/2 right-1 h-5 w-5"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-          <div className="relative flex-1">
-            <Input
-              value={pickaxe}
-              onChange={(e) => setPickaxe(e.target.value)}
-              placeholder="Pickaxe -S (find string in changes)"
-              className="h-7 pr-7 text-xs"
-            />
-            {pickaxe && (
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setPickaxe("")}
-                aria-label="Clear pickaxe"
-                className="-translate-y-1/2 absolute top-1/2 right-1 h-5 w-5"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-        </div>
+      {debouncedQuery && (
+        <span className="text-xs text-muted-foreground">
+          {log.isFetching && !log.isFetchingNextPage
+            ? "Searching…"
+            : `${rows.length}${log.hasNextPage ? "+" : ""} matches`}
+        </span>
       )}
     </div>
   );
 
-  if (isLoading && rows.length === 0) {
+  const workingTreeRow = dirtyCount > 0 && (
+    <button
+      type="button"
+      onClick={() => setView(repoPath, "changes")}
+      className="flex min-h-14 w-full items-center gap-3 border-b px-3 text-left hover:bg-muted/40"
+    >
+      <span className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed text-muted-foreground">
+        <Pencil className="h-3.5 w-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm italic">Uncommitted changes</div>
+        <div className="text-xs text-muted-foreground">
+          {dirtyCount} file{dirtyCount === 1 ? "" : "s"}
+        </div>
+      </div>
+      {(status?.conflicted.length ?? 0) > 0 && (
+        <Badge variant="destructive" className="gap-1">
+          <AlertTriangle />
+          {status?.conflicted.length} conflicted
+        </Badge>
+      )}
+    </button>
+  );
+
+  if (log.isLoading && rows.length === 0) {
     return (
       <div className="flex h-full flex-col">
-        {searchBar}
+        {toolbar}
         {workingTreeRow}
-        <div className="flex flex-1 flex-col">
-          {SKELETON_KEYS.map((k) => (
-            <div
-              key={k}
-              className="flex items-center gap-3 border-b border-border/50 px-3 py-2"
-              aria-hidden
-            >
-              <Skeleton className="h-3 w-3 shrink-0 rounded-full" />
-              <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
-              <Skeleton className="h-3 w-14 shrink-0" />
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <Skeleton className="h-3 w-3/5" />
-                <Skeleton className="h-2.5 w-2/5" />
-              </div>
-            </div>
-          ))}
-        </div>
+        {SKELETON_KEYS.map((key) => (
+          <div key={key} className="flex items-center gap-3 border-b p-3">
+            <Skeleton className="h-3 w-10" />
+            <Skeleton className="h-7 w-7 rounded-full" />
+            <Skeleton className="h-8 flex-1" />
+          </div>
+        ))}
       </div>
     );
   }
 
-  if (error) {
+  if (log.error) {
     return (
       <div className="flex h-full flex-col">
-        {searchBar}
+        {toolbar}
         {workingTreeRow}
         <ErrorState
-          error={error as Error}
+          error={log.error as Error}
           title="Failed to load commits"
-          onRetry={() => void refetch()}
+          onRetry={() => void log.refetch()}
         />
       </div>
     );
@@ -384,9 +231,9 @@ export function CommitList({ repoPath }: Props) {
   if (rows.length === 0) {
     return (
       <div className="flex h-full flex-col">
-        {searchBar}
+        {toolbar}
         {workingTreeRow}
-        <div className="p-4 text-muted-foreground text-sm">
+        <div className="p-4 text-sm text-muted-foreground">
           {debouncedQuery ? `No commits match “${debouncedQuery}”.` : "No commits yet."}
         </div>
       </div>
@@ -395,506 +242,141 @@ export function CommitList({ repoPath }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      {searchBar}
+      {toolbar}
       {workingTreeRow}
       <div ref={parentRef} className="flex-1 overflow-auto">
-        <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
-          {virtualItems.map((v) => {
-            const c = rows[v.index];
-            const g = graph.rows[v.index];
-            const isSelected = c.id === selectedCommitId;
+        <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+          {virtualItems.map((item) => {
+            const commit = rows[item.index];
+            const graphRow = graph.rows[item.index];
             return (
-              <ContextMenu key={c.id}>
-                <ContextMenuTrigger asChild>
-                  <div
-                    data-index={v.index}
-                    ref={virtualizer.measureElement}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${v.start}px)`,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => selectCommit(c.id, c)}
-                      className={cn(
-                        "group/row flex w-full items-center gap-3 border-b border-border/50 pr-2 text-left",
-                        isSelected ? "bg-primary/10" : "hover:bg-muted/40",
-                      )}
-                      style={{ minHeight: ROW_HEIGHT }}
-                    >
-                      <GraphCell row={g} height={ROW_HEIGHT} width={graphWidth} isDark={isDark} />
-                      <AuthorAvatar name={c.authorName} email={c.authorEmail} size={28} />
-                      <code className="w-[4.5rem] shrink-0 font-mono text-xs text-muted-foreground">
-                        {c.shortId}
-                      </code>
-                      <div className="min-w-0 flex-1 py-1.5">
-                        <div className="truncate text-sm">{c.summary}</div>
-                        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                          <RefChips
-                            entry={refsByCommit.get(c.id)}
-                            laneColor={laneColor(g.color, isDark)}
-                          />
-                          <span className="truncate">
-                            {c.authorName} ·{" "}
-                            {formatDistanceToNow(new Date(c.timestamp * 1000), {
-                              addSuffix: true,
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                      {/* biome-ignore lint/a11y/noStaticElementInteractions: container only swallows row-button click bubbling */}
-                      <span
-                        role="presentation"
-                        className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              disabled={cherryPick.isPending}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                cherryPick.mutate(c.id);
-                              }}
-                              aria-label="Cherry-pick this commit"
-                            >
-                              <GitCommitVertical className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Cherry-pick</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              disabled={revert.isPending}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                revert.mutate({ commit: c.id });
-                              }}
-                              aria-label="Revert this commit"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Revert</TooltipContent>
-                        </Tooltip>
-                      </span>
-                    </button>
+              <div
+                key={commit.id}
+                data-index={item.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${item.start}px)`,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => selectCommit(commit)}
+                  className={cn(
+                    "group flex min-h-14 w-full items-center gap-3 border-b border-border/50 pr-2 text-left",
+                    selectedCommitId === commit.id ? "bg-primary/10" : "hover:bg-muted/40",
+                  )}
+                >
+                  <GraphCell row={graphRow} width={graphWidth} isDark={isDark} />
+                  <AuthorAvatar name={commit.authorName} email={commit.authorEmail} size={28} />
+                  <code className="w-[4.5rem] shrink-0 text-xs text-muted-foreground">
+                    {commit.shortId}
+                  </code>
+                  <div className="min-w-0 flex-1 py-1.5">
+                    <div className="truncate text-sm">{commit.summary}</div>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {commit.authorName} ·{" "}
+                      {formatDistanceToNow(new Date(commit.timestamp * 1000), { addSuffix: true })}
+                    </div>
                   </div>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem
-                    disabled={cherryPick.isPending}
-                    onSelect={() => cherryPick.mutate(c.id)}
-                  >
-                    <GitCommitVertical />
-                    Cherry-pick onto current
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    disabled={revert.isPending}
-                    onSelect={() => revert.mutate({ commit: c.id })}
-                  >
-                    <RotateCcw />
-                    Revert this commit
-                  </ContextMenuItem>
-                  <ContextMenuSub>
-                    <ContextMenuSubTrigger>Reset current branch here</ContextMenuSubTrigger>
-                    <ContextMenuSubContent>
-                      <ContextMenuItem onSelect={() => requestReset(c, "soft")}>
-                        Soft (keep index + worktree)
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        variant="destructive"
-                        onSelect={() => requestReset(c, "mixed")}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void navigator.clipboard
+                            .writeText(commit.id)
+                            .then(() => toast.success("Commit SHA copied", { duration: 1200 }));
+                        }}
+                        aria-label="Copy commit SHA"
                       >
-                        Mixed (unstage but keep worktree)
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        variant="destructive"
-                        onSelect={() => requestReset(c, "hard")}
-                      >
-                        <AlertTriangle />
-                        Hard (discard everything)
-                      </ContextMenuItem>
-                    </ContextMenuSubContent>
-                  </ContextMenuSub>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem onSelect={() => setBisectFrom(c.id)}>
-                    Start bisect from here…
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem
-                    onSelect={() => {
-                      void navigator.clipboard.writeText(c.id);
-                    }}
-                  >
-                    Copy commit SHA
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
+                        <Copy />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copy commit SHA</TooltipContent>
+                  </Tooltip>
+                </button>
+              </div>
             );
           })}
         </div>
-        {isFetchingNextPage && (
-          <div className="p-2 text-center text-muted-foreground text-xs">Loading more…</div>
+        {log.isFetchingNextPage && (
+          <div className="p-2 text-center text-xs text-muted-foreground">Loading more…</div>
         )}
       </div>
-      <ResetConfirmDialog
-        repoPath={repoPath}
-        commit={resetTarget?.commit ?? null}
-        mode={resetTarget?.mode ?? "hard"}
-        open={resetTarget !== null}
-        onOpenChange={(o) => !o && setResetTarget(null)}
-      />
-      <BisectStartDialog
-        repoPath={repoPath}
-        open={bisectFrom !== null}
-        onOpenChange={(o) => !o && setBisectFrom(null)}
-        badDefault={bisectFrom ?? undefined}
-      />
     </div>
   );
 }
-
-type RefEntry = {
-  detachedHead: boolean;
-  locals: BranchRef[];
-  remotes: BranchRef[];
-  tags: TagRef[];
-};
-
-function buildRefsByCommit(
-  refs: ReturnType<typeof useRefs>["data"] | undefined,
-): Map<string, RefEntry> {
-  const map = new Map<string, RefEntry>();
-  if (!refs) return map;
-  const get = (id: string): RefEntry => {
-    let v = map.get(id);
-    if (!v) {
-      v = { detachedHead: false, locals: [], remotes: [], tags: [] };
-      map.set(id, v);
-    }
-    return v;
-  };
-  for (const b of refs.local) if (b.target) get(b.target).locals.push(b);
-  for (const b of refs.remote) if (b.target) get(b.target).remotes.push(b);
-  for (const t of refs.tags) if (t.target) get(t.target).tags.push(t);
-  if (refs.isDetached && refs.headCommitId) get(refs.headCommitId).detachedHead = true;
-  return map;
-}
-
-const MAX_CHIPS = 4;
-
-const RefChips = memo(function RefChips({
-  entry,
-  laneColor,
-}: {
-  entry: RefEntry | undefined;
-  laneColor: string;
-}) {
-  if (!entry) return null;
-  const items: React.ReactElement[] = [];
-  const fullList: string[] = [];
-
-  if (entry.detachedHead) {
-    items.push(
-      <span key="detached-head" className="text-[10px] italic">
-        detached HEAD
-      </span>,
-    );
-    fullList.push("detached HEAD");
-  }
-
-  // A local branch is "in sync" when a same-named remote-tracking branch sits
-  // on the same commit. We collapse them into one chip and append a cloud
-  // sub-icon plus the remote name(s) ("origin", or "origin, upstream" if
-  // multiple remotes track the same branch) — explicit without repeating the
-  // branch name.
-  const remotesByLocalName = new Map<string, string[]>();
-  for (const r of entry.remotes) {
-    if (!r.remote) continue;
-    const list = remotesByLocalName.get(r.name) ?? [];
-    list.push(r.remote);
-    remotesByLocalName.set(r.name, list);
-  }
-
-  for (const b of entry.locals) {
-    const syncedRemotes = remotesByLocalName.get(b.name);
-    const syncedLabel = syncedRemotes?.join(", ");
-    if (b.isHead) {
-      items.push(
-        <span
-          key={`l:${b.fullName}`}
-          className="inline-flex h-[18px] items-center gap-1 rounded-full px-2 font-bold text-[10px] leading-none"
-          style={{
-            color: laneColor,
-            backgroundColor: `color-mix(in srgb, ${laneColor} 28%, transparent)`,
-          }}
-        >
-          <Check className="h-2.5 w-2.5" strokeWidth={3} />
-          {b.name}
-          {syncedLabel && (
-            <>
-              <Cloud className="h-2.5 w-2.5 opacity-70" strokeWidth={2.5} />
-              <span className="font-normal opacity-80">{syncedLabel}</span>
-            </>
-          )}
-        </span>,
-      );
-      fullList.push(
-        syncedLabel ? `HEAD → ${b.name} (synced with ${syncedLabel})` : `HEAD → ${b.name}`,
-      );
-    } else {
-      items.push(
-        <span
-          key={`l:${b.fullName}`}
-          className="inline-flex h-[18px] items-center gap-1 rounded-full bg-muted/60 px-2 font-medium text-[10px] text-muted-foreground leading-none"
-        >
-          {b.name}
-          {syncedLabel && (
-            <>
-              <Cloud className="h-2.5 w-2.5 opacity-70" strokeWidth={2.5} />
-              <span className="font-normal opacity-80">{syncedLabel}</span>
-            </>
-          )}
-        </span>,
-      );
-      fullList.push(syncedLabel ? `${b.name} (synced with ${syncedLabel})` : b.name);
-    }
-  }
-
-  // Suppress origin/<name> when a same-named local branch sits on the same
-  // commit — the in-sync local chip already carries the cloud sub-icon.
-  const localNames = new Set(entry.locals.map((b) => b.name));
-  for (const r of entry.remotes) {
-    if (localNames.has(r.name)) continue;
-    const label = r.remote ? `${r.remote}/${r.name}` : r.name;
-    items.push(
-      <span
-        key={`r:${r.fullName}`}
-        className="inline-flex h-[18px] items-center gap-1 rounded-full bg-muted/60 px-2 font-medium text-[10px] text-muted-foreground leading-none"
-      >
-        <Cloud className="h-2.5 w-2.5" strokeWidth={2.5} />
-        {label}
-      </span>,
-    );
-    fullList.push(label);
-  }
-
-  for (const t of entry.tags) {
-    items.push(
-      <span
-        key={`t:${t.fullName}`}
-        className="inline-flex h-[18px] items-center rounded-sm bg-muted px-1.5 text-[10px] text-muted-foreground leading-none"
-      >
-        #{t.name}
-      </span>,
-    );
-    fullList.push(`#${t.name}`);
-  }
-
-  if (items.length === 0) return null;
-
-  const visible = items.slice(0, MAX_CHIPS);
-  const overflow = items.length - visible.length;
-
-  const cluster = (
-    <div className="flex shrink-0 items-center gap-1.5">
-      {visible}
-      {overflow > 0 && <span className="text-[10px]">+{overflow} more</span>}
-    </div>
-  );
-
-  if (overflow === 0 && items.length === 1) return cluster;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{cluster}</TooltipTrigger>
-      <TooltipContent>
-        <div className="flex flex-col gap-0.5 text-xs">
-          {fullList.map((s) => (
-            <span key={s}>{s}</span>
-          ))}
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  );
-});
-
-const WorkingTreeRow = memo(function WorkingTreeRow({
-  width,
-  color,
-  dirtyCount,
-  conflictCount,
-  onClick,
-}: {
-  width: number;
-  color: string;
-  dirtyCount: number;
-  conflictCount: number;
-  onClick: () => void;
-}) {
-  const height = 56;
-  const mid = height / 2;
-  const x = GRAPH_PAD_LEFT + LANE_WIDTH / 2;
-  const ariaLabel =
-    conflictCount > 0
-      ? `Working tree: ${dirtyCount} change${dirtyCount === 1 ? "" : "s"}, ${conflictCount} conflict${conflictCount === 1 ? "" : "s"}. Open Changes view.`
-      : `Working tree: ${dirtyCount} uncommitted change${dirtyCount === 1 ? "" : "s"}. Open Changes view.`;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={ariaLabel}
-      title="Open in Changes view"
-      className="group/wt flex w-full items-center gap-3 border-b border-border/50 pr-2 text-left hover:bg-muted/40"
-      style={{ minHeight: height }}
-    >
-      <svg
-        width={width}
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
-        className="shrink-0"
-        aria-hidden="true"
-      >
-        <line
-          x1={x}
-          y1={mid}
-          x2={x}
-          y2={height}
-          stroke={color}
-          strokeWidth={STROKE_WIDTH}
-          strokeDasharray="3 3"
-          opacity={0.7}
-        />
-        <circle
-          cx={x}
-          cy={mid}
-          r={DOT_RADIUS}
-          fill="var(--background)"
-          stroke={color}
-          strokeWidth={STROKE_WIDTH}
-          strokeDasharray="2.5 2"
-        />
-      </svg>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/50 bg-muted/30 text-muted-foreground">
-        <Pencil className="h-3.5 w-3.5" />
-      </span>
-      <code className="w-[4.5rem] shrink-0 font-mono text-xs italic text-muted-foreground">
-        working
-      </code>
-      <div className="min-w-0 flex-1 py-1.5">
-        <div className="truncate text-sm italic text-foreground/90">Uncommitted changes</div>
-        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-          {dirtyCount > 0 && (
-            <span>
-              {dirtyCount} change{dirtyCount === 1 ? "" : "s"}
-            </span>
-          )}
-          {conflictCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="h-4 gap-1 px-1.5 text-[10px] font-normal not-italic"
-            >
-              <AlertTriangle className="h-3 w-3" />
-              {conflictCount} conflict{conflictCount === 1 ? "" : "s"}
-            </Badge>
-          )}
-        </div>
-      </div>
-      <span className="ml-1 shrink-0 text-xs text-muted-foreground opacity-0 transition-opacity group-hover/wt:opacity-100">
-        Open →
-      </span>
-    </button>
-  );
-});
 
 const GraphCell = memo(function GraphCell({
   row,
-  height,
   width,
   isDark,
 }: {
   row: GraphRow;
-  height: number;
   width: number;
   isDark: boolean;
 }) {
-  const mid = height / 2;
-  const laneX = (i: number) => GRAPH_PAD_LEFT + i * LANE_WIDTH + LANE_WIDTH / 2;
+  const mid = ROW_HEIGHT / 2;
+  const laneX = (index: number) => GRAPH_PAD_LEFT + index * LANE_WIDTH + LANE_WIDTH / 2;
+  const top: React.ReactElement[] = [];
+  const bottom: React.ReactElement[] = [];
 
-  const topSegments: React.ReactElement[] = [];
-  const bottomSegments: React.ReactElement[] = [];
-
-  for (let i = 0; i < row.incomingLanes.length; i++) {
-    if (!row.incomingLanes[i]) continue;
-    const x = laneX(i);
-    topSegments.push(
+  for (let index = 0; index < row.incomingLanes.length; index++) {
+    if (!row.incomingLanes[index]) continue;
+    top.push(
       <line
-        key={`t-${i}`}
-        x1={x}
+        key={`top-${index}`}
+        x1={laneX(index)}
         y1={0}
-        x2={x}
+        x2={laneX(index)}
         y2={mid}
-        stroke={laneColor(row.incomingColors[i], isDark)}
+        stroke={laneColor(row.incomingColors[index], isDark)}
         strokeWidth={STROKE_WIDTH}
-        opacity={i === row.lane ? 1 : 0.8}
       />,
     );
   }
 
-  // Outgoing (bottom half).
-  const parentLaneSet = new Set(row.parentLanes);
-  for (let i = 0; i < row.outgoingLanes.length; i++) {
-    if (!row.outgoingLanes[i]) continue;
-    const x = laneX(i);
-    const color = laneColor(row.outgoingColors[i], isDark);
-    const isParentEdge = parentLaneSet.has(i);
-    if (isParentEdge) {
-      const from = { x: laneX(row.lane), y: mid };
-      const to = { x, y: height };
-      const c1y = mid + (height - mid) * 0.55;
-      const path = `M ${from.x} ${from.y} C ${from.x} ${c1y}, ${to.x} ${c1y}, ${to.x} ${to.y}`;
-      bottomSegments.push(
-        <path key={`b-${i}`} d={path} stroke={color} strokeWidth={STROKE_WIDTH} fill="none" />,
+  const parentLanes = new Set(row.parentLanes);
+  for (let index = 0; index < row.outgoingLanes.length; index++) {
+    if (!row.outgoingLanes[index]) continue;
+    const x = laneX(index);
+    const color = laneColor(row.outgoingColors[index], isDark);
+    if (parentLanes.has(index)) {
+      bottom.push(
+        <path
+          key={`bottom-${index}`}
+          d={`M ${laneX(row.lane)} ${mid} C ${laneX(row.lane)} ${mid + 12}, ${x} ${mid + 12}, ${x} ${ROW_HEIGHT}`}
+          stroke={color}
+          strokeWidth={STROKE_WIDTH}
+          fill="none"
+        />,
       );
     } else {
-      bottomSegments.push(
+      bottom.push(
         <line
-          key={`b-${i}`}
+          key={`bottom-${index}`}
           x1={x}
           y1={mid}
           x2={x}
-          y2={height}
+          y2={ROW_HEIGHT}
           stroke={color}
           strokeWidth={STROKE_WIDTH}
-          opacity={0.8}
         />,
       );
     }
   }
 
   return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      className="shrink-0"
-      aria-hidden="true"
-    >
-      {topSegments}
-      {bottomSegments}
+    <svg width={width} height={ROW_HEIGHT} className="shrink-0" aria-hidden="true">
+      {top}
+      {bottom}
       <circle
         cx={laneX(row.lane)}
         cy={mid}

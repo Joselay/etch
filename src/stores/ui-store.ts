@@ -3,8 +3,7 @@ import { persist } from "zustand/middleware";
 
 export type DiffLayout = "unified" | "split";
 
-// Persisted user preferences. Transient dialog state lives in
-// `modal-store.ts` so it isn't restored on app launch.
+// Preferences persisted in the webview's local storage.
 type UiState = {
   diffWordWrap: boolean;
   toggleDiffWordWrap: () => void;

@@ -7,12 +7,6 @@ pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let app_menu = SubmenuBuilder::new(handle, "Etch")
         .about(None)
         .separator()
-        .item(
-            &MenuItemBuilder::with_id("settings", "Preferences…")
-                .accelerator("CmdOrCtrl+,")
-                .build(handle)?,
-        )
-        .separator()
         .services()
         .separator()
         .hide()
@@ -24,26 +18,16 @@ pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
     let file_menu = SubmenuBuilder::new(handle, "File")
         .item(
-            &MenuItemBuilder::with_id("new-repo", "New Repository…")
-                .accelerator("CmdOrCtrl+N")
-                .build(handle)?,
-        )
-        .item(
             &MenuItemBuilder::with_id("open-repo", "Open Repository…")
                 .accelerator("CmdOrCtrl+O")
                 .build(handle)?,
         )
         .item(
-            &MenuItemBuilder::with_id("clone-repo", "Clone Repository…")
-                .accelerator("CmdOrCtrl+Shift+O")
-                .build(handle)?,
-        )
-        .separator()
-        .item(
             &MenuItemBuilder::with_id("new-tab", "New Tab")
                 .accelerator("CmdOrCtrl+T")
                 .build(handle)?,
         )
+        .separator()
         .item(
             &MenuItemBuilder::with_id("close-repo", "Close Repository")
                 .accelerator("CmdOrCtrl+W")
@@ -65,47 +49,11 @@ pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&MenuItemBuilder::with_id("view-history", "History").build(handle)?)
         .item(&MenuItemBuilder::with_id("view-changes", "Changes").build(handle)?)
         .separator()
-        .item(
-            &MenuItemBuilder::with_id("command-palette", "Command Palette…")
-                .accelerator("CmdOrCtrl+K")
-                .build(handle)?,
-        )
-        .separator()
         .item(&MenuItemBuilder::with_id("toggle-word-wrap", "Toggle Diff Word Wrap").build(handle)?)
         .item(
             &MenuItemBuilder::with_id("toggle-line-numbers", "Toggle Diff Line Numbers")
                 .build(handle)?,
         )
-        .build()?;
-
-    let repo_menu = SubmenuBuilder::new(handle, "Repository")
-        .item(
-            &MenuItemBuilder::with_id("fetch", "Fetch")
-                .accelerator("CmdOrCtrl+Shift+F")
-                .build(handle)?,
-        )
-        .item(
-            &MenuItemBuilder::with_id("pull", "Pull")
-                .accelerator("CmdOrCtrl+Shift+L")
-                .build(handle)?,
-        )
-        .item(
-            &MenuItemBuilder::with_id("push", "Push")
-                .accelerator("CmdOrCtrl+Shift+P")
-                .build(handle)?,
-        )
-        .separator()
-        .item(
-            &MenuItemBuilder::with_id("new-branch", "New Branch…")
-                .accelerator("CmdOrCtrl+B")
-                .build(handle)?,
-        )
-        .item(
-            &MenuItemBuilder::with_id("new-tag", "New Tag…")
-                .accelerator("CmdOrCtrl+Shift+T")
-                .build(handle)?,
-        )
-        .item(&MenuItemBuilder::with_id("create-stash", "Stash Changes…").build(handle)?)
         .build()?;
 
     let window_menu = SubmenuBuilder::new(handle, "Window")
@@ -116,18 +64,10 @@ pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .build()?;
 
     MenuBuilder::new(handle)
-        .items(&[
-            &app_menu,
-            &file_menu,
-            &edit_menu,
-            &view_menu,
-            &repo_menu,
-            &window_menu,
-        ])
+        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu])
         .build()
 }
 
 pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
-    let id = event.id().0.as_str();
-    let _ = app.emit(&format!("menu://{}", id), ());
+    let _ = app.emit(&format!("menu://{}", event.id().0), ());
 }

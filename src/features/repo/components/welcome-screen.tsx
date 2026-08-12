@@ -1,22 +1,9 @@
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { formatDistanceToNow } from "date-fns";
-import {
-  FolderGit2,
-  GitBranch,
-  GitCommitHorizontal,
-  Layers,
-  Plus,
-  Settings,
-  Sparkles,
-  Workflow,
-  X,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { FolderGit2, GitCommitHorizontal, RefreshCw, X } from "lucide-react";
+import { useMemo } from "react";
 import etchLogo from "@/assets/etch-logo.png";
-import { ProviderIcon } from "@/components/provider-icon";
-import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Empty,
   EmptyDescription,
@@ -33,61 +20,28 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
-import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { detectRemoteProvider } from "@/lib/remote-provider";
 import { cn } from "@/lib/utils";
-import { useModalStore } from "@/stores/modal-store";
 import { useRepoStore } from "@/stores/repo-store";
-import pkg from "../../../../package.json";
-import { useCloneRepo, useInitRepo } from "../hooks/use-clone-repo";
 import { useOpenRepo } from "../hooks/use-open-repo";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-const modKey = isMac ? "⌘" : "Ctrl";
 
 export function WelcomeScreen() {
   const { pickAndOpen, openAt, isOpening, error } = useOpenRepo();
-  const { initAt, isInitializing } = useInitRepo();
-  const { isCloning } = useCloneRepo();
-  const recents = useRepoStore((s) => s.recentRepos);
-  const remoteUrls = useRepoStore((s) => s.remoteUrls);
-  const removeRecent = useRepoStore((s) => s.removeRecent);
-  const hydrate = useRepoStore((s) => s.hydrate);
-  const openSettings = useModalStore((s) => s.openSettings);
-  const setCloneOpen = useModalStore((s) => s.setCloneOpen);
+  const recents = useRepoStore((state) => state.recentRepos);
+  const removeRecent = useRepoStore((state) => state.removeRecent);
 
-  const pickAndInit = useCallback(async () => {
-    const selected = await openDialog({ directory: true, multiple: false });
-    if (typeof selected === "string") {
-      try {
-        await initAt(selected);
-      } catch {
-        // toast already shown
-      }
-    }
-  }, [initAt]);
-
-  useEffect(() => {
-    void hydrate();
-  }, [hydrate]);
-
-  const hasRecents = recents.length > 0;
-
-  const recentsList = useMemo(() => {
-    const commonPrefix = longestCommonDirPrefix(recents.map((r) => r.path));
-    return recents.map((r) => {
-      const name = r.path.split(/[\\/]/).filter(Boolean).pop() ?? r.path;
-      return {
-        ...r,
-        name,
-        displayPath: compactPath(r.path, commonPrefix),
-        remoteUrl: r.remoteUrl ?? remoteUrls[r.path],
-      };
-    });
-  }, [recents, remoteUrls]);
+  const recentItems = useMemo(
+    () =>
+      recents.map((repo) => ({
+        ...repo,
+        name: repo.path.split(/[\\/]/).filter(Boolean).pop() ?? repo.path,
+      })),
+    [recents],
+  );
 
   return (
     <main className="relative h-full min-h-0 flex-1 overflow-y-auto bg-background text-foreground">
@@ -96,270 +50,106 @@ export function WelcomeScreen() {
         aria-hidden
         className={cn("absolute inset-x-0 top-0 z-20", isMac ? "h-8" : "h-6")}
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--color-muted)_0%,_transparent_55%)] opacity-60"
-      />
-
       <div className={cn("absolute right-4 z-30", isMac ? "top-10" : "top-4")}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="icon" variant="ghost" onClick={openSettings} aria-label="Settings">
-              <Settings className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            <span className="flex items-center gap-2">
-              Settings
-              <KbdGroup>
-                <Kbd>{modKey}</Kbd>
-                <Kbd>,</Kbd>
-              </KbdGroup>
-            </span>
-          </TooltipContent>
-        </Tooltip>
+        <ThemeToggle />
       </div>
-
       <div
         className={cn(
-          "relative mx-auto flex max-w-4xl flex-col gap-10 px-6 pb-16",
+          "relative mx-auto flex max-w-3xl flex-col gap-8 px-6 pb-16",
           isMac ? "pt-20" : "pt-16",
         )}
       >
         <header className="flex flex-col items-center gap-4 text-center">
           <img
             src={etchLogo}
-            alt=""
-            aria-hidden
+            alt="Etch"
             className="h-16 w-16 rounded-2xl object-cover shadow-sm ring-1 ring-border"
           />
-          <Badge variant="secondary" className="gap-1.5">
-            <Sparkles className="h-3 w-3" />v{pkg.version}
-          </Badge>
-          <h1 className="text-5xl font-semibold tracking-tight">
-            Welcome to <span className="font-bold">Etch</span>
-          </h1>
-          <p className="max-w-xl text-balance text-muted-foreground">
-            A fast, native git client for macOS, Windows &amp; Linux — built to make branching,
-            committing, and reviewing code feel effortless.
+          <h1 className="text-4xl font-semibold tracking-tight">Etch</h1>
+          <p className="max-w-lg text-balance text-muted-foreground">
+            Browse local Git history and inspect committed or uncommitted changes without modifying
+            your repository.
           </p>
-          <div className="mt-2 flex flex-wrap justify-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="lg" onClick={() => void pickAndOpen()} disabled={isOpening}>
-                  {isOpening ? <Spinner /> : <FolderGit2 />}
-                  {isOpening ? "Opening…" : "Open repository"}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <KbdGroup>
-                  <Kbd>{modKey}</Kbd>
-                  <Kbd>O</Kbd>
-                </KbdGroup>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => setCloneOpen(true)}
-                  disabled={isCloning}
-                >
-                  {isCloning ? <Spinner /> : <Plus />}
-                  {isCloning ? "Cloning…" : "Clone from URL"}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <KbdGroup>
-                  <Kbd>{modKey}</Kbd>
-                  <Kbd>⇧</Kbd>
-                  <Kbd>O</Kbd>
-                </KbdGroup>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => void pickAndInit()}
-                  disabled={isInitializing}
-                >
-                  {isInitializing ? <Spinner /> : <Workflow />}
-                  {isInitializing ? "Initializing…" : "New repository"}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <KbdGroup>
-                  <Kbd>{modKey}</Kbd>
-                  <Kbd>N</Kbd>
-                </KbdGroup>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+          <Button size="lg" onClick={() => void pickAndOpen()} disabled={isOpening}>
+            {isOpening ? <Spinner /> : <FolderGit2 />}
+            {isOpening ? "Opening…" : "Open local repository"}
+          </Button>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </header>
 
         <Separator />
 
-        {hasRecents ? (
-          <>
-            <section>
-              <div className="mb-3 flex items-baseline justify-between">
-                <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-                  Recent
-                </h2>
-                <span className="text-xs text-muted-foreground">
-                  {recents.length} {recents.length === 1 ? "repository" : "repositories"}
-                </span>
-              </div>
-              <ItemGroup>
-                {recentsList.map((r) => (
-                  <Item
-                    key={r.path}
-                    variant="outline"
-                    size="sm"
-                    className="group cursor-pointer transition-colors hover:bg-accent/60"
-                    onClick={() => void openAt(r.path)}
-                  >
-                    <ItemMedia variant="icon">
-                      {r.remoteUrl && detectRemoteProvider(r.remoteUrl).kind !== "unknown" ? (
-                        <ProviderIcon url={r.remoteUrl} className="h-4 w-4" />
-                      ) : (
-                        <FolderGit2 />
-                      )}
-                    </ItemMedia>
-                    <ItemContent>
-                      <ItemTitle>{r.name}</ItemTitle>
-                      <ItemDescription className="truncate" title={r.path}>
-                        {r.displayPath}
-                      </ItemDescription>
-                    </ItemContent>
-                    <ItemActions className="items-center gap-1">
-                      <span
-                        className="text-xs text-muted-foreground tabular-nums"
-                        title={new Date(r.lastOpenedAt).toLocaleString()}
-                      >
-                        {formatDistanceToNow(new Date(r.lastOpenedAt), { addSuffix: true })}
-                      </span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void removeRecent(r.path);
-                            }}
-                            aria-label={`Remove ${r.name} from recents`}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Remove from recents</TooltipContent>
-                      </Tooltip>
-                    </ItemActions>
-                  </Item>
-                ))}
-              </ItemGroup>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-3">
-              <FeatureCard
-                icon={<GitBranch className="h-5 w-5 text-muted-foreground" />}
-                title="Visual branching"
-                description="See your branch graph the way you think about it."
-              />
-              <FeatureCard
-                icon={<GitCommitHorizontal className="h-5 w-5 text-muted-foreground" />}
-                title="Stage line by line"
-                description="Craft clean commits without leaving the diff."
-              />
-              <FeatureCard
-                icon={<Layers className="h-5 w-5 text-muted-foreground" />}
-                title="Stash, branch, rebase"
-                description="Switch context fast and keep history clean."
-              />
-            </section>
-          </>
+        {recentItems.length > 0 ? (
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+                Recent repositories
+              </h2>
+              <span className="text-xs text-muted-foreground">{recentItems.length}</span>
+            </div>
+            <ItemGroup>
+              {recentItems.map((repo) => (
+                <Item
+                  key={repo.path}
+                  variant="outline"
+                  size="sm"
+                  className="group cursor-pointer transition-colors hover:bg-accent/60"
+                  onClick={() => void openAt(repo.path)}
+                >
+                  <ItemMedia variant="icon">
+                    <FolderGit2 />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>{repo.name}</ItemTitle>
+                    <ItemDescription className="truncate" title={repo.path}>
+                      {repo.path}
+                    </ItemDescription>
+                  </ItemContent>
+                  <ItemActions className="items-center gap-1">
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {formatDistanceToNow(new Date(repo.lastOpenedAt), { addSuffix: true })}
+                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void removeRecent(repo.path);
+                          }}
+                          aria-label={`Remove ${repo.name} from recents`}
+                        >
+                          <X />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Remove from recents</TooltipContent>
+                    </Tooltip>
+                  </ItemActions>
+                </Item>
+              ))}
+            </ItemGroup>
+          </section>
         ) : (
-          <>
-            <section className="grid gap-4 md:grid-cols-3">
-              <FeatureCard
-                icon={<GitBranch className="h-5 w-5 text-muted-foreground" />}
-                title="Visual branching"
-                description="See your branch graph the way you think about it."
-              />
-              <FeatureCard
-                icon={<GitCommitHorizontal className="h-5 w-5 text-muted-foreground" />}
-                title="Stage line by line"
-                description="Craft clean commits without leaving the diff."
-              />
-              <FeatureCard
-                icon={<Layers className="h-5 w-5 text-muted-foreground" />}
-                title="Stash, branch, rebase"
-                description="Switch context fast and keep history clean."
-              />
-            </section>
-
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <FolderGit2 />
-                </EmptyMedia>
-                <EmptyTitle>No recent repositories</EmptyTitle>
-                <EmptyDescription>
-                  Open a local folder, clone a remote, or start fresh — your recents will appear
-                  here.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          </>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <GitCommitHorizontal />
+              </EmptyMedia>
+              <EmptyTitle>No recent repositories</EmptyTitle>
+              <EmptyDescription>
+                Open a local repository to inspect its history and working tree.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
+
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <RefreshCw className="h-3.5 w-3.5" />
+          Refresh at any time with {isMac ? "⌘R" : "Ctrl+R"} or F5.
+        </div>
       </div>
     </main>
-  );
-}
-
-function longestCommonDirPrefix(paths: string[]): string {
-  if (paths.length < 2) return "";
-  const sep = paths[0].includes("\\") ? "\\" : "/";
-  const split = paths.map((p) => p.split(sep));
-  const minLen = Math.min(...split.map((s) => s.length));
-  let i = 0;
-  while (i < minLen - 1 && split.every((s) => s[i] === split[0][i])) i++;
-  return split[0].slice(0, i).join(sep);
-}
-
-function compactPath(path: string, commonPrefix: string): string {
-  const sep = path.includes("\\") ? "\\" : "/";
-  if (commonPrefix && path.startsWith(commonPrefix + sep)) {
-    return `…${sep}${path.slice(commonPrefix.length + sep.length)}`;
-  }
-  // Fallback: collapse /Users/<name> or \Users\<name> to ~
-  const homeMatch = path.match(/^(?:[A-Za-z]:)?[\\/]Users[\\/][^\\/]+/);
-  if (homeMatch) return `~${path.slice(homeMatch[0].length)}`;
-  return path;
-}
-
-function FeatureCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <Card className="transition-colors hover:border-foreground/20">
-      <CardHeader>
-        {icon}
-        <CardTitle className="mt-2">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-    </Card>
   );
 }

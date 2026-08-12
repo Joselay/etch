@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -10,12 +10,10 @@ use tauri::{AppHandle, Emitter};
 
 #[derive(Default)]
 pub struct WatcherState {
-    pub inner: Mutex<HashMap<PathBuf, ActiveWatcher>>,
+    inner: Mutex<HashMap<PathBuf, ActiveWatcher>>,
 }
 
-pub struct ActiveWatcher {
-    // Option lets Drop stop the OS watcher (and disconnect its callback) before
-    // waiting for the aggregation thread.
+struct ActiveWatcher {
     watcher: Option<RecommendedWatcher>,
     worker: Option<JoinHandle<()>>,
 }
@@ -37,149 +35,117 @@ struct RepoChange {
     refs: bool,
     index: bool,
     worktree: bool,
-    state: bool,
-    stash: bool,
-    config: bool,
-    bisect: bool,
 }
 
 impl RepoChange {
     fn any(&self) -> bool {
-        self.head
-            || self.refs
-            || self.index
-            || self.worktree
-            || self.state
-            || self.stash
-            || self.config
-            || self.bisect
+        self.head || self.refs || self.index || self.worktree
     }
-    fn merge(&mut self, o: &RepoChange) {
-        self.head |= o.head;
-        self.refs |= o.refs;
-        self.index |= o.index;
-        self.worktree |= o.worktree;
-        self.state |= o.state;
-        self.stash |= o.stash;
-        self.config |= o.config;
-        self.bisect |= o.bisect;
+
+    fn merge(&mut self, other: &Self) {
+        self.head |= other.head;
+        self.refs |= other.refs;
+        self.index |= other.index;
+        self.worktree |= other.worktree;
     }
 }
 
-fn classify(path: &Path, root: &Path) -> RepoChange {
-    let mut c = RepoChange::default();
-    let Ok(rel) = path.strip_prefix(root) else {
-        return c;
+fn classify_git_path(path: &Path, git_dir: &Path) -> RepoChange {
+    let mut change = RepoChange::default();
+    let Ok(relative) = path.strip_prefix(git_dir) else {
+        return change;
     };
-    let mut comps = rel.components();
-    let first = comps.next();
-    let inside_git = matches!(first, Some(Component::Normal(s)) if s == ".git");
-    if !inside_git {
-        // Drop high-churn generated trees before they enter the debounce
-        // queue. Filtering them only after debouncing can retain thousands of
-        // events and is a major CPU/memory cost during builds.
-        let ignored = match first {
-            Some(Component::Normal(s)) => matches!(
-                s.to_str(),
-                Some(
-                    "node_modules"
-                        | "target"
-                        | "dist"
-                        | "build"
-                        | "coverage"
-                        | "out"
-                        | ".next"
-                        | ".turbo"
-                        | ".cache"
-                        | ".venv"
-                )
-            ),
-            _ => false,
-        };
-        if ignored {
-            return c;
-        }
-        c.worktree = true;
-        return c;
-    }
-    let rest: Vec<_> = comps.collect();
-    if rest.is_empty() {
-        return c;
-    }
-    let first_name = match &rest[0] {
-        Component::Normal(s) => s.to_string_lossy().to_string(),
-        _ => return c,
+    let Some(name) = relative
+        .components()
+        .next()
+        .and_then(|part| part.as_os_str().to_str())
+    else {
+        return change;
     };
-    match first_name.as_str() {
-        "HEAD" => {
-            c.head = true;
-        }
-        "ORIG_HEAD" | "FETCH_HEAD" => {
-            c.refs = true;
-        }
-        "refs" => {
-            c.refs = true;
-            c.head = true;
-            if rest.len() >= 2 {
-                if let Component::Normal(kind) = &rest[1] {
-                    if kind.to_string_lossy() == "stash" {
-                        c.stash = true;
-                    }
-                }
-            }
-        }
-        "packed-refs" => {
-            c.refs = true;
-            c.head = true;
-        }
+    match name {
+        "HEAD" => change.head = true,
+        "refs" | "packed-refs" | "FETCH_HEAD" | "ORIG_HEAD" => change.refs = true,
         "index" => {
-            c.index = true;
-            c.worktree = true;
+            change.index = true;
+            change.worktree = true;
         }
-        "MERGE_HEAD" | "MERGE_MSG" | "REBASE_HEAD" | "CHERRY_PICK_HEAD" | "REVERT_HEAD" => {
-            c.state = true;
-        }
-        "rebase-merge" | "rebase-apply" => {
-            c.state = true;
-        }
-        "BISECT_LOG" | "BISECT_START" | "BISECT_TERMS" | "BISECT_NAMES" | "BISECT_EXPECTED_REV" => {
-            c.state = true;
-            c.bisect = true;
-        }
-        "config" => {
-            c.config = true;
-        }
-        // .git/objects, .git/logs and similar are noise — covered by ref/index updates.
         _ => {}
     }
-    c
+    change
+}
+
+fn classify(path: &Path, root: &Path, git_dir: &Path, common_dir: &Path) -> RepoChange {
+    if path.starts_with(git_dir) {
+        return classify_git_path(path, git_dir);
+    }
+    if path.starts_with(common_dir) {
+        return classify_git_path(path, common_dir);
+    }
+
+    let mut change = RepoChange::default();
+    let Ok(relative) = path.strip_prefix(root) else {
+        return change;
+    };
+    let first = relative
+        .components()
+        .next()
+        .and_then(|part| part.as_os_str().to_str());
+    if matches!(
+        first,
+        Some(
+            ".git"
+                | "node_modules"
+                | "target"
+                | "dist"
+                | "build"
+                | "coverage"
+                | "out"
+                | ".next"
+                | ".turbo"
+                | ".cache"
+                | ".venv"
+        )
+    ) {
+        return change;
+    }
+    change.worktree = true;
+    change
 }
 
 pub fn watch(app: AppHandle, state: &WatcherState, path: &Path) -> Result<(), String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut active = state.inner.lock().map_err(|e| e.to_string())?;
     let key = path.to_path_buf();
-    if guard.contains_key(&key) {
+    if active.contains_key(&key) {
         return Ok(());
     }
 
+    let repo = gix::open(path).map_err(|e| e.to_string())?;
     let root = path.to_path_buf();
+    let git_dir = repo.git_dir().to_path_buf();
+    let common_dir = repo.common_dir().to_path_buf();
     let path_string = path.to_string_lossy().to_string();
     let pending = Arc::new(Mutex::new(RepoChange {
         path: path_string.clone(),
         ..RepoChange::default()
     }));
-    // A bounded wake-up channel coalesces bursts without retaining one message
-    // per file. The actual flags are merged in `pending`.
     let (wake_tx, wake_rx) = mpsc::sync_channel(1);
     let callback_pending = Arc::clone(&pending);
+    let callback_root = root.clone();
+    let callback_git_dir = git_dir.clone();
+    let callback_common_dir = common_dir.clone();
     let mut watcher = RecommendedWatcher::new(
-        move |res: Result<Event, notify::Error>| {
-            let Ok(event) = res else {
+        move |result: Result<Event, notify::Error>| {
+            let Ok(event) = result else {
                 return;
             };
             let mut batch = RepoChange::default();
             for event_path in &event.paths {
-                batch.merge(&classify(event_path, &root));
+                batch.merge(&classify(
+                    event_path,
+                    &callback_root,
+                    &callback_git_dir,
+                    &callback_common_dir,
+                ));
             }
             if !batch.any() {
                 return;
@@ -194,15 +160,24 @@ pub fn watch(app: AppHandle, state: &WatcherState, path: &Path) -> Result<(), St
     .map_err(|e| e.to_string())?;
 
     watcher
-        .watch(path, RecursiveMode::Recursive)
+        .watch(&root, RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
+    if !common_dir.starts_with(&root) {
+        watcher
+            .watch(&common_dir, RecursiveMode::Recursive)
+            .map_err(|e| e.to_string())?;
+    }
+    if !git_dir.starts_with(&root) && !git_dir.starts_with(&common_dir) {
+        watcher
+            .watch(&git_dir, RecursiveMode::Recursive)
+            .map_err(|e| e.to_string())?;
+    }
 
     let worker = std::thread::Builder::new()
         .name("etch repo watcher".to_string())
         .spawn(move || {
             const DEBOUNCE: Duration = Duration::from_millis(600);
             while wake_rx.recv().is_ok() {
-                // Wait until the burst has been quiet for one debounce period.
                 while wake_rx.recv_timeout(DEBOUNCE).is_ok() {}
                 let emitted = {
                     let Ok(mut change) = pending.lock() else {
@@ -222,7 +197,7 @@ pub fn watch(app: AppHandle, state: &WatcherState, path: &Path) -> Result<(), St
         })
         .map_err(|e| e.to_string())?;
 
-    guard.insert(
+    active.insert(
         key,
         ActiveWatcher {
             watcher: Some(watcher),
@@ -233,28 +208,38 @@ pub fn watch(app: AppHandle, state: &WatcherState, path: &Path) -> Result<(), St
 }
 
 pub fn unwatch(state: &WatcherState, path: &Path) -> Result<(), String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
-    guard.remove(path);
+    state.inner.lock().map_err(|e| e.to_string())?.remove(path);
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::classify;
-    use std::path::Path;
+    use super::*;
 
     #[test]
-    fn ignores_generated_worktrees_before_debouncing() {
+    fn classifies_worktree_and_generated_paths() {
         let root = Path::new("/repo");
-        assert!(!classify(Path::new("/repo/node_modules/pkg/index.js"), root).any());
-        assert!(!classify(Path::new("/repo/target/debug/app"), root).any());
-        assert!(classify(Path::new("/repo/src/main.rs"), root).worktree);
+        let git = root.join(".git");
+        assert!(classify(&root.join("src/main.rs"), root, &git, &git).worktree);
+        assert!(!classify(&root.join("target/debug/app"), root, &git, &git).any());
     }
 
     #[test]
-    fn classifies_git_index_changes() {
-        let change = classify(Path::new("/repo/.git/index"), Path::new("/repo"));
-        assert!(change.index);
-        assert!(change.worktree);
+    fn classifies_repository_metadata() {
+        let root = Path::new("/repo");
+        let git = root.join(".git");
+        assert!(classify(&git.join("HEAD"), root, &git, &git).head);
+        assert!(classify(&git.join("refs/heads/main"), root, &git, &git).refs);
+        let index = classify(&git.join("index"), root, &git, &git);
+        assert!(index.index && index.worktree);
+    }
+
+    #[test]
+    fn classifies_linked_worktree_metadata() {
+        let root = Path::new("/worktree");
+        let common = Path::new("/repo/.git");
+        let git = common.join("worktrees/worktree");
+        assert!(classify(&git.join("HEAD"), root, &git, common).head);
+        assert!(classify(&common.join("refs/heads/main"), root, &git, common).refs);
     }
 }
